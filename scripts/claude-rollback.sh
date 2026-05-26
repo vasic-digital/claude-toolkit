@@ -7,5 +7,12 @@
 
 set -euo pipefail
 
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve LIB_DIR through any symlinks (install.sh symlinks into ~/.local/bin).
+_cma_src="${BASH_SOURCE[0]}"
+while [ -L "$_cma_src" ]; do
+  _cma_tgt="$(readlink "$_cma_src")"
+  case "$_cma_tgt" in /*) _cma_src="$_cma_tgt" ;; *) _cma_src="$(dirname "$_cma_src")/$_cma_tgt" ;; esac
+done
+LIB_DIR="$(cd "$(dirname "$_cma_src")" && pwd)"
+unset _cma_src _cma_tgt
 exec "$LIB_DIR/claude-unify.sh" --rollback "$@"

@@ -14,7 +14,26 @@
 
 set -euo pipefail
 
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# macOS ships bash 3.2 which lacks `mapfile`. If a newer bash is available
+# (Homebrew installs it at /opt/homebrew/bin/bash on Apple Silicon, or
+# /usr/local/bin/bash on Intel), re-exec with it. Otherwise tell the user
+# how to install it.
+if (( BASH_VERSINFO[0] < 4 )); then
+  for newer in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$newer" ]] && exec "$newer" "$0" "$@"
+  done
+  echo "claude-toolkit requires bash 4+. Install via: brew install bash" >&2
+  exit 1
+fi
+
+# Resolve LIB_DIR through any symlinks (install.sh symlinks into ~/.local/bin).
+_cma_src="${BASH_SOURCE[0]}"
+while [ -L "$_cma_src" ]; do
+  _cma_tgt="$(readlink "$_cma_src")"
+  case "$_cma_tgt" in /*) _cma_src="$_cma_tgt" ;; *) _cma_src="$(dirname "$_cma_src")/$_cma_tgt" ;; esac
+done
+LIB_DIR="$(cd "$(dirname "$_cma_src")" && pwd)"
+unset _cma_src _cma_tgt
 # shellcheck source=lib.sh
 source "$LIB_DIR/lib.sh"
 
@@ -46,7 +65,7 @@ done
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc
 # and .zshrc once; existing shells need a manual reload.
 PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
-for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+for rc in "${CMA_RC_FILES[@]}"; do
   [[ -f "$rc" ]] || continue
   if ! grep -F -q "$PATH_LINE" "$rc"; then
     printf '\n# Claude multi-account: ensure ~/.local/bin is on PATH\n%s\n' "$PATH_LINE" >> "$rc"
@@ -85,8 +104,9 @@ migrate_inline_aliases() {
     rm -f "$tmp"
   fi
 }
-migrate_inline_aliases "$HOME/.bashrc"
-migrate_inline_aliases "$HOME/.zshrc"
+for rc in "${CMA_RC_FILES[@]}"; do
+  migrate_inline_aliases "$rc"
+done
 
 # 5. Unify whatever accounts exist now.
 if (( $(cma_detect_accounts | wc -l) > 0 )); then

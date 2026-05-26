@@ -5,7 +5,22 @@
 
 set -euo pipefail
 
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if (( BASH_VERSINFO[0] < 4 )); then
+  for newer in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$newer" ]] && exec "$newer" "$0" "$@"
+  done
+  echo "claude-list-accounts requires bash 4+. Install via: brew install bash" >&2
+  exit 1
+fi
+
+# Resolve LIB_DIR through any symlinks (install.sh symlinks into ~/.local/bin).
+_cma_src="${BASH_SOURCE[0]}"
+while [ -L "$_cma_src" ]; do
+  _cma_tgt="$(readlink "$_cma_src")"
+  case "$_cma_tgt" in /*) _cma_src="$_cma_tgt" ;; *) _cma_src="$(dirname "$_cma_src")/$_cma_tgt" ;; esac
+done
+LIB_DIR="$(cd "$(dirname "$_cma_src")" && pwd)"
+unset _cma_src _cma_tgt
 # shellcheck source=lib.sh
 source "$LIB_DIR/lib.sh"
 

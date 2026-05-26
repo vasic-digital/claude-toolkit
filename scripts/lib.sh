@@ -4,6 +4,15 @@
 
 set -euo pipefail
 
+# Which rc files to source the alias file from. macOS interactive shell is
+# zsh; touching .bashrc there just creates noise the user has to clean up.
+# On Linux we keep both because either may be the login shell.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CMA_RC_FILES=("$HOME/.zshrc")
+else
+  CMA_RC_FILES=("$HOME/.bashrc" "$HOME/.zshrc")
+fi
+
 # Resolve paths the user can override. SHARED_DIR is the single canonical
 # location for cross-account state; ALIAS_FILE is the rc-sourced file we
 # manage aliases through; ACCOUNT_PREFIX is the dir-name prefix for new
@@ -80,7 +89,7 @@ export CLAUDE_BIN="${CLAUDE_BIN_DEFAULT}"
 EOF
   fi
   local rc src_line="source \"$ALIAS_FILE\""
-  for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+  for rc in "${CMA_RC_FILES[@]}"; do
     [[ -f "$rc" ]] || continue
     if ! grep -F -q "$src_line" "$rc"; then
       printf '\n# Claude multi-account aliases\n%s\n' "$src_line" >> "$rc"
