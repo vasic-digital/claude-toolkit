@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# install.sh — One-shot bootstrap for the Claude multi-account toolkit.
+# Idempotent; safe to re-run after pulling updates.
+#
+# What it does, in order:
+#   1. Detect tooling (jq, rsync, awk, pandoc) and fail fast if missing.
+#   2. Symlink every script into ~/.local/bin (creates the dir if needed).
+#   3. Ensure ~/.local/bin is on PATH for future shells.
+#   4. Create the managed alias file at $ALIAS_FILE and source it from
+#      ~/.bashrc and ~/.zshrc (whichever exist).
+#   5. Run claude-unify.sh to merge any existing account dirs.
+#   6. Run claude-export-docs.sh to refresh the PDF/HTML alongside the
+#      markdown doc.
+
+set -euo pipefail
+
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$LIB_DIR/lib.sh"
+
+cma_log "platform: $(cma_os)"
+
+# 1. Required tooling. pandoc is needed only for doc export; the rest are
+# load-bearing for unify/add-account.
+for t in rsync jq awk; do cma_require "$t"; done
+command -v pandoc >/dev/null 2>&1 || cma_warn "pandoc not found — PDF/HTML export will be skipped"
+
+# 2. Symlink the scripts onto PATH.
+BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+mkdir -p "$BIN_DIR"
+for f in "$LIB_DIR"/claude-*.sh; do
+  name="$(basename "$f" .sh)"
+  link="$BIN_DIR/$name"
+  if [[ -L "$link" || -e "$link" ]]; then
+    if [[ "$(readlink -f "$link" 2>/dev/null)" != "$(readlink -f "$f")" ]]; then
+      mv "$link" "${link}.preunify.$(date +%Y%m%d%H%M%S)"
+      ln -s "$f" "$link"
+      cma_log "linked $link -> $f"
+    fi
+  else
+    ln -s "$f" "$link"
+    cma_log "linked $link -> $f"
+  fi
+done
+
+# 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc
+# and .zshrc once; existing shells need a manual reload.
+PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+  [[ -f "$rc" ]] || continue
+  if ! grep -F -q "$PATH_LINE" "$rc"; then
+    printf '\n# Claude multi-account: ensure ~/.local/bin is on PATH\n%s\n' "$PATH_LINE" >> "$rc"
+    cma_log "added PATH line to $rc"
+  fi
+done
+
+# 4. Alias file + rc sourcing.
+cma_ensure_alias_file
+
+# Re-register any pre-existing aliases from $HOME/.bashrc into the managed
+# alias file, then comment out the originals so they're not duplicated.
+migrate_inline_aliases() {
+  local rc="$1"
+  [[ -f "$rc" ]] || return 0
+  local tmp; tmp="$(mktemp)"
+  local changed=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^alias[[:space:]]+(claude[0-9a-zA-Z_-]+)=.*CLAUDE_CONFIG_DIR=([^[:space:]\"]+) ]]; then
+      local a="${BASH_REMATCH[1]}" d="${BASH_REMATCH[2]}"
+      d="${d//\"/}"
+      d="${d/#\$HOME/$HOME}"
+      d="${d/#~/$HOME}"
+      cma_write_alias "$a" "$d"
+      printf '# migrated to %s: %s\n' "$ALIAS_FILE" "$line" >> "$tmp"
+      changed=1
+    else
+      printf '%s\n' "$line" >> "$tmp"
+    fi
+  done < "$rc"
+  if (( changed )); then
+    cp -p "$rc" "${rc}.preunify.$(date +%Y%m%d%H%M%S)"
+    mv "$tmp" "$rc"
+    cma_log "migrated inline claude* aliases in $rc -> $ALIAS_FILE"
+  else
+    rm -f "$tmp"
+  fi
+}
+migrate_inline_aliases "$HOME/.bashrc"
+migrate_inline_aliases "$HOME/.zshrc"
+
+# 5. Unify whatever accounts exist now.
+if (( $(cma_detect_accounts | wc -l) > 0 )); then
+  cma_log "running claude-unify.sh"
+  "$LIB_DIR/claude-unify.sh"
+else
+  cma_warn "no ~/${ACCOUNT_PREFIX}* dirs detected — add one with claude-add-account.sh"
+fi
+
+# 6. Refresh docs if pandoc is available.
+if command -v pandoc >/dev/null 2>&1 && [[ -f "$HOME/Documents/Claude_Multi_Account_Fine_Tuning.md" ]]; then
+  cma_log "running claude-export-docs.sh"
+  "$LIB_DIR/claude-export-docs.sh" || cma_warn "doc export failed (continuing)"
+fi
+
+cat <<EOF
+
+[done] claude-multi-account installed.
+
+  Scripts on PATH:  $BIN_DIR/claude-{unify,add-account,remove-account,list-accounts,rollback,export-docs}
+  Alias file:       $ALIAS_FILE
+  Shared store:     $SHARED_DIR
+
+Open a new shell (or run: source $ALIAS_FILE) so the aliases load, then:
+  claude-list-accounts            # see what's wired up
+  claude-add-account              # add another account interactively
+EOF
