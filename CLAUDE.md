@@ -42,13 +42,19 @@ The unification model (`claude-unify.sh`) is:
    - **`history.jsonl`**: concat all sources + `awk` line-dedupe.
    - **`settings.json`**: `jq -s` deep-merge where right-most wins for top-level keys, except `enabledPlugins` which is a union across all accounts.
    - **`stats-cache.json`**: pick the newest by mtime.
-3. `PRIVATE_ITEMS` (`.credentials.json`, `.claude.json`, `mcp-needs-auth-cache.json`) are intentionally **never** shared — they're account-locked auth/state.
+3. `PRIVATE_ITEMS` (`.credentials.json`, `.claude.json`, `mcp-needs-auth-cache.json`) stay per-account (no symlinks into shared). But `.claude.json` is **partially synced** at unify time: `cma_merge_claude_json` deep-merges every account's file so the `projects` subtree (session/MCP/memory index), UX state, and caches are unioned across accounts. Auth keys defined in `CMA_CLAUDE_JSON_PRIVATE_KEYS` (`userID`, `oauthAccount`, `firstStartTime`, `claudeCodeFirstTokenDate`) are written back to each account untouched.
 4. Plugin manifests (`installed_plugins.json`, `known_marketplaces.json`) get JSON-rewritten so absolute `installPath` / `installLocation` values point into `$SHARED_DIR/plugins/...` after the move.
 5. `~/.claude/CLAUDE.md` (user-scope memory) is promoted into `$SHARED_DIR/CLAUDE.md` and symlinked from every account dir + `$DEFAULT_DIR`.
 
 Every destructive replacement uses the `backup_and_remove` helper, which renames the target to `<path>.preunify.<timestamp>`. `claude-rollback.sh` / `claude-unify.sh --rollback` walks those backups to undo.
 
 `claude-add-account.sh` mirrors the same `SHARED_ITEMS` list when wiring up a brand-new account, so a fresh account starts in lockstep without re-running unify. Keep the two lists in sync when adding new shared items.
+
+**Runtime sync (`claude-sync-state.sh`)**: the alias file installs a `cma_run` shell function that wraps every `claudeN` invocation with a pre-launch `claude-sync-state pull` and post-exit `claude-sync-state push`. This is a lightweight `jq` merge of every account's `.claude.json` — no rsync — so sessions created under one account are visible to all others on the next launch, without anyone having to run `claude-unify` manually.
+
+**Account-dir detection (`cma_detect_accounts`)**: matches `~/.claude-*` but skips (a) `*-shared` and (b) non-empty dirs that don't contain any Claude marker file (`projects/`, `todos/`, `plugins/`, `.claude.json`, `.credentials.json`, `history.jsonl`). This excludes tool-config dirs that share the prefix by coincidence (e.g. `.claude-server-commander` for an MCP server).
+
+**rsync exit-code tolerance**: macOS `rsync` returns 23/24 (partial transfer warnings) for benign issues like `unlinkat: Directory not empty` when symlinks straddle the tree. `merge_dir_into_shared` and `absorb_default_plugins` explicitly tolerate those codes; anything else is fatal.
 
 ## Test harness conventions
 

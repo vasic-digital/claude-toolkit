@@ -17,9 +17,15 @@ rendered as `.html` and `.pdf` siblings).
   `tasks/`, `plans/`, `history.jsonl`, `settings.json`, `plugins/`, `CLAUDE.md`,
   and friends. Switching accounts is just a shell alias change; the
   conversation history, project memory, and installed plugins follow you.
-- Per-account directories that are mostly symlinks pointing into the shared
-  store, except for the three private files: `.credentials.json`,
-  `.claude.json`, and `mcp-needs-auth-cache.json`.
+- **Cross-account session resume**: the `projects` / session index inside
+  `.claude.json` is deep-merged across every account on each launch. Sessions
+  created under `claude1` show up in `claude2`'s `--resume` list the next time
+  you launch it — and vice versa. Auth keys (`userID`, `oauthAccount`,
+  `firstStartTime`, `claudeCodeFirstTokenDate`) stay per-account.
+- Per-account directories are mostly symlinks pointing into the shared store.
+  Only `.credentials.json` and `mcp-needs-auth-cache.json` stay strictly
+  private; `.claude.json` is per-account but its non-auth contents (project
+  index, MCP server status, UX state, caches) sync across accounts.
 
 ## Requirements
 
@@ -81,6 +87,7 @@ Both scripts are **idempotent** — safe to re-run after pulling updates.
 | `claude-add-account`     | Add a new account. Interactive, or `--alias NAME --dir PATH --yes`. |
 | `claude-remove-account --alias NAME` | Drop an alias; archive (default) or `--delete` its dir. |
 | `claude-unify`           | Re-merge state into the shared store. No args → auto-detects all `~/.claude-*` dirs. |
+| `claude-sync-state`      | Fast JSON-level sync of `.claude.json` project/session index across accounts (no rsync). Run automatically by the `cma_run` alias wrapper before/after every claude launch. |
 | `claude-bootstrap`       | Clean-slate provisioning on a fresh host with no accounts logged in yet. |
 | `claude-rollback`        | Restore the `.preunify.*` backups and move the shared store aside. |
 | `claude-export-docs`     | Regenerate `Claude_Multi_Account_Fine_Tuning.{html,pdf}` from the markdown. |
@@ -111,15 +118,50 @@ claude3 /login
   aliases.sh                        # managed alias file (sourced from rc files)
 ```
 
+## How cross-account session sync works
+
+Claude Code stores a `projects.<path>` map inside `~/.claude-<account>/.claude.json`
+that holds `lastSessionId`, MCP server status, project-level memory pointers,
+and other per-project state. Without intervention, account A's projects are
+invisible to account B even though the underlying JSONL session transcripts
+live in the shared `projects/` directory.
+
+The toolkit fixes this in two complementary layers:
+
+1. **At unify time** — `claude-unify` deep-merges every account's `.claude.json`,
+   biasing rightmost-wins on scalar conflicts and recursively unioning the
+   `projects` subtree. Each account's auth-private keys (`userID`,
+   `oauthAccount`, `firstStartTime`, `claudeCodeFirstTokenDate`) are written
+   back untouched.
+2. **At runtime** — the `cma_run` shell function (installed automatically by
+   `install.sh` into the alias file) calls `claude-sync-state pull` before
+   every claude launch and `claude-sync-state push` after exit. This is a
+   cheap `jq` deep-merge — typically tens of milliseconds — so sessions
+   created in one account are visible to others on the very next launch.
+
+If you ever need to refresh manually:
+
+```bash
+claude-sync-state all       # merge across every detected account
+claude-sync-state pull ~/.claude-<account>   # before launching account
+claude-sync-state push ~/.claude-<account>   # after exiting account
+```
+
+Auth keys never cross. Verified via the `test_sessions.sh` test suite (30
+assertions covering byte-stable idempotency, identity preservation,
+cross-account visibility, and corrupt-file resilience).
+
 ## Testing
 
 ```bash
 bash scripts/tests/run-all.sh                  # all
-bash scripts/tests/run-all.sh lib unify        # subset by suffix
+bash scripts/tests/run-all.sh lib unify sessions   # subset by suffix
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` state is
-never touched.
+never touched. The `test_sessions.sh` file specifically verifies cross-account
+session/memory visibility with physical proofs (sha256 byte-hashes, project
+key intersection, auth-key preservation).
 
 ## Rollback
 

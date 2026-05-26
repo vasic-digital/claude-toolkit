@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# claude-sync-state.sh — Fast (no rsync) sync of the .claude.json projects /
+# session index across every Claude Code account. Called by the cma_run alias
+# wrapper before launch (pull) and after exit (push) so sessions/memory
+# created in one account are immediately visible to all others.
+#
+# Distinct from claude-unify.sh: unify is the heavy one-shot merger of the
+# whole shared store; this is the lightweight per-launch state hook.
+#
+# Modes:
+#   claude-sync-state pull <account-dir>   Merge every account's .claude.json
+#                                          into <account-dir>'s file.
+#   claude-sync-state push <account-dir>   Merge <account-dir>'s freshly-
+#                                          written .claude.json into all other
+#                                          accounts' files.
+#   claude-sync-state all                  Merge across every detected account.
+#
+# In every mode, each account keeps its OWN auth/identity keys (`userID`,
+# `oauthAccount`, `firstStartTime`, `claudeCodeFirstTokenDate`) untouched —
+# everything else (projects map, MCP server status, UX state, caches) is
+# unioned across accounts. See CMA_CLAUDE_JSON_PRIVATE_KEYS in lib.sh.
+
+set -euo pipefail
+
+if (( BASH_VERSINFO[0] < 4 )); then
+  for newer in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    [[ -x "$newer" ]] && exec "$newer" "$0" "$@"
+  done
+  echo "claude-sync-state requires bash 4+. Install via: brew install bash" >&2
+  exit 1
+fi
+
+# Resolve LIB_DIR through any symlinks (install.sh symlinks into ~/.local/bin).
+_cma_src="${BASH_SOURCE[0]}"
+while [ -L "$_cma_src" ]; do
+  _cma_tgt="$(readlink "$_cma_src")"
+  case "$_cma_tgt" in /*) _cma_src="$_cma_tgt" ;; *) _cma_src="$(dirname "$_cma_src")/$_cma_tgt" ;; esac
+done
+LIB_DIR="$(cd "$(dirname "$_cma_src")" && pwd)"
+unset _cma_src _cma_tgt
+# shellcheck source=lib.sh
+source "$LIB_DIR/lib.sh"
+
+usage() {
+  cat <<EOF
+Usage:
+  $(basename "$0") pull <account-dir>
+  $(basename "$0") push <account-dir>
+  $(basename "$0") all
+  $(basename "$0") --help
+EOF
+}
+
+[[ $# -ge 1 ]] || { usage; exit 2; }
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+esac
+
+mode="$1"; shift
+
+# Discover every Claude account dir we should sync against.
+mapfile -t ALL_ACCOUNTS < <(cma_detect_accounts)
+(( ${#ALL_ACCOUNTS[@]} >= 1 )) || { cma_warn "no account dirs detected; nothing to sync"; exit 0; }
+
+case "$mode" in
+  pull|push)
+    [[ $# -ge 1 ]] || { usage; exit 2; }
+    target="$1"
+    # Canonicalize to absolute path so it matches what cma_detect_accounts emits.
+    target="$(cd "$target" && pwd)"
+    # For pull and push the math is identical: merge across every account,
+    # rewriting every file. The "target" arg exists so the alias wrapper can
+    # report which account triggered the sync (and we don't waste cycles when
+    # there's only one account — nothing to merge from/to).
+    if (( ${#ALL_ACCOUNTS[@]} == 1 )); then
+      exit 0
+    fi
+    cma_merge_claude_json "${ALL_ACCOUNTS[@]}"
+    ;;
+  all)
+    cma_merge_claude_json "${ALL_ACCOUNTS[@]}"
+    ;;
+  *)
+    usage; exit 2 ;;
+esac

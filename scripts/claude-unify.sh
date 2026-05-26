@@ -97,13 +97,19 @@ link_to_shared() {
 }
 
 merge_dir_into_shared() {
-  local item="$1" acct
+  local item="$1" acct rc
   mkdir -p "$SHARED_DIR/$item"
   # First pass: each account fills only gaps (--ignore-existing) so the
   # union is preserved across N accounts.
   for acct in "${ACCOUNTS[@]}"; do
     if [[ -d "$acct/$item" && ! -L "$acct/$item" ]]; then
-      rsync -a --ignore-existing "$acct/$item/" "$SHARED_DIR/$item/"
+      rc=0
+      rsync -a --ignore-existing "$acct/$item/" "$SHARED_DIR/$item/" || rc=$?
+      # rsync exit 23/24 are partial transfers ("some files vanished" / "some
+      # files couldn't be transferred") that we treat as warnings — common on
+      # macOS for `unlinkat: Directory not empty` when symlinks straddle the
+      # tree. Anything else is fatal.
+      (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
     fi
   done
   # Second pass: the LAST account (assumed most recently active) overlays
@@ -111,7 +117,9 @@ merge_dir_into_shared() {
   # towards the freshest source for conflicting files like memory/*.md.
   local last="${ACCOUNTS[-1]}"
   if [[ -d "$last/$item" && ! -L "$last/$item" ]]; then
-    rsync -a "$last/$item/" "$SHARED_DIR/$item/"
+    rc=0
+    rsync -a "$last/$item/" "$SHARED_DIR/$item/" || rc=$?
+    (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
   fi
 }
 
@@ -186,7 +194,10 @@ merge_file_into_shared() {
 absorb_default_plugins() {
   [[ -d "$DEFAULT_DIR/plugins" && ! -L "$DEFAULT_DIR/plugins" ]] || return 0
   mkdir -p "$SHARED_DIR/plugins"
-  rsync -a --ignore-existing "$DEFAULT_DIR/plugins/" "$SHARED_DIR/plugins/"
+  local rc=0
+  rsync -a --ignore-existing "$DEFAULT_DIR/plugins/" "$SHARED_DIR/plugins/" || rc=$?
+  (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
+  return 0
 }
 
 rewrite_plugin_paths() {
@@ -327,6 +338,13 @@ done
 
 link_default_plugin_subdirs
 sync_claude_md
+
+# Merge the projects/session index inside .claude.json across every account.
+# This is the single most important step for cross-account session resume:
+# without it, account A's session UUIDs are invisible to account B even though
+# the JSONL transcripts are already shared on disk via projects/.
+cma_merge_claude_json "${ACCOUNTS[@]}"
+cma_log "ok: .claude.json (projects/session index merged; auth keys preserved per-account)"
 
 cma_log "done. shared: $SHARED_DIR"
 cma_log "private per-account: ${PRIVATE_ITEMS[*]}"
