@@ -1,0 +1,14 @@
+flowchart TB
+  A["MCP server from plugin"] --> B{--enable-all?}
+  B -- yes --> EN["enabled = true"]
+  B -- no --> C{transport}
+  C -- remote --> D{in allowlist?}
+  D -- yes --> EN
+  D -- no --> DIS["enabled = false<br/>(configured, ready to auth)"]
+  C -- local --> E{runtime present?}
+  E -- no --> DIS
+  E -- yes --> F{needs secret env?}
+  F -- yes --> DIS
+  F -- no --> G{in allowlist OR<br/>--enable-all-local-runnable?}
+  G -- yes --> EN
+  G -- no --> DIS

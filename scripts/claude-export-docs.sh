@@ -33,14 +33,21 @@ cma_require pandoc
 # get replaced with the contents of the referenced file (relative to the
 # directory containing the markdown). That keeps the .md small while the
 # generated HTML/PDF stays self-contained.
-PROCESSED_MD="$(mktemp --suffix=.md)"
+# Portable temp file: BSD/macOS mktemp has no --suffix. pandoc reads the
+# format from --from, so the missing .md extension is irrelevant.
+PROCESSED_MD="$(mktemp "${TMPDIR:-/tmp}/cma-export.XXXXXX")"
 trap 'rm -f "$PROCESSED_MD"' EXIT
 
+# Use only POSIX/2-arg awk match() (RSTART/RLENGTH + substr): the 3-arg
+# match($0,re,arr) capture form is a GNU-awk extension and breaks on the BSD
+# awk that ships with macOS.
 awk -v base="$(dirname "$MD_FILE")" '
   /<!-- INCLUDE: / {
-    match($0, /INCLUDE: ([^ ]+) -->/, m)
-    if (m[1] != "") {
-      path = m[1]
+    if (match($0, /INCLUDE: [^ ]+ -->/)) {
+      tok = substr($0, RSTART, RLENGTH)   # "INCLUDE: path -->"
+      sub(/^INCLUDE: /, "", tok)
+      sub(/ -->$/, "", tok)               # -> "path"
+      path = tok
       if (path !~ /^\//) path = base "/" path
       while ((getline line < path) > 0) print line
       close(path)

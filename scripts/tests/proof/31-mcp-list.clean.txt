@@ -1,0 +1,347 @@
+
+┌  MCP Servers
+│
+●  ✓ codegraph connected
+│      codegraph serve --mcp
+│
+●  ○ Adobe-for-creativity disabled
+│      https://adobe-creativity.adobe.io/mcp
+│
+●  ○ aikido-mcp disabled
+│      npx -y @aikidosec/mcp
+│
+●  ○ aws-mcp disabled
+│      uvx mcp-proxy-for-aws@latest https://aws-mcp.us-east-1.api.aws/mcp
+│
+●  ○ amplitude disabled
+│      https://mcp.amplitude.com/mcp
+│
+●  ○ apollo disabled
+│      https://mcp.apollo.io/mcp
+│
+●  ○ graphos-tools disabled
+│      https://mcp.apollographql.com
+│
+●  ○ appwrite-api disabled
+│      uvx mcp-server-appwrite
+│
+●  ✓ appwrite-docs connected
+│      https://mcp-for-docs.appwrite.io
+│
+●  ○ atlan disabled
+│      https://mcp.atlan.com/mcp
+│
+●  ○ atlassian disabled
+│      https://mcp.atlassian.com/v1/mcp
+│
+●  ✓ awsknowledge connected
+│      https://knowledge-mcp.global.api.aws
+│
+●  ✓ awsiac connected
+│      uvx awslabs.aws-iac-mcp-server@latest
+│
+●  ✓ awspricing connected
+│      uvx awslabs.aws-pricing-mcp-server@latest
+│
+●  ○ aws-serverless-mcp disabled
+│      uvx awslabs.aws-serverless-mcp-server@latest --allow-write
+│
+●  ○ azure disabled
+│      npx -y @azure/mcp@latest server start
+│
+●  ○ bigdata-com disabled
+│      https://mcp.bigdata.com
+│
+●  ○ cds-mcp disabled
+│      npx -y @cap-js/mcp-server
+│
+●  ○ circle disabled
+│      https://api.circle.com/v1/codegen/mcp
+│
+●  ○ circleback disabled
+│      https://app.circleback.ai/api/mcp
+│
+●  ○ clickhouse disabled
+│      https://mcp.clickhouse.cloud/mcp
+│
+●  ○ cloudflare-api disabled
+│      https://mcp.cloudflare.com/mcp
+│
+●  ✓ cloudflare-docs connected
+│      https://docs.mcp.cloudflare.com/mcp
+│
+●  ○ cloudflare-bindings disabled
+│      https://bindings.mcp.cloudflare.com/mcp
+│
+●  ○ cloudflare-builds disabled
+│      https://builds.mcp.cloudflare.com/mcp
+│
+●  ○ cloudflare-observability disabled
+│      https://observability.mcp.cloudflare.com/mcp
+│
+●  ○ cockroachdb-toolbox disabled
+│      toolbox --config /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.9/tools.yaml --stdio
+│
+●  ○ cockroachdb-toolbox-http disabled
+│      http://127.0.0.1:5000/mcp
+│
+●  ○ cockroachdb-cloud disabled
+│      https://cockroachlabs.cloud/mcp
+│
+●  ○ CodSpeed disabled
+│      https://mcp.codspeed.io/mcp
+│
+●  ○ convex disabled
+│      npx -y convex@latest mcp start
+│
+●  ○ notebook disabled
+│      npx -y git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git --mode=notebook
+│
+●  ○ visualization disabled
+│      npx -y git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git --mode=visualization
+│
+●  ○ datacloud_bigquery_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt bigquery --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_spanner_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt spanner --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_alloydb-postgres-admin_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt alloydb-postgres-admin --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_alloydb-postgres_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt alloydb-postgres --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_cloud-sql-postgresql-admin_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt cloud-sql-postgres-admin --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_cloud-sql-postgresql_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt cloud-sql-postgres --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_knowledge_catalog_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt dataplex --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_dataproc_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt dataproc --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ datacloud_serverless-spark_toolbox disabled
+│      npx -y @toolbox-sdk/server@>=1.1.0 --prebuilt serverless-spark --stdio --user-agent-metadata datacloud.codex
+│
+●  ○ aurora-dsql disabled
+│      uvx awslabs.aurora-dsql-mcp-server@latest
+│
+●  ○ deploy-on-aws-awsiac disabled
+│      uvx awslabs.aws-iac-mcp-server@latest
+│
+●  ○ discord disabled
+│      bun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4 --shell=bun --silent start
+│
+●  ○ fakechat disabled
+│      bun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1 --shell=bun --silent start
+│
+●  ○ fiftyone disabled
+│      fiftyone-mcp
+│
+●  ○ figma disabled
+│      https://mcp.figma.com/mcp
+│
+●  ○ forge disabled
+│      https://mcp.atlassian.com/v1/forge/mcp
+│
+●  ○ ads-mcp disabled
+│      https://mcp.atlassian.com/v1/ads/public/mcp
+│
+●  ○ fullstory disabled
+│      https://api.fullstory.com/mcp/fullstory
+│
+●  ○ huggingface-skills disabled
+│      https://huggingface.co/mcp?login
+│
+●  ○ hunter disabled
+│      https://mcp.hunter.io/mcp
+│
+●  ○ imessage disabled
+│      bun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0 --shell=bun --silent start
+│
+●  ○ legalzoom disabled
+│      https://www.legalzoom.com/mcp/claude/v1
+│
+●  ○ logfire disabled
+│      https://logfire-us.pydantic.dev/mcp
+│
+●  ○ mapbox-devkit disabled
+│      https://mcp-devkit.mapbox.com/mcp
+│
+●  ○ mapbox disabled
+│      https://mcp.mapbox.com/mcp
+│
+●  ✓ mapbox-docs connected
+│      https://mcp-docs.mapbox.com/mcp
+│
+●  ○ mcp disabled
+│      https://mcp.mercadopago.com/mcp
+│
+●  ✓ microsoft-learn connected
+│      https://learn.microsoft.com/api/mcp
+│
+●  ✓ Mintlify connected
+│      https://mintlify.com/docs/mcp
+│
+●  ○ miro disabled
+│      https://mcp.miro.com/
+│
+●  ○ notion disabled
+│      https://mcp.notion.com/mcp
+│
+●  ○ pigment disabled
+│      https://pigment.app/api/mcp/public/{your-mcp-id}
+│
+●  ○ pinecone disabled
+│      npx -y @pinecone-database/mcp
+│
+●  ○ posthog disabled
+│      https://mcp.posthog.com/mcp
+│
+●  ○ postman disabled
+│      https://mcp.postman.com/mcp
+│
+●  ○ Prisma-Local disabled
+│      npx -y prisma mcp
+│
+●  ○ Prisma-Remote disabled
+│      https://mcp.prisma.io/mcp
+│
+●  ✓ qt-docs connected
+│      https://qt-docs-mcp.qt.io/mcp
+│
+●  ○ quarkus-agent disabled
+│      jbang quarkus-agent-mcp@quarkusio
+│
+●  ○ railway disabled
+│      railway mcp
+│
+●  ○ resend disabled
+│      npx -y resend-mcp
+│
+●  ○ rootly disabled
+│      https://mcp.rootly.com/mcp
+│
+●  ○ Sanity disabled
+│      https://mcp.sanity.io
+│
+●  ○ fiori-mcp disabled
+│      npx --yes @sap-ux/fiori-mcp-server@latest fiori-mcp
+│
+●  ○ mdk-mcp disabled
+│      npx -y @sap/mdk-mcp-server
+│
+●  ○ semgrep disabled
+│      semgrep mcp
+│
+●  ○ sentry disabled
+│      https://mcp.sentry.dev/mcp
+│
+●  ✓ shopify-mcp connected
+│      npx -y @shopify/dev-mcp@latest
+│
+●  ○ slack disabled
+│      https://mcp.slack.com/mcp
+│
+●  ○ sourcegraph disabled
+│      ${SOURCEGRAPH_ENDPOINT}/.api/mcp
+│
+●  ○ stripe disabled
+│      https://mcp.stripe.com
+│
+●  ○ sumup disabled
+│      https://mcp.sumup.com/mcp
+│
+●  ○ telegram disabled
+│      bun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6 --shell=bun --silent start
+│
+●  ○ vercel disabled
+│      https://mcp.vercel.com
+│
+●  ○ wix-mcp disabled
+│      npx -y @wix/mcp-remote@latest https://mcp.wix.com/mcp
+│
+●  ○ zapier disabled
+│      https://mcp.zapier.com/api/v1/connect
+│
+●  ○ zoom-mcp disabled
+│      https://mcp.zoom.us/mcp/zoom/streamable
+│
+●  ○ zoom-docs-mcp disabled
+│      https://mcp.zoom.us/mcp/docs/streamable
+│
+●  ○ zoom-whiteboard-mcp disabled
+│      https://mcp.zoom.us/mcp/whiteboard/streamable
+│
+●  ○ zscaler-mcp-server disabled
+│      uvx --env-file /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.12.4/.env zscaler-mcp@0.12.4
+│
+●  ○ airtable disabled
+│      https://mcp.airtable.com/mcp
+│
+●  ○ asana disabled
+│      https://mcp.asana.com/sse
+│
+●  ✓ context7 connected
+│      npx -y @upstash/context7-mcp
+│
+●  ○ firebase disabled
+│      npx -y firebase-tools@latest mcp
+│
+●  ○ github disabled
+│      https://api.githubcopilot.com/mcp/
+│
+●  ○ gitlab disabled
+│      https://gitlab.com/api/v4/mcp
+│
+●  ○ greptile disabled
+│      https://api.greptile.com/mcp
+│
+●  ○ intercom disabled
+│      https://mcp.intercom.com/mcp
+│
+●  ○ laravel-boost disabled
+│      php artisan boost:mcp
+│
+●  ○ linear disabled
+│      https://mcp.linear.app/mcp
+│
+●  ○ nimble disabled
+│      https://mcp.nimbleway.com/mcp
+│
+●  ○ pagerduty disabled
+│      https://mcp.pagerduty.com/mcp
+│
+●  ○ planetscale disabled
+│      https://mcp.pscale.dev/mcp/planetscale
+│
+●  ○ playwright disabled
+│      npx @playwright/mcp@latest
+│
+●  ○ sonatype-guide disabled
+│      https://mcp.guide.sonatype.com/mcp
+│
+●  ○ terraform disabled
+│      docker run -i --rm -e TFE_TOKEN=${TFE_TOKEN} hashicorp/terraform-mcp-server:0.4.0
+│
+●  ○ ui5-mcp-server disabled
+│      npx -y @ui5/mcp-server
+│
+●  ○ vanta-us disabled
+│      https://mcp.vanta.com/mcp
+│
+●  ○ vanta-eu disabled
+│      https://mcp.eu.vanta.com/mcp
+│
+●  ○ vanta-aus disabled
+│      https://mcp.aus.vanta.com/mcp
+│
+●  ○ windsor-ai disabled
+│      https://mcp.windsor.ai
+│
+└  114 server(s)
+

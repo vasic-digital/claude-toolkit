@@ -1,0 +1,8 @@
+flowchart LR
+  S1["Scan plugin cache"] --> S2["Collect skill dirs<br/>+ parse .mcp.json<br/>(wrapped & bare)"]
+  S2 --> S3["Translate MCP<br/>local/remote · expand<br/>CLAUDE_PLUGIN_ROOT"]
+  S3 --> S4["Dedup identical<br/>+ rename clashes"]
+  S4 --> S5["Apply enable policy"]
+  S5 --> S6["Merge into existing config<br/>(preserve providers/keys)"]
+  S6 --> S7["Backup + atomic write"]
+  S7 --> V["Verify live:<br/>debug skill · mcp list"]

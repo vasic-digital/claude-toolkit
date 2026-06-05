@@ -1,0 +1,11 @@
+# OpenCode live verification proof
+generated: 2026-06-06T00:13:28+0500
+host:      Darwin 24.5.0 arm64
+opencode:  1.15.13
+config:    /Users/milosvasic/.config/opencode/opencode.json
+mcp_total=114 mcp_enabled=12 skill_paths=151
+skills_resolved=1045 (threshold 200)
+mcp_connected=12 mcp_failed=0
+instructions=1
+
+result: see PASS/FAIL tally below

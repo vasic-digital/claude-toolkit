@@ -22,9 +22,16 @@ bash scripts/tests/run-all.sh unify add_remove export list
 
 # Regenerate Claude_Multi_Account_Fine_Tuning.{html,pdf} from the .md.
 bash scripts/claude-export-docs.sh
+
+# Sync the host's Claude plugin Skills/MCP/CLAUDE.md into OpenCode.
+bash scripts/claude-opencode-sync.sh --dry-run --stats   # preview
+bash scripts/claude-opencode-sync.sh                      # apply
+
+# Prove everything works (sandbox suite + live OpenCode verification + evidence).
+bash scripts/tests/run-proof.sh
 ```
 
-The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`) end up as symlinks in `~/.local/bin`.
+The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh`).
 
 ## Architecture
 
@@ -67,6 +74,50 @@ Tests under `scripts/tests/` are plain bash. Each `test_*.sh` file:
 5. Ends with `summary`, whose exit code feeds `run-all.sh`'s tally.
 
 When adding tests, the real `~/.claude*` state must never be touched — always go through `make_sandbox`.
+
+## OpenCode integration (`claude-opencode-sync.sh` + `opencode_sync.py`)
+
+`claude-opencode-sync.sh` is a thin bash wrapper (knob parsing, runtime
+detection, backup, atomic write) around `opencode_sync.py`, which does the
+JSON-heavy scan/translate/merge. It is **additive and idempotent**: existing
+OpenCode providers and MCP keys are never clobbered; skill paths and
+instructions are unioned; re-running is a no-op on unchanged input.
+
+What it maps from the Claude plugin cache (`CLAUDE_PLUGINS_DIR`, default
+`~/.claude/plugins/cache/claude-plugins-official`) into `opencode.json`:
+
+- Plugin `skills/` folders → `skills.paths`.
+- `.mcp.json` servers → `mcp{}`, translated to OpenCode's `local`/`remote`
+  shapes. **Both** on-disk formats are parsed: wrapped (`{"mcpServers":{…}}`)
+  and bare (`{name:{…}}`). `${CLAUDE_PLUGIN_ROOT}` is expanded to the install
+  path. Identical servers are deduped by transport identity; genuine name
+  clashes are renamed `<plugin>-<name>`.
+- `$SHARED_DIR/CLAUDE.md` → `instructions[]`.
+
+**Enable policy** (`opencode_sync.py:build_mcp`): OpenCode connects to every
+enabled MCP at startup, so the default enables only a curated allowlist
+(`DEFAULT_ALLOWLIST` in the `.sh`) — public no-auth docs servers plus local
+servers whose runtime is present and which need no secret env. Everything else
+is written `enabled:false` (configured, ready to `opencode mcp auth`). Flags
+`--enable-all-local-runnable` and `--enable-all` widen this. Override the list
+with `OPENCODE_ALLOWLIST` (one `plugin/server` per line) — the test suite uses
+this for deterministic, host-independent assertions.
+
+Tests: `scripts/tests/test_opencode.sh` (hermetic — fakes a plugin tree in the
+sandbox, no real `~/.claude`, no opencode binary). `verify_opencode_live.sh`
+(live, read-only, writes evidence to `scripts/tests/proof/`; SKIPs if opencode
+is absent). `run-proof.sh` runs both and emits `proof/PROOF.md`. The live
+verifier captures the full `opencode debug skill` stream before counting —
+counting it mid-stream undercounts.
+
+## Portability notes (BSD vs GNU)
+
+The toolkit targets Linux and macOS. Avoid GNU-only constructs: use 2-arg
+`awk match()` + `substr`/`RSTART`/`RLENGTH` (not the 3-arg `match($0,re,arr)`
+capture form), and portable `mktemp "${TMPDIR:-/tmp}/x.XXXXXX"` (not
+`mktemp --suffix`). `cma_ensure_alias_file` only manages `~/.zshrc` on Darwin
+(`CMA_RC_FILES`), so platform-sensitive tests must select the rc file the same
+way lib.sh does.
 
 ## Doc pipeline
 

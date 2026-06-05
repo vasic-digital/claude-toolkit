@@ -1,0 +1,28 @@
+flowchart TB
+  subgraph CC["Claude Code ecosystem (installed on host)"]
+    P["Plugin cache<br/>~/.claude/plugins/cache/...<br/>194 plugins"]
+    SK["Skills<br/>SKILL.md folders"]
+    MC[".mcp.json<br/>server defs"]
+    MD["Shared CLAUDE.md<br/>~/.claude-shared"]
+    P --> SK
+    P --> MC
+  end
+  subgraph TK["claude-toolkit"]
+    SYNC["claude-opencode-sync.sh"]
+    ENG["opencode_sync.py<br/>scan · translate · merge"]
+    SYNC --> ENG
+  end
+  subgraph OC["OpenCode (host install)"]
+    CFG["~/.config/opencode/opencode.json"]
+    SKP["skills.paths"]
+    MCP["mcp{}"]
+    INS["instructions[]"]
+    CFG --> SKP
+    CFG --> MCP
+    CFG --> INS
+  end
+  SK -. scanned .-> ENG
+  MC -. translated .-> ENG
+  MD -. linked .-> ENG
+  ENG -- writes (additive, backed-up) --> CFG
+  SKP -. resolves .-> SK

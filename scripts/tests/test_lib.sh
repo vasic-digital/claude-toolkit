@@ -46,12 +46,16 @@ it "cma_remove_alias removes the line"
 cma_remove_alias claude5
 assert_file_not_contains "$ALIAS_FILE" "alias claude5=" "claude5 removed"
 
-it "cma_ensure_alias_file sources from .bashrc"
-touch "$HOME/.bashrc"
+it "cma_ensure_alias_file sources from the shell rc file"
+# lib.sh manages .zshrc on macOS and .bashrc + .zshrc on Linux (CMA_RC_FILES).
+# Assert against the platform-appropriate target, selected the same way lib.sh
+# selects it, so the test is correct on both OSes.
+if [[ "$(uname -s)" == "Darwin" ]]; then RC_FILE="$HOME/.zshrc"; else RC_FILE="$HOME/.bashrc"; fi
+touch "$RC_FILE"
 rm -f "$ALIAS_FILE"
 cma_ensure_alias_file
 assert_file "$ALIAS_FILE" "alias file created"
-assert_file_contains "$HOME/.bashrc" "source \"$ALIAS_FILE\"" ".bashrc gets source line"
+assert_file_contains "$RC_FILE" "source \"$ALIAS_FILE\"" "rc file gets source line"
 
 it "cma_detect_accounts skips the shared store"
 mkdir -p "$HOME/.claude-shared" "$HOME/.claude-acct1"

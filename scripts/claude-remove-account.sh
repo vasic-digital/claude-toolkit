@@ -53,10 +53,16 @@ cma_validate_alias "$ALIAS_NAME"
 # Resolve the config dir by inspecting the existing alias line.
 CONFIG_DIR=""
 if [[ -f "$ALIAS_FILE" ]]; then
+  # POSIX/2-arg awk match() only: the 3-arg capture form is GNU-awk-specific
+  # and silently yields an empty CONFIG_DIR on the BSD awk shipped with macOS.
   CONFIG_DIR="$(awk -v a="$ALIAS_NAME" '
     $0 ~ "^alias[[:space:]]+"a"=" {
-      match($0, /CLAUDE_CONFIG_DIR=([^ ]+)/, m);
-      print m[1]; exit
+      if (match($0, /CLAUDE_CONFIG_DIR=[^ ]+/)) {
+        s = substr($0, RSTART, RLENGTH)
+        sub(/^CLAUDE_CONFIG_DIR=/, "", s)
+        print s
+      }
+      exit
     }' "$ALIAS_FILE")"
 fi
 [[ -n "$CONFIG_DIR" ]] || cma_die "alias '$ALIAS_NAME' not found in $ALIAS_FILE"

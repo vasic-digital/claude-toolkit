@@ -89,6 +89,7 @@ border-left: 2px solid #e6e6e6;
 color: #606060;
 }
 code {
+white-space: pre-wrap;
 font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
 font-size: 85%;
 margin: 0;
@@ -152,7 +153,6 @@ padding-left: 0;
 #TOC a:not(:hover) {
 text-decoration: none;
 }
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
 div.column{flex: auto; overflow-x: auto;}
@@ -255,6 +255,7 @@ commands</a></li>
 <li><a href="#layout-after-unification" id="toc-layout-after-unification">Layout after unification</a></li>
 <li><a href="#how-cross-account-session-sync-works" id="toc-how-cross-account-session-sync-works">How cross-account session
 sync works</a></li>
+<li><a href="#opencode-integration" id="toc-opencode-integration">OpenCode integration</a></li>
 <li><a href="#testing" id="toc-testing">Testing</a></li>
 <li><a href="#rollback" id="toc-rollback">Rollback</a></li>
 <li><a href="#license" id="toc-license">License</a></li>
@@ -268,6 +269,9 @@ plugins, and settings <strong>unified</strong> across them. Each account
 keeps only what must stay private (credentials and per-account state);
 everything else lives in a single shared store and is reachable from
 every account via symlinks.</p>
+<p>It can also <strong>share the whole Claude Code ecosystem with <a href="https://opencode.ai">OpenCode</a></strong> — every plugin&#39;s
+Skills, MCP servers, and the user <code>CLAUDE.md</code> — via one
+command (<code>claude-opencode-sync</code>). See <strong><a href="OpenCode_Integration.md">OpenCode_Integration.md</a></strong>.</p>
 <p>The companion deep-dive is
 <code>Claude_Multi_Account_Fine_Tuning.md</code> (also rendered as
 <code>.html</code> and <code>.pdf</code> siblings).</p>
@@ -388,6 +392,11 @@ store aside.</td>
 <td>Regenerate <code>Claude_Multi_Account_Fine_Tuning.{html,pdf}</code>
 from the markdown.</td>
 </tr>
+<tr>
+<td><code>claude-opencode-sync</code></td>
+<td>Expose all Claude plugin Skills + MCP servers +
+<code>CLAUDE.md</code> to a host-installed OpenCode. See <a href="OpenCode_Integration.md">OpenCode_Integration.md</a>.</td>
+</tr>
 </tbody>
 </table>
 <p>After adding an account, log in once:</p>
@@ -442,18 +451,43 @@ next launch.</li>
 test suite (30 assertions covering byte-stable idempotency, identity
 preservation, cross-account visibility, and corrupt-file
 resilience).</p>
+<h2 id="opencode-integration">OpenCode integration</h2>
+<p><code>claude-opencode-sync</code> translates the portable contents of
+every installed Claude plugin into a host-installed OpenCode&#39;s
+config:</p>
+<ul>
+<li><strong>Skills</strong> → <code>skills.paths</code> (every plugin
+<code>SKILL.md</code> folder)</li>
+<li><strong>MCP servers</strong> → <code>mcp{}</code> (local + remote,
+deduped, <code>${CLAUDE_PLUGIN_ROOT}</code> expanded; a safe no-auth
+subset is enabled, the rest configured-but-disabled)</li>
+<li><strong><code>CLAUDE.md</code></strong> →
+<code>instructions[]</code></li>
+</ul>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span> <span class="at">--dry-run</span> <span class="at">--stats</span>   <span class="co"># preview</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span>                      <span class="co"># apply (additive, backs up prior config)</span></span></code></pre></div>
+<p>On the reference host this wires <strong>1,000+ skills</strong> and
+<strong>110+ MCP servers</strong> into OpenCode while preserving its
+existing providers and servers. Full guide, diagrams, enable policy, and
+auth steps: <strong><a href="OpenCode_Integration.md">OpenCode_Integration.md</a></strong>.</p>
 <h2 id="testing">Testing</h2>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                  <span class="co"># all</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify sessions   <span class="co"># subset by suffix</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                  <span class="co"># all sandboxed suites</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify sessions opencode   <span class="co"># subset by suffix</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/verify_opencode_live.sh     <span class="co"># live proof vs real OpenCode</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh                <span class="co"># both + dated evidence bundle</span></span></code></pre></div>
 <p>Tests use a sandboxed <code>$HOME</code> via <code>mktemp</code> —
-your real <code>~/.claude*</code> state is never touched. The
-<code>test_sessions.sh</code> file specifically verifies cross-account
-session/memory visibility with physical proofs (sha256 byte-hashes,
-project key intersection, auth-key preservation).</p>
+your real <code>~/.claude*</code> state is never touched.
+<code>test_sessions.sh</code> verifies cross-account session/memory
+visibility with physical proofs (sha256 byte-hashes, project key
+intersection, auth-key preservation); <code>test_opencode.sh</code>
+covers the OpenCode sync (MCP translation, dedup, enable gating,
+idempotency, config preservation). <code>run-proof.sh</code> writes
+inspectable evidence to <code>scripts/tests/proof/</code>.</p>
 <h2 id="rollback">Rollback</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># or equivalently:</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span> <span class="at">--rollback</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># or equivalently:</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span> <span class="at">--rollback</span></span></code></pre></div>
 <p>Restores every <code>.preunify.&lt;timestamp&gt;</code> backup
 created during unification and moves the shared store aside to
 <code>~/.claude-shared.removed.&lt;timestamp&gt;</code>.</p>

@@ -637,7 +637,42 @@ below. The authoritative copies live at `~/Documents/scripts/`.
 | `pandoc` fails to find a PDF engine                           | No weasyprint/wkhtmltopdf/chromium installed.               | `brew install weasyprint` or `apt install weasyprint`.               |
 | Want to start completely over                                 | -                                                           | `claude-rollback` then re-run `install.sh`.                          |
 
+## 10. Sharing the ecosystem with OpenCode
+
+The same plugin ecosystem that the multi-account setup unifies can also be
+shared with a host-installed [OpenCode](https://opencode.ai). Claude Code
+plugins are runtime-specific (hooks + JS), but their portable contents —
+Anthropic-format **Skills** (`SKILL.md`), **MCP servers** (`.mcp.json`), and
+the user **`CLAUDE.md`** — map directly onto OpenCode's native `skills.paths`,
+`mcp{}`, and `instructions[]` config keys.
+
+`claude-opencode-sync` performs this translation in one idempotent, additive
+pass (it never clobbers OpenCode's own providers or servers):
+
+```bash
+claude-opencode-sync --dry-run --stats   # preview
+claude-opencode-sync                      # apply (prior config is backed up)
+```
+
+It scans the plugin cache, parses both the wrapped (`{"mcpServers":{…}}`) and
+bare (`{name:{…}}`) `.mcp.json` shapes, expands `${CLAUDE_PLUGIN_ROOT}`,
+deduplicates servers shipped by multiple plugins, and applies a conservative
+enable policy — enabling only no-auth/no-secret servers by default so OpenCode
+startup stays fast, while configuring all the rest `enabled:false`, ready to
+`opencode mcp auth`. On the reference host this exposes 1,000+ skills and
+110+ MCP servers to OpenCode.
+
+End-to-end proof (sandbox suite + live verification against the real OpenCode
+binary, writing inspectable evidence to `scripts/tests/proof/`):
+
+```bash
+bash scripts/tests/run-proof.sh
+```
+
+Full guide, architecture diagrams, and the enable-policy flowchart live in
+**`OpenCode_Integration.md`** and `docs/diagrams/`.
+
 ---
 
-*Generated 2026-05-26. Maintain by editing this markdown file and
-re-running `claude-export-docs.sh`.*
+*Generated 2026-05-26 (OpenCode integration added 2026-06-06). Maintain by
+editing this markdown file and re-running `claude-export-docs.sh`.*

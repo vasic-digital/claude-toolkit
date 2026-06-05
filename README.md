@@ -6,6 +6,10 @@ keeping conversation history, memory, todos, plans, plugins, and settings
 (credentials and per-account state); everything else lives in a single
 shared store and is reachable from every account via symlinks.
 
+It can also **share the whole Claude Code ecosystem with [OpenCode](https://opencode.ai)** —
+every plugin's Skills, MCP servers, and the user `CLAUDE.md` — via one command
+(`claude-opencode-sync`). See **[OpenCode_Integration.md](OpenCode_Integration.md)**.
+
 The companion deep-dive is `Claude_Multi_Account_Fine_Tuning.md` (also
 rendered as `.html` and `.pdf` siblings).
 
@@ -91,6 +95,7 @@ Both scripts are **idempotent** — safe to re-run after pulling updates.
 | `claude-bootstrap`       | Clean-slate provisioning on a fresh host with no accounts logged in yet. |
 | `claude-rollback`        | Restore the `.preunify.*` backups and move the shared store aside. |
 | `claude-export-docs`     | Regenerate `Claude_Multi_Account_Fine_Tuning.{html,pdf}` from the markdown. |
+| `claude-opencode-sync`   | Expose all Claude plugin Skills + MCP servers + `CLAUDE.md` to a host-installed OpenCode. See [OpenCode_Integration.md](OpenCode_Integration.md). |
 
 After adding an account, log in once:
 
@@ -151,17 +156,41 @@ Auth keys never cross. Verified via the `test_sessions.sh` test suite (30
 assertions covering byte-stable idempotency, identity preservation,
 cross-account visibility, and corrupt-file resilience).
 
+## OpenCode integration
+
+`claude-opencode-sync` translates the portable contents of every installed
+Claude plugin into a host-installed OpenCode's config:
+
+- **Skills** → `skills.paths` (every plugin `SKILL.md` folder)
+- **MCP servers** → `mcp{}` (local + remote, deduped, `${CLAUDE_PLUGIN_ROOT}`
+  expanded; a safe no-auth subset is enabled, the rest configured-but-disabled)
+- **`CLAUDE.md`** → `instructions[]`
+
+```bash
+claude-opencode-sync --dry-run --stats   # preview
+claude-opencode-sync                      # apply (additive, backs up prior config)
+```
+
+On the reference host this wires **1,000+ skills** and **110+ MCP servers**
+into OpenCode while preserving its existing providers and servers. Full guide,
+diagrams, enable policy, and auth steps: **[OpenCode_Integration.md](OpenCode_Integration.md)**.
+
 ## Testing
 
 ```bash
-bash scripts/tests/run-all.sh                  # all
-bash scripts/tests/run-all.sh lib unify sessions   # subset by suffix
+bash scripts/tests/run-all.sh                  # all sandboxed suites
+bash scripts/tests/run-all.sh lib unify sessions opencode   # subset by suffix
+
+bash scripts/tests/verify_opencode_live.sh     # live proof vs real OpenCode
+bash scripts/tests/run-proof.sh                # both + dated evidence bundle
 ```
 
 Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` state is
-never touched. The `test_sessions.sh` file specifically verifies cross-account
-session/memory visibility with physical proofs (sha256 byte-hashes, project
-key intersection, auth-key preservation).
+never touched. `test_sessions.sh` verifies cross-account session/memory
+visibility with physical proofs (sha256 byte-hashes, project key intersection,
+auth-key preservation); `test_opencode.sh` covers the OpenCode sync (MCP
+translation, dedup, enable gating, idempotency, config preservation).
+`run-proof.sh` writes inspectable evidence to `scripts/tests/proof/`.
 
 ## Rollback
 
