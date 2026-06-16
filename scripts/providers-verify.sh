@@ -55,8 +55,12 @@ fi
 key="${!KEYVAR:-}"
 if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && [[ -n "$key" && -n "$BASEURL" ]]; then
   probe="${BASEURL%/}/models"
+  # Pass the bearer token via --config (a process-substituted fd), never via
+  # -H on the command line, so the secret is not exposed in ps/argv. printf is
+  # a shell builtin, so the key never appears as a process argument either.
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-            -H "Authorization: Bearer $key" "$probe" 2>/dev/null || echo 000)"
+            --config <(printf 'header = "Authorization: Bearer %s"\n' "$key") \
+            "$probe" 2>/dev/null || echo 000)"
   case "$code" in
     200) emit verified "HTTP probe 200 at $probe"; exit 0 ;;
     401|403) emit failed "HTTP $code (auth rejected) at $probe"; exit 1 ;;

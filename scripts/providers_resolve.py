@@ -39,7 +39,10 @@ VCS_PATTERNS = (
     re.compile(r"^GITFLIC_"), re.compile(r"^GITVERSE_"),
 )
 INFRA_PATTERNS = (
-    re.compile(r"^FIR?BASE"), re.compile(r"^CLOUDFLARE"),
+    # FIRE?BASE matches both the correct "FIREBASE" and the keys-file typo
+    # "FIRBASE". (The earlier ^FIR?BASE made the E optional in the wrong place
+    # and failed to match a correctly-spelled FIREBASE_API_KEY.)
+    re.compile(r"^FIRE?BASE"), re.compile(r"^CLOUDFLARE"),
     re.compile(r"^MODAL"),
 )
 # GITHUB_MODELS_* is an LLM backend despite the GITHUB prefix — exempt it.
@@ -178,6 +181,9 @@ def resolve(catalog, present_keys, key_aliases, overrides, only=None):
             rec["status"] = "unmapped"
             rec["reason"] = "provider has no usable models in catalog"
         if rec["transport"] == "router" and not rec["base_url"]:
+            # A router provider with no base URL can't be configured for ccr —
+            # don't activate a broken alias; surface it for an override instead.
+            rec["status"] = "unmapped"
             rec["reason"] = "router provider missing base_url (catalog api null)"
 
         records.append(rec)

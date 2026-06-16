@@ -72,7 +72,7 @@ EOF
 ensure_catalog() {
   mkdir -p "$(dirname "$CACHE")"
   local fresh=0
-  if [[ -s "$CACHE" ]]; then
+  if [[ -s "$CACHE" ]] && _catalog_valid "$CACHE"; then
     local age now mtime
     now="$(date +%s)"
     mtime="$(stat -f %m "$CACHE" 2>/dev/null || stat -c %Y "$CACHE" 2>/dev/null || echo 0)"
@@ -80,7 +80,8 @@ ensure_catalog() {
     (( age < CMA_MODELS_DEV_TTL )) && fresh=1
   fi
   if (( OFFLINE )); then
-    [[ -s "$CACHE" ]] || cma_die "offline and no models.dev cache at $CACHE — run once online first"
+    [[ -s "$CACHE" ]] && _catalog_valid "$CACHE" \
+      || cma_die "offline and no valid models.dev cache at $CACHE — run once online first"
     cma_warn "offline: using cached catalog ($CACHE)"
     return 0
   fi
@@ -104,10 +105,15 @@ ensure_catalog() {
 # Extract API-key VARIABLE NAMES from the keys file WITHOUT executing it.
 present_key_vars() {
   [[ -f "$CMA_KEYS_FILE" ]] || cma_die "keys file not found: $CMA_KEYS_FILE (pass --keys-file)"
-  grep -oE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=' "$CMA_KEYS_FILE" \
+  # `|| true`: a keys file with no assignments must yield an empty list, not a
+  # grep exit-1 that aborts the script under `set -e`/pipefail.
+  { grep -oE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=' "$CMA_KEYS_FILE" || true; } \
     | sed -E 's/^[[:space:]]*(export[[:space:]]+)?//; s/=$//' \
     | sort -u
 }
+
+# Validate that the catalog cache is parseable JSON.
+_catalog_valid() { python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1" 2>/dev/null; }
 
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"

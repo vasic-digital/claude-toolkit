@@ -189,8 +189,8 @@ c="$(grep -c 'cma_run_provider mistral"' "$ALIAS_FILE")"
 assert_eq "1" "$c" "exactly one mistral alias"
 
 it "native vs router transport recorded in env file"
-grep -q '^CMA_PROVIDER_TRANSPORT=native' "$PDIR/acme.env" ; assert_eq 0 $? "acme native"
-grep -q '^CMA_PROVIDER_TRANSPORT=router' "$PDIR/beta.env" ; assert_eq 0 $? "beta router"
+grep -qE "^CMA_PROVIDER_TRANSPORT='?native'?" "$PDIR/acme.env" ; assert_eq 0 $? "acme native"
+grep -qE "^CMA_PROVIDER_TRANSPORT='?router'?" "$PDIR/beta.env" ; assert_eq 0 $? "beta router"
 
 it "config dir created and shared items symlinked"
 assert_dir "$HOME/.claude-prov-acme" "acme config dir"
@@ -219,5 +219,27 @@ it "remove deletes alias + env, backs up config dir"
 bash "$PROVIDERS_SH" remove beta >/dev/null 2>&1
 [[ -f "$PDIR/beta.env" ]] ; assert_eq 1 $? "beta env gone"
 grep -q 'cma_run_provider beta"' "$ALIAS_FILE" ; assert_eq 1 $? "beta alias gone"
+
+# ---------------------------------------------------------------------------
+# Section 4 — cross-shell wrapper smoke test (regression for the zsh
+# `bad substitution` bug from ${!var} indirection). The alias file is sourced
+# into the user's interactive shell, which is zsh on macOS — so the emitted
+# cma_run_provider MUST work under zsh, not just bash. Guarded by zsh presence.
+# ---------------------------------------------------------------------------
+if command -v zsh >/dev/null 2>&1; then
+  it "cma_run_provider runs under zsh (native transport) without bad substitution"
+  # acme is the native-transport provider created in Section 3; its env file +
+  # alias exist and $HOME/api_keys.sh defines ACME_API_KEY.
+  z_out="$(CLAUDE_BIN=/usr/bin/true HOME="$HOME" zsh -c '
+    emulate -L zsh
+    source "'"$ALIAS_FILE"'" 2>&1
+    cma_run_provider acme </dev/null
+    echo "RC=$?"' 2>&1)"
+  echo "$z_out" | grep -qi 'bad substitution' ; assert_eq 1 $? "no zsh bad substitution"
+  echo "$z_out" | grep -q 'RC=0' ; assert_eq 0 $? "wrapper exits 0 under zsh"
+else
+  it "zsh smoke test (skipped — zsh not installed)"
+  _pass "zsh not present; bash path covered elsewhere"
+fi
 
 summary
