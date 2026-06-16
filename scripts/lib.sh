@@ -245,9 +245,10 @@ cma_run_provider() {
     return 1
   fi
   export CLAUDE_CONFIG_DIR="$CMA_PROVIDER_CONFIG_DIR"
-  if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
-    "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
-  fi
+  # Provider sessions are ISOLATED (their dirs are excluded from account
+  # detection), so cross-account claude-sync-state is intentionally NOT run
+  # here — it would dance with a non-existent .claude.json and emit noisy
+  # backup/restore warnings for no benefit.
   local rc
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
     if ! command -v ccr >/dev/null 2>&1; then
@@ -292,9 +293,6 @@ cma_run_provider() {
     export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
     [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
     "$CLAUDE_BIN" "$@"; rc=$?
-  fi
-  if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
-    "$HOME/.local/bin/claude-sync-state" push "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
   fi
   return $rc
 }

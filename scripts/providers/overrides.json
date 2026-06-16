@@ -1,2 +1,8 @@
 {
+  "deepseek": {
+    "transport": "native",
+    "base_url": "https://api.deepseek.com/anthropic",
+    "strong_model": "deepseek-chat",
+    "fast_model": "deepseek-chat"
+  }
 }
