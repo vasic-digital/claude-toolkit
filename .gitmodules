@@ -1,0 +1,4 @@
+[submodule "submodules/LLMsVerifier"]
+	path = submodules/LLMsVerifier
+	url = git@github.com:vasic-digital/LLMsVerifier.git
+	branch = main
