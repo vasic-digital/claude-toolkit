@@ -333,6 +333,17 @@ Adding a new test</a></li>
 <li><a href="#816-teststest_exportsh" id="toc-816-teststest_exportsh">8.16
 <code>tests/test_export.sh</code></a></li>
 </ul></li>
+<li><a href="#11-provider-aliases--running-other-llms-through-claude-code" id="toc-11-provider-aliases--running-other-llms-through-claude-code">11.
+Provider aliases — running other LLMs through Claude Code</a>
+<ul>
+<li><a href="#data-flow-nothing-hardcoded" id="toc-data-flow-nothing-hardcoded">Data flow (nothing
+hardcoded)</a></li>
+<li><a href="#transports" id="toc-transports">Transports</a></li>
+<li><a href="#safety" id="toc-safety">Safety</a></li>
+<li><a href="#commands" id="toc-commands">Commands</a></li>
+<li><a href="#known-limitation--session-color" id="toc-known-limitation--session-color">Known limitation — session
+color</a></li>
+</ul></li>
 </ul></li>
 </ul>
 </nav>
@@ -1031,129 +1042,296 @@ reproduced below. The authoritative copies live at
 <span id="cb20-121"><a href="#cb20-121" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">d</span></span>
 <span id="cb20-122"><a href="#cb20-122" aria-hidden="true" tabindex="-1"></a>  <span class="cf">while</span> <span class="va">IFS</span><span class="op">=</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">d</span><span class="kw">;</span> <span class="cf">do</span></span>
 <span id="cb20-123"><a href="#cb20-123" aria-hidden="true" tabindex="-1"></a>    <span class="kw">[[</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span> <span class="ot">==</span> <span class="pp">*</span><span class="st">&quot;-shared&quot;</span> <span class="kw">]]</span> <span class="kw">&amp;&amp;</span> <span class="cf">continue</span></span>
-<span id="cb20-124"><a href="#cb20-124" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Empty dirs always count (a brand-new account before any claude run).</span></span>
-<span id="cb20-125"><a href="#cb20-125" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">-z</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="at">-A</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="va">)</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
-<span id="cb20-126"><a href="#cb20-126" aria-hidden="true" tabindex="-1"></a>      <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span></span>
-<span id="cb20-127"><a href="#cb20-127" aria-hidden="true" tabindex="-1"></a>      <span class="cf">continue</span></span>
-<span id="cb20-128"><a href="#cb20-128" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb20-129"><a href="#cb20-129" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Non-empty: must look like a Claude account (at least one tell-tale</span></span>
-<span id="cb20-130"><a href="#cb20-130" aria-hidden="true" tabindex="-1"></a>    <span class="co"># file/dir). Filters out dirs that merely match the `.claude-*` prefix</span></span>
-<span id="cb20-131"><a href="#cb20-131" aria-hidden="true" tabindex="-1"></a>    <span class="co"># but belong to other tools (e.g. `.claude-server-commander`).</span></span>
-<span id="cb20-132"><a href="#cb20-132" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/projects&quot;</span> <span class="kw">||</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/todos&quot;</span> <span class="kw">||</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/plugins&quot;</span> <span class="dt">\</span></span>
-<span id="cb20-133"><a href="#cb20-133" aria-hidden="true" tabindex="-1"></a>       <span class="kw">||</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/.claude.json&quot;</span> <span class="kw">||</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/.credentials.json&quot;</span> <span class="dt">\</span></span>
-<span id="cb20-134"><a href="#cb20-134" aria-hidden="true" tabindex="-1"></a>       <span class="kw">||</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/history.jsonl&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
-<span id="cb20-135"><a href="#cb20-135" aria-hidden="true" tabindex="-1"></a>      <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span></span>
-<span id="cb20-136"><a href="#cb20-136" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb20-137"><a href="#cb20-137" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span> <span class="op">&lt;</span> <span class="op">&lt;(</span><span class="fu">find</span> <span class="st">&quot;</span><span class="va">$HOME</span><span class="st">&quot;</span> <span class="at">-maxdepth</span> 1 <span class="at">-type</span> d <span class="at">-name</span> <span class="st">&quot;</span><span class="va">${ACCOUNT_PREFIX}</span><span class="st">*&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span></span>
-<span id="cb20-138"><a href="#cb20-138" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb20-139"><a href="#cb20-139" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-140"><a href="#cb20-140" aria-hidden="true" tabindex="-1"></a><span class="co"># Read all aliases of the form `alias name=...` from $ALIAS_FILE and print</span></span>
-<span id="cb20-141"><a href="#cb20-141" aria-hidden="true" tabindex="-1"></a><span class="co"># their names (one per line). Returns nothing if the file is absent.</span></span>
-<span id="cb20-142"><a href="#cb20-142" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_existing_aliases()</span> <span class="kw">{</span></span>
-<span id="cb20-143"><a href="#cb20-143" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">0</span></span>
-<span id="cb20-144"><a href="#cb20-144" aria-hidden="true" tabindex="-1"></a>  <span class="fu">awk</span> <span class="at">-F</span><span class="st">&#39;[ =]+&#39;</span> <span class="st">&#39;/^[[:space:]]*alias[[:space:]]+/{print $2}&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
-<span id="cb20-145"><a href="#cb20-145" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb20-146"><a href="#cb20-146" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-147"><a href="#cb20-147" aria-hidden="true" tabindex="-1"></a><span class="co"># Suggest the next free `claude&lt;N&gt;` alias by scanning current aliases.</span></span>
-<span id="cb20-148"><a href="#cb20-148" aria-hidden="true" tabindex="-1"></a><span class="co"># E.g., if claude1 and claude2 exist, returns &quot;claude3&quot;.</span></span>
-<span id="cb20-149"><a href="#cb20-149" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_suggest_alias()</span> <span class="kw">{</span></span>
-<span id="cb20-150"><a href="#cb20-150" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">highest</span><span class="op">=</span>0 <span class="va">n</span></span>
-<span id="cb20-151"><a href="#cb20-151" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> a <span class="kw">in</span> <span class="va">$(</span><span class="ex">cma_existing_aliases</span><span class="va">)</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb20-152"><a href="#cb20-152" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="st">&quot;</span><span class="va">$a</span><span class="st">&quot;</span> <span class="ot">=~</span> <span class="pp">^</span><span class="ss">claude</span><span class="op">([</span><span class="ss">0</span><span class="op">-</span><span class="ss">9</span><span class="op">]</span><span class="pp">+</span><span class="op">)$</span> <span class="kw">]];</span> <span class="cf">then</span></span>
-<span id="cb20-153"><a href="#cb20-153" aria-hidden="true" tabindex="-1"></a>      <span class="va">n</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${BASH_REMATCH</span><span class="op">[</span><span class="dv">1</span><span class="op">]</span><span class="va">}</span><span class="st">&quot;</span></span>
-<span id="cb20-154"><a href="#cb20-154" aria-hidden="true" tabindex="-1"></a>      <span class="kw">((</span> <span class="va">n</span> <span class="op">&gt;</span> <span class="va">highest</span> <span class="kw">))</span> <span class="kw">&amp;&amp;</span> <span class="va">highest</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$n</span><span class="st">&quot;</span></span>
-<span id="cb20-155"><a href="#cb20-155" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb20-156"><a href="#cb20-156" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
-<span id="cb20-157"><a href="#cb20-157" aria-hidden="true" tabindex="-1"></a>  <span class="bu">echo</span> <span class="st">&quot;claude</span><span class="va">$((highest</span> <span class="op">+</span> <span class="dv">1</span><span class="va">))</span><span class="st">&quot;</span></span>
-<span id="cb20-158"><a href="#cb20-158" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb20-159"><a href="#cb20-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-160"><a href="#cb20-160" aria-hidden="true" tabindex="-1"></a><span class="co"># Validate that an alias name is safe to embed in a generated `alias ...=`</span></span>
-<span id="cb20-161"><a href="#cb20-161" aria-hidden="true" tabindex="-1"></a><span class="co"># line — strictly alphanumeric + underscore/hyphen, starting with a letter.</span></span>
-<span id="cb20-162"><a href="#cb20-162" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_validate_alias()</span> <span class="kw">{</span></span>
-<span id="cb20-163"><a href="#cb20-163" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="ot">=~</span> <span class="pp">^</span><span class="op">[</span><span class="ss">a</span><span class="op">-</span><span class="ss">zA</span><span class="op">-</span><span class="ss">Z</span><span class="op">][</span><span class="ss">a</span><span class="op">-</span><span class="ss">zA</span><span class="op">-</span><span class="ss">Z0</span><span class="op">-</span><span class="ss">9_-</span><span class="op">]</span><span class="pp">*</span><span class="op">$</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="ex">cma_die</span> <span class="st">&quot;invalid alias name: </span><span class="va">$1</span><span class="st">&quot;</span></span>
+<span id="cb20-124"><a href="#cb20-124" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Provider-alias dirs (~/.claude-prov-&lt;id&gt;, created by claude-providers)</span></span>
+<span id="cb20-125"><a href="#cb20-125" aria-hidden="true" tabindex="-1"></a>    <span class="co"># are account-like for SHARED state but must NEVER be merged into</span></span>
+<span id="cb20-126"><a href="#cb20-126" aria-hidden="true" tabindex="-1"></a>    <span class="co"># real-account auth/identity or unify, so they&#39;re excluded from detection</span></span>
+<span id="cb20-127"><a href="#cb20-127" aria-hidden="true" tabindex="-1"></a>    <span class="co"># exactly like *-shared. This is the linchpin that keeps the existing</span></span>
+<span id="cb20-128"><a href="#cb20-128" aria-hidden="true" tabindex="-1"></a>    <span class="co"># claudeN accounts and add-account untouched by the provider feature.</span></span>
+<span id="cb20-129"><a href="#cb20-129" aria-hidden="true" tabindex="-1"></a>    <span class="kw">[[</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">basename</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="ot">==</span> <span class="st">&quot;</span><span class="va">${ACCOUNT_PREFIX}</span><span class="st">prov-&quot;</span><span class="pp">*</span> <span class="kw">]]</span> <span class="kw">&amp;&amp;</span> <span class="cf">continue</span></span>
+<span id="cb20-130"><a href="#cb20-130" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Empty dirs always count (a brand-new account before any claude run).</span></span>
+<span id="cb20-131"><a href="#cb20-131" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">-z</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">ls</span> <span class="at">-A</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="va">)</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb20-132"><a href="#cb20-132" aria-hidden="true" tabindex="-1"></a>      <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span></span>
+<span id="cb20-133"><a href="#cb20-133" aria-hidden="true" tabindex="-1"></a>      <span class="cf">continue</span></span>
+<span id="cb20-134"><a href="#cb20-134" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb20-135"><a href="#cb20-135" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Non-empty: must look like a Claude account (at least one tell-tale</span></span>
+<span id="cb20-136"><a href="#cb20-136" aria-hidden="true" tabindex="-1"></a>    <span class="co"># file/dir). Filters out dirs that merely match the `.claude-*` prefix</span></span>
+<span id="cb20-137"><a href="#cb20-137" aria-hidden="true" tabindex="-1"></a>    <span class="co"># but belong to other tools (e.g. `.claude-server-commander`).</span></span>
+<span id="cb20-138"><a href="#cb20-138" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/projects&quot;</span> <span class="kw">||</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/todos&quot;</span> <span class="kw">||</span> <span class="ot">-d</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/plugins&quot;</span> <span class="dt">\</span></span>
+<span id="cb20-139"><a href="#cb20-139" aria-hidden="true" tabindex="-1"></a>       <span class="kw">||</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/.claude.json&quot;</span> <span class="kw">||</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/.credentials.json&quot;</span> <span class="dt">\</span></span>
+<span id="cb20-140"><a href="#cb20-140" aria-hidden="true" tabindex="-1"></a>       <span class="kw">||</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">/history.jsonl&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb20-141"><a href="#cb20-141" aria-hidden="true" tabindex="-1"></a>      <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$d</span><span class="st">&quot;</span></span>
+<span id="cb20-142"><a href="#cb20-142" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb20-143"><a href="#cb20-143" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span> <span class="op">&lt;</span> <span class="op">&lt;(</span><span class="fu">find</span> <span class="st">&quot;</span><span class="va">$HOME</span><span class="st">&quot;</span> <span class="at">-maxdepth</span> 1 <span class="at">-type</span> d <span class="at">-name</span> <span class="st">&quot;</span><span class="va">${ACCOUNT_PREFIX}</span><span class="st">*&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span></span>
+<span id="cb20-144"><a href="#cb20-144" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-145"><a href="#cb20-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-146"><a href="#cb20-146" aria-hidden="true" tabindex="-1"></a><span class="co"># Read all aliases of the form `alias name=...` from $ALIAS_FILE and print</span></span>
+<span id="cb20-147"><a href="#cb20-147" aria-hidden="true" tabindex="-1"></a><span class="co"># their names (one per line). Returns nothing if the file is absent.</span></span>
+<span id="cb20-148"><a href="#cb20-148" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_existing_aliases()</span> <span class="kw">{</span></span>
+<span id="cb20-149"><a href="#cb20-149" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">0</span></span>
+<span id="cb20-150"><a href="#cb20-150" aria-hidden="true" tabindex="-1"></a>  <span class="fu">awk</span> <span class="at">-F</span><span class="st">&#39;[ =]+&#39;</span> <span class="st">&#39;/^[[:space:]]*alias[[:space:]]+/{print $2}&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
+<span id="cb20-151"><a href="#cb20-151" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-152"><a href="#cb20-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-153"><a href="#cb20-153" aria-hidden="true" tabindex="-1"></a><span class="co"># Suggest the next free `claude&lt;N&gt;` alias by scanning current aliases.</span></span>
+<span id="cb20-154"><a href="#cb20-154" aria-hidden="true" tabindex="-1"></a><span class="co"># E.g., if claude1 and claude2 exist, returns &quot;claude3&quot;.</span></span>
+<span id="cb20-155"><a href="#cb20-155" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_suggest_alias()</span> <span class="kw">{</span></span>
+<span id="cb20-156"><a href="#cb20-156" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">highest</span><span class="op">=</span>0 <span class="va">n</span></span>
+<span id="cb20-157"><a href="#cb20-157" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> a <span class="kw">in</span> <span class="va">$(</span><span class="ex">cma_existing_aliases</span><span class="va">)</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb20-158"><a href="#cb20-158" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="st">&quot;</span><span class="va">$a</span><span class="st">&quot;</span> <span class="ot">=~</span> <span class="pp">^</span><span class="ss">claude</span><span class="op">([</span><span class="ss">0</span><span class="op">-</span><span class="ss">9</span><span class="op">]</span><span class="pp">+</span><span class="op">)$</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb20-159"><a href="#cb20-159" aria-hidden="true" tabindex="-1"></a>      <span class="va">n</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${BASH_REMATCH</span><span class="op">[</span><span class="dv">1</span><span class="op">]</span><span class="va">}</span><span class="st">&quot;</span></span>
+<span id="cb20-160"><a href="#cb20-160" aria-hidden="true" tabindex="-1"></a>      <span class="kw">((</span> <span class="va">n</span> <span class="op">&gt;</span> <span class="va">highest</span> <span class="kw">))</span> <span class="kw">&amp;&amp;</span> <span class="va">highest</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$n</span><span class="st">&quot;</span></span>
+<span id="cb20-161"><a href="#cb20-161" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb20-162"><a href="#cb20-162" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
+<span id="cb20-163"><a href="#cb20-163" aria-hidden="true" tabindex="-1"></a>  <span class="bu">echo</span> <span class="st">&quot;claude</span><span class="va">$((highest</span> <span class="op">+</span> <span class="dv">1</span><span class="va">))</span><span class="st">&quot;</span></span>
 <span id="cb20-164"><a href="#cb20-164" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
 <span id="cb20-165"><a href="#cb20-165" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-166"><a href="#cb20-166" aria-hidden="true" tabindex="-1"></a><span class="co"># Ensure $ALIAS_FILE exists with the header sentinel and is sourced from</span></span>
-<span id="cb20-167"><a href="#cb20-167" aria-hidden="true" tabindex="-1"></a><span class="co"># the user&#39;s rc files. Idempotent — safe to call repeatedly.</span></span>
-<span id="cb20-168"><a href="#cb20-168" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_ensure_alias_file()</span> <span class="kw">{</span></span>
-<span id="cb20-169"><a href="#cb20-169" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span></span>
-<span id="cb20-170"><a href="#cb20-170" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">!</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
-<span id="cb20-171"><a href="#cb20-171" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&lt;&lt;EOF</span></span>
-<span id="cb20-172"><a href="#cb20-172" aria-hidden="true" tabindex="-1"></a><span class="st"># Managed by claude-multi-account. Do not edit by hand; use</span></span>
-<span id="cb20-173"><a href="#cb20-173" aria-hidden="true" tabindex="-1"></a><span class="st"># ~/.local/bin/claude-add-account to add accounts.</span></span>
-<span id="cb20-174"><a href="#cb20-174" aria-hidden="true" tabindex="-1"></a><span class="st">export CLAUDE_BIN=&quot;</span><span class="va">${CLAUDE_BIN_DEFAULT}</span><span class="st">&quot;</span></span>
-<span id="cb20-175"><a href="#cb20-175" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span>
-<span id="cb20-176"><a href="#cb20-176" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
-<span id="cb20-177"><a href="#cb20-177" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Migration: rewrite any pre-wrapper alias lines that invoke $CLAUDE_BIN</span></span>
-<span id="cb20-178"><a href="#cb20-178" aria-hidden="true" tabindex="-1"></a>  <span class="co"># directly so they go through cma_run instead. Pre-existing installs need</span></span>
-<span id="cb20-179"><a href="#cb20-179" aria-hidden="true" tabindex="-1"></a>  <span class="co"># this on the first re-run of install.sh after the runtime-sync feature</span></span>
-<span id="cb20-180"><a href="#cb20-180" aria-hidden="true" tabindex="-1"></a>  <span class="co"># landed; idempotent (a line already using cma_run is left alone).</span></span>
-<span id="cb20-181"><a href="#cb20-181" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="fu">grep</span> <span class="at">-qE</span> <span class="st">&#39;^alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=[^ ]+[[:space:]]+\\?\$CLAUDE_BIN&quot;$&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb20-182"><a href="#cb20-182" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
-<span id="cb20-183"><a href="#cb20-183" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sed</span> <span class="at">-E</span> <span class="st">&#39;s|(^alias[[:space:]]+[^=]+=)&quot;(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN&quot;$|\1&quot;\2 cma_run&quot;|&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span></span>
-<span id="cb20-184"><a href="#cb20-184" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
-<span id="cb20-185"><a href="#cb20-185" aria-hidden="true" tabindex="-1"></a>    <span class="ex">cma_log</span> <span class="st">&quot;migrated existing aliases in </span><span class="va">$ALIAS_FILE</span><span class="st"> to use cma_run wrapper&quot;</span></span>
-<span id="cb20-186"><a href="#cb20-186" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
-<span id="cb20-187"><a href="#cb20-187" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Ensure the cma_run wrapper is present in the alias file. This is the</span></span>
-<span id="cb20-188"><a href="#cb20-188" aria-hidden="true" tabindex="-1"></a>  <span class="co"># runtime hook that keeps .claude.json projects/session state synchronized</span></span>
-<span id="cb20-189"><a href="#cb20-189" aria-hidden="true" tabindex="-1"></a>  <span class="co"># across every account: pull merged state before launch, push back after exit.</span></span>
-<span id="cb20-190"><a href="#cb20-190" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ot">! </span><span class="fu">grep</span> <span class="at">-q</span> <span class="st">&#39;^cma_run\(\)&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb20-191"><a href="#cb20-191" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&lt;&lt;&#39;EOF&#39;</span></span>
-<span id="cb20-192"><a href="#cb20-192" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-193"><a href="#cb20-193" aria-hidden="true" tabindex="-1"></a><span class="st"># Wrapper: keeps .claude.json projects/session index synced across every</span></span>
-<span id="cb20-194"><a href="#cb20-194" aria-hidden="true" tabindex="-1"></a><span class="st"># logged-in account. Pulls merged state from every account into the launching</span></span>
-<span id="cb20-195"><a href="#cb20-195" aria-hidden="true" tabindex="-1"></a><span class="st"># one before claude runs; pushes the post-session state back out after exit.</span></span>
-<span id="cb20-196"><a href="#cb20-196" aria-hidden="true" tabindex="-1"></a><span class="st"># Cheap (jq deep-merge of one ~50KB file per account), runs unconditionally.</span></span>
-<span id="cb20-197"><a href="#cb20-197" aria-hidden="true" tabindex="-1"></a><span class="st">cma_run() {</span></span>
-<span id="cb20-198"><a href="#cb20-198" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -x &quot;$HOME/.local/bin/claude-sync-state&quot; ]]; then</span></span>
-<span id="cb20-199"><a href="#cb20-199" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$HOME/.local/bin/claude-sync-state&quot; pull &quot;$CLAUDE_CONFIG_DIR&quot; 2&gt;/dev/null || true</span></span>
-<span id="cb20-200"><a href="#cb20-200" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
-<span id="cb20-201"><a href="#cb20-201" aria-hidden="true" tabindex="-1"></a><span class="st">  &quot;$CLAUDE_BIN&quot; &quot;$@&quot;</span></span>
-<span id="cb20-202"><a href="#cb20-202" aria-hidden="true" tabindex="-1"></a><span class="st">  local rc=$?</span></span>
-<span id="cb20-203"><a href="#cb20-203" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -x &quot;$HOME/.local/bin/claude-sync-state&quot; ]]; then</span></span>
-<span id="cb20-204"><a href="#cb20-204" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$HOME/.local/bin/claude-sync-state&quot; push &quot;$CLAUDE_CONFIG_DIR&quot; 2&gt;/dev/null || true</span></span>
-<span id="cb20-205"><a href="#cb20-205" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
-<span id="cb20-206"><a href="#cb20-206" aria-hidden="true" tabindex="-1"></a><span class="st">  return $rc</span></span>
-<span id="cb20-207"><a href="#cb20-207" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
-<span id="cb20-208"><a href="#cb20-208" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span>
-<span id="cb20-209"><a href="#cb20-209" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
-<span id="cb20-210"><a href="#cb20-210" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">rc</span> <span class="va">src_line</span><span class="op">=</span><span class="st">&quot;source </span><span class="dt">\&quot;</span><span class="va">$ALIAS_FILE</span><span class="dt">\&quot;</span><span class="st">&quot;</span></span>
-<span id="cb20-211"><a href="#cb20-211" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> rc <span class="kw">in</span> <span class="st">&quot;</span><span class="va">${CMA_RC_FILES</span><span class="op">[@]</span><span class="va">}</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb20-212"><a href="#cb20-212" aria-hidden="true" tabindex="-1"></a>    <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="cf">continue</span></span>
-<span id="cb20-213"><a href="#cb20-213" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="ot">! </span><span class="fu">grep</span> <span class="at">-F</span> <span class="at">-q</span> <span class="st">&quot;</span><span class="va">$src_line</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb20-214"><a href="#cb20-214" aria-hidden="true" tabindex="-1"></a>      <span class="bu">printf</span> <span class="st">&#39;\n# Claude multi-account aliases\n%s\n&#39;</span> <span class="st">&quot;</span><span class="va">$src_line</span><span class="st">&quot;</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span></span>
-<span id="cb20-215"><a href="#cb20-215" aria-hidden="true" tabindex="-1"></a>      <span class="ex">cma_log</span> <span class="st">&quot;added source line to </span><span class="va">$rc</span><span class="st">&quot;</span></span>
-<span id="cb20-216"><a href="#cb20-216" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb20-217"><a href="#cb20-217" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
-<span id="cb20-218"><a href="#cb20-218" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb20-219"><a href="#cb20-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-220"><a href="#cb20-220" aria-hidden="true" tabindex="-1"></a><span class="co"># Add (or refresh) a single alias entry in $ALIAS_FILE. Idempotent.</span></span>
-<span id="cb20-221"><a href="#cb20-221" aria-hidden="true" tabindex="-1"></a><span class="co"># The generated alias wraps `$CLAUDE_BIN` with sync-pull (before launch) and</span></span>
-<span id="cb20-222"><a href="#cb20-222" aria-hidden="true" tabindex="-1"></a><span class="co"># sync-push (after exit) so the project/session index inside .claude.json</span></span>
-<span id="cb20-223"><a href="#cb20-223" aria-hidden="true" tabindex="-1"></a><span class="co"># stays merged across every logged-in account without manual unify runs.</span></span>
-<span id="cb20-224"><a href="#cb20-224" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_write_alias()</span> <span class="kw">{</span></span>
-<span id="cb20-225"><a href="#cb20-225" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">alias_name</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="va">config_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span></span>
-<span id="cb20-226"><a href="#cb20-226" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_validate_alias</span> <span class="st">&quot;</span><span class="va">$alias_name</span><span class="st">&quot;</span></span>
-<span id="cb20-227"><a href="#cb20-227" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_ensure_alias_file</span></span>
-<span id="cb20-228"><a href="#cb20-228" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Strip any prior line for this alias, then append the new one.</span></span>
-<span id="cb20-229"><a href="#cb20-229" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
-<span id="cb20-230"><a href="#cb20-230" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span> <span class="at">-v</span> <span class="at">-E</span> <span class="st">&quot;^alias[[:space:]]+</span><span class="va">${alias_name}</span><span class="st">=&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="fu">true</span></span>
-<span id="cb20-231"><a href="#cb20-231" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Note: bash aliases can&#39;t take args, so we use a quoted CLAUDE_CONFIG_DIR= prefix</span></span>
-<span id="cb20-232"><a href="#cb20-232" aria-hidden="true" tabindex="-1"></a>  <span class="co"># plus a wrapped invocation. The wrapper is a shell function reference (cma_run)</span></span>
-<span id="cb20-233"><a href="#cb20-233" aria-hidden="true" tabindex="-1"></a>  <span class="co"># defined alongside in the alias file (added once by cma_ensure_alias_file).</span></span>
-<span id="cb20-234"><a href="#cb20-234" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">&#39;alias %s=&quot;CLAUDE_CONFIG_DIR=%s cma_run&quot;\n&#39;</span> <span class="dt">\</span></span>
-<span id="cb20-235"><a href="#cb20-235" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;</span><span class="va">$alias_name</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$config_dir</span><span class="st">&quot;</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span></span>
-<span id="cb20-236"><a href="#cb20-236" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
-<span id="cb20-237"><a href="#cb20-237" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb20-238"><a href="#cb20-238" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-239"><a href="#cb20-239" aria-hidden="true" tabindex="-1"></a><span class="co"># Remove an alias line. Idempotent.</span></span>
-<span id="cb20-240"><a href="#cb20-240" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_remove_alias()</span> <span class="kw">{</span></span>
-<span id="cb20-241"><a href="#cb20-241" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">alias_name</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span></span>
-<span id="cb20-242"><a href="#cb20-242" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">0</span></span>
-<span id="cb20-243"><a href="#cb20-243" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
-<span id="cb20-244"><a href="#cb20-244" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span> <span class="at">-v</span> <span class="at">-E</span> <span class="st">&quot;^alias[[:space:]]+</span><span class="va">${alias_name}</span><span class="st">=&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="fu">true</span></span>
-<span id="cb20-245"><a href="#cb20-245" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
-<span id="cb20-246"><a href="#cb20-246" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
+<span id="cb20-166"><a href="#cb20-166" aria-hidden="true" tabindex="-1"></a><span class="co"># Validate that an alias name is safe to embed in a generated `alias ...=`</span></span>
+<span id="cb20-167"><a href="#cb20-167" aria-hidden="true" tabindex="-1"></a><span class="co"># line — strictly alphanumeric + underscore/hyphen, starting with a letter.</span></span>
+<span id="cb20-168"><a href="#cb20-168" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_validate_alias()</span> <span class="kw">{</span></span>
+<span id="cb20-169"><a href="#cb20-169" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="ot">=~</span> <span class="pp">^</span><span class="op">[</span><span class="ss">a</span><span class="op">-</span><span class="ss">zA</span><span class="op">-</span><span class="ss">Z</span><span class="op">][</span><span class="ss">a</span><span class="op">-</span><span class="ss">zA</span><span class="op">-</span><span class="ss">Z0</span><span class="op">-</span><span class="ss">9_-</span><span class="op">]</span><span class="pp">*</span><span class="op">$</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="ex">cma_die</span> <span class="st">&quot;invalid alias name: </span><span class="va">$1</span><span class="st">&quot;</span></span>
+<span id="cb20-170"><a href="#cb20-170" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-171"><a href="#cb20-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-172"><a href="#cb20-172" aria-hidden="true" tabindex="-1"></a><span class="co"># Ensure $ALIAS_FILE exists with the header sentinel and is sourced from</span></span>
+<span id="cb20-173"><a href="#cb20-173" aria-hidden="true" tabindex="-1"></a><span class="co"># the user&#39;s rc files. Idempotent — safe to call repeatedly.</span></span>
+<span id="cb20-174"><a href="#cb20-174" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_ensure_alias_file()</span> <span class="kw">{</span></span>
+<span id="cb20-175"><a href="#cb20-175" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb20-176"><a href="#cb20-176" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">!</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb20-177"><a href="#cb20-177" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&lt;&lt;EOF</span></span>
+<span id="cb20-178"><a href="#cb20-178" aria-hidden="true" tabindex="-1"></a><span class="st"># Managed by claude-multi-account. Do not edit by hand; use</span></span>
+<span id="cb20-179"><a href="#cb20-179" aria-hidden="true" tabindex="-1"></a><span class="st"># ~/.local/bin/claude-add-account to add accounts.</span></span>
+<span id="cb20-180"><a href="#cb20-180" aria-hidden="true" tabindex="-1"></a><span class="st">export CLAUDE_BIN=&quot;</span><span class="va">${CLAUDE_BIN_DEFAULT}</span><span class="st">&quot;</span></span>
+<span id="cb20-181"><a href="#cb20-181" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span>
+<span id="cb20-182"><a href="#cb20-182" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb20-183"><a href="#cb20-183" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Migration: rewrite any pre-wrapper alias lines that invoke $CLAUDE_BIN</span></span>
+<span id="cb20-184"><a href="#cb20-184" aria-hidden="true" tabindex="-1"></a>  <span class="co"># directly so they go through cma_run instead. Pre-existing installs need</span></span>
+<span id="cb20-185"><a href="#cb20-185" aria-hidden="true" tabindex="-1"></a>  <span class="co"># this on the first re-run of install.sh after the runtime-sync feature</span></span>
+<span id="cb20-186"><a href="#cb20-186" aria-hidden="true" tabindex="-1"></a>  <span class="co"># landed; idempotent (a line already using cma_run is left alone).</span></span>
+<span id="cb20-187"><a href="#cb20-187" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="fu">grep</span> <span class="at">-qE</span> <span class="st">&#39;^alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=[^ ]+[[:space:]]+\\?\$CLAUDE_BIN&quot;$&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb20-188"><a href="#cb20-188" aria-hidden="true" tabindex="-1"></a>    <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb20-189"><a href="#cb20-189" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sed</span> <span class="at">-E</span> <span class="st">&#39;s|(^alias[[:space:]]+[^=]+=)&quot;(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN&quot;$|\1&quot;\2 cma_run&quot;|&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span></span>
+<span id="cb20-190"><a href="#cb20-190" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
+<span id="cb20-191"><a href="#cb20-191" aria-hidden="true" tabindex="-1"></a>    <span class="ex">cma_log</span> <span class="st">&quot;migrated existing aliases in </span><span class="va">$ALIAS_FILE</span><span class="st"> to use cma_run wrapper&quot;</span></span>
+<span id="cb20-192"><a href="#cb20-192" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb20-193"><a href="#cb20-193" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Ensure the cma_run wrapper is present in the alias file. This is the</span></span>
+<span id="cb20-194"><a href="#cb20-194" aria-hidden="true" tabindex="-1"></a>  <span class="co"># runtime hook that keeps .claude.json projects/session state synchronized</span></span>
+<span id="cb20-195"><a href="#cb20-195" aria-hidden="true" tabindex="-1"></a>  <span class="co"># across every account: pull merged state before launch, push back after exit.</span></span>
+<span id="cb20-196"><a href="#cb20-196" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ot">! </span><span class="fu">grep</span> <span class="at">-q</span> <span class="st">&#39;^cma_run\(\)&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb20-197"><a href="#cb20-197" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&lt;&lt;&#39;EOF&#39;</span></span>
+<span id="cb20-198"><a href="#cb20-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-199"><a href="#cb20-199" aria-hidden="true" tabindex="-1"></a><span class="st"># Wrapper: keeps .claude.json projects/session index synced across every</span></span>
+<span id="cb20-200"><a href="#cb20-200" aria-hidden="true" tabindex="-1"></a><span class="st"># logged-in account. Pulls merged state from every account into the launching</span></span>
+<span id="cb20-201"><a href="#cb20-201" aria-hidden="true" tabindex="-1"></a><span class="st"># one before claude runs; pushes the post-session state back out after exit.</span></span>
+<span id="cb20-202"><a href="#cb20-202" aria-hidden="true" tabindex="-1"></a><span class="st"># Cheap (jq deep-merge of one ~50KB file per account), runs unconditionally.</span></span>
+<span id="cb20-203"><a href="#cb20-203" aria-hidden="true" tabindex="-1"></a><span class="st">cma_run() {</span></span>
+<span id="cb20-204"><a href="#cb20-204" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -x &quot;$HOME/.local/bin/claude-sync-state&quot; ]]; then</span></span>
+<span id="cb20-205"><a href="#cb20-205" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$HOME/.local/bin/claude-sync-state&quot; pull &quot;$CLAUDE_CONFIG_DIR&quot; 2&gt;/dev/null || true</span></span>
+<span id="cb20-206"><a href="#cb20-206" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-207"><a href="#cb20-207" aria-hidden="true" tabindex="-1"></a><span class="st">  &quot;$CLAUDE_BIN&quot; &quot;$@&quot;</span></span>
+<span id="cb20-208"><a href="#cb20-208" aria-hidden="true" tabindex="-1"></a><span class="st">  local rc=$?</span></span>
+<span id="cb20-209"><a href="#cb20-209" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -x &quot;$HOME/.local/bin/claude-sync-state&quot; ]]; then</span></span>
+<span id="cb20-210"><a href="#cb20-210" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$HOME/.local/bin/claude-sync-state&quot; push &quot;$CLAUDE_CONFIG_DIR&quot; 2&gt;/dev/null || true</span></span>
+<span id="cb20-211"><a href="#cb20-211" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-212"><a href="#cb20-212" aria-hidden="true" tabindex="-1"></a><span class="st">  return $rc</span></span>
+<span id="cb20-213"><a href="#cb20-213" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb20-214"><a href="#cb20-214" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span>
+<span id="cb20-215"><a href="#cb20-215" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb20-216"><a href="#cb20-216" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Ensure the cma_run_provider wrapper is present. This launches Claude Code</span></span>
+<span id="cb20-217"><a href="#cb20-217" aria-hidden="true" tabindex="-1"></a>  <span class="co"># against a non-Anthropic provider: it reads the per-provider non-secret env</span></span>
+<span id="cb20-218"><a href="#cb20-218" aria-hidden="true" tabindex="-1"></a>  <span class="co"># file, injects the API key from the keys file at launch (the toolkit never</span></span>
+<span id="cb20-219"><a href="#cb20-219" aria-hidden="true" tabindex="-1"></a>  <span class="co"># persists secrets itself), then runs claude directly (native transport) or</span></span>
+<span id="cb20-220"><a href="#cb20-220" aria-hidden="true" tabindex="-1"></a>  <span class="co"># via claude-code-router (router transport). Self-contained: the user&#39;s shell</span></span>
+<span id="cb20-221"><a href="#cb20-221" aria-hidden="true" tabindex="-1"></a>  <span class="co"># sources only this alias file, not lib.sh.</span></span>
+<span id="cb20-222"><a href="#cb20-222" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ot">! </span><span class="fu">grep</span> <span class="at">-q</span> <span class="st">&#39;^cma_run_provider\(\)&#39;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb20-223"><a href="#cb20-223" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&lt;&lt;&#39;EOF&#39;</span></span>
+<span id="cb20-224"><a href="#cb20-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-225"><a href="#cb20-225" aria-hidden="true" tabindex="-1"></a><span class="st">cma_run_provider() {</span></span>
+<span id="cb20-226"><a href="#cb20-226" aria-hidden="true" tabindex="-1"></a><span class="st">  local id=&quot;$1&quot;; shift 2&gt;/dev/null || true</span></span>
+<span id="cb20-227"><a href="#cb20-227" aria-hidden="true" tabindex="-1"></a><span class="st">  local pdir=&quot;$HOME/.local/share/claude-multi-account/providers&quot;</span></span>
+<span id="cb20-228"><a href="#cb20-228" aria-hidden="true" tabindex="-1"></a><span class="st">  local envf=&quot;$pdir/$id.env&quot;</span></span>
+<span id="cb20-229"><a href="#cb20-229" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ ! -f &quot;$envf&quot; ]]; then</span></span>
+<span id="cb20-230"><a href="#cb20-230" aria-hidden="true" tabindex="-1"></a><span class="st">    printf &#39;claude-providers: unknown provider %s (missing %s)\n&#39; &quot;$id&quot; &quot;$envf&quot; &gt;&amp;2</span></span>
+<span id="cb20-231"><a href="#cb20-231" aria-hidden="true" tabindex="-1"></a><span class="st">    return 1</span></span>
+<span id="cb20-232"><a href="#cb20-232" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-233"><a href="#cb20-233" aria-hidden="true" tabindex="-1"></a><span class="st">  # shellcheck disable=SC1090</span></span>
+<span id="cb20-234"><a href="#cb20-234" aria-hidden="true" tabindex="-1"></a><span class="st">  source &quot;$envf&quot;</span></span>
+<span id="cb20-235"><a href="#cb20-235" aria-hidden="true" tabindex="-1"></a><span class="st">  local keysf=&quot;${CMA_KEYS_FILE:-$HOME/api_keys.sh}&quot;</span></span>
+<span id="cb20-236"><a href="#cb20-236" aria-hidden="true" tabindex="-1"></a><span class="st">  [[ -f &quot;$keysf&quot; ]] &amp;&amp; { set -a; source &quot;$keysf&quot;; set +a; }</span></span>
+<span id="cb20-237"><a href="#cb20-237" aria-hidden="true" tabindex="-1"></a><span class="st">  local token=&quot;${!CMA_PROVIDER_KEYVAR:-}&quot;</span></span>
+<span id="cb20-238"><a href="#cb20-238" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -z &quot;$token&quot; ]]; then</span></span>
+<span id="cb20-239"><a href="#cb20-239" aria-hidden="true" tabindex="-1"></a><span class="st">    printf &#39;claude-providers: $%s is empty (set it in %s)\n&#39; &quot;$CMA_PROVIDER_KEYVAR&quot; &quot;$keysf&quot; &gt;&amp;2</span></span>
+<span id="cb20-240"><a href="#cb20-240" aria-hidden="true" tabindex="-1"></a><span class="st">    return 1</span></span>
+<span id="cb20-241"><a href="#cb20-241" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-242"><a href="#cb20-242" aria-hidden="true" tabindex="-1"></a><span class="st">  export CLAUDE_CONFIG_DIR=&quot;$CMA_PROVIDER_CONFIG_DIR&quot;</span></span>
+<span id="cb20-243"><a href="#cb20-243" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -x &quot;$HOME/.local/bin/claude-sync-state&quot; ]]; then</span></span>
+<span id="cb20-244"><a href="#cb20-244" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$HOME/.local/bin/claude-sync-state&quot; pull &quot;$CLAUDE_CONFIG_DIR&quot; 2&gt;/dev/null || true</span></span>
+<span id="cb20-245"><a href="#cb20-245" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-246"><a href="#cb20-246" aria-hidden="true" tabindex="-1"></a><span class="st">  local rc</span></span>
+<span id="cb20-247"><a href="#cb20-247" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ &quot;${CMA_PROVIDER_TRANSPORT:-native}&quot; == &quot;router&quot; ]]; then</span></span>
+<span id="cb20-248"><a href="#cb20-248" aria-hidden="true" tabindex="-1"></a><span class="st">    if ! command -v ccr &gt;/dev/null 2&gt;&amp;1; then</span></span>
+<span id="cb20-249"><a href="#cb20-249" aria-hidden="true" tabindex="-1"></a><span class="st">      printf &#39;claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n&#39; &quot;$id&quot; &gt;&amp;2</span></span>
+<span id="cb20-250"><a href="#cb20-250" aria-hidden="true" tabindex="-1"></a><span class="st">      return 127</span></span>
+<span id="cb20-251"><a href="#cb20-251" aria-hidden="true" tabindex="-1"></a><span class="st">    fi</span></span>
+<span id="cb20-252"><a href="#cb20-252" aria-hidden="true" tabindex="-1"></a><span class="st">    # Upsert THIS provider into ccr config with the live key (regenerated each</span></span>
+<span id="cb20-253"><a href="#cb20-253" aria-hidden="true" tabindex="-1"></a><span class="st">    # launch, chmod 600 — never stored by the toolkit), set it as the active</span></span>
+<span id="cb20-254"><a href="#cb20-254" aria-hidden="true" tabindex="-1"></a><span class="st">    # route, then launch through ccr.</span></span>
+<span id="cb20-255"><a href="#cb20-255" aria-hidden="true" tabindex="-1"></a><span class="st">    local cfg=&quot;$HOME/.claude-code-router/config.json&quot; base=&quot;$CMA_PROVIDER_BASE_URL&quot;</span></span>
+<span id="cb20-256"><a href="#cb20-256" aria-hidden="true" tabindex="-1"></a><span class="st">    mkdir -p &quot;$HOME/.claude-code-router&quot;</span></span>
+<span id="cb20-257"><a href="#cb20-257" aria-hidden="true" tabindex="-1"></a><span class="st">    [[ -f &quot;$cfg&quot; ]] || echo &#39;{&quot;Providers&quot;:[],&quot;Router&quot;:{}}&#39; &gt; &quot;$cfg&quot;</span></span>
+<span id="cb20-258"><a href="#cb20-258" aria-hidden="true" tabindex="-1"></a><span class="st">    case &quot;$base&quot; in</span></span>
+<span id="cb20-259"><a href="#cb20-259" aria-hidden="true" tabindex="-1"></a><span class="st">      */chat/completions|*/v1beta/models/|*/v1beta/models) ;;</span></span>
+<span id="cb20-260"><a href="#cb20-260" aria-hidden="true" tabindex="-1"></a><span class="st">      *) base=&quot;${base%/}/chat/completions&quot; ;;</span></span>
+<span id="cb20-261"><a href="#cb20-261" aria-hidden="true" tabindex="-1"></a><span class="st">    esac</span></span>
+<span id="cb20-262"><a href="#cb20-262" aria-hidden="true" tabindex="-1"></a><span class="st">    if command -v jq &gt;/dev/null 2&gt;&amp;1; then</span></span>
+<span id="cb20-263"><a href="#cb20-263" aria-hidden="true" tabindex="-1"></a><span class="st">      local tmp; tmp=&quot;$(mktemp)&quot;</span></span>
+<span id="cb20-264"><a href="#cb20-264" aria-hidden="true" tabindex="-1"></a><span class="st">      if jq --arg n &quot;$CMA_PROVIDER_ID&quot; --arg u &quot;$base&quot; --arg k &quot;$token&quot; \</span></span>
+<span id="cb20-265"><a href="#cb20-265" aria-hidden="true" tabindex="-1"></a><span class="st">            --arg s &quot;$CMA_PROVIDER_MODEL&quot; --arg f &quot;${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}&quot; &#39;</span></span>
+<span id="cb20-266"><a href="#cb20-266" aria-hidden="true" tabindex="-1"></a><span class="st">          .Providers = ([ .Providers[]? | select(.name != $n) ]</span></span>
+<span id="cb20-267"><a href="#cb20-267" aria-hidden="true" tabindex="-1"></a><span class="st">            + [{name:$n, api_base_url:$u, api_key:$k, models:[$s,$f]}])</span></span>
+<span id="cb20-268"><a href="#cb20-268" aria-hidden="true" tabindex="-1"></a><span class="st">          | .Router.default = ($n + &quot;,&quot; + $s)</span></span>
+<span id="cb20-269"><a href="#cb20-269" aria-hidden="true" tabindex="-1"></a><span class="st">          | .Router.background = ($n + &quot;,&quot; + $f)</span></span>
+<span id="cb20-270"><a href="#cb20-270" aria-hidden="true" tabindex="-1"></a><span class="st">        &#39; &quot;$cfg&quot; &gt; &quot;$tmp&quot; 2&gt;/dev/null; then</span></span>
+<span id="cb20-271"><a href="#cb20-271" aria-hidden="true" tabindex="-1"></a><span class="st">        mv &quot;$tmp&quot; &quot;$cfg&quot;; chmod 600 &quot;$cfg&quot;</span></span>
+<span id="cb20-272"><a href="#cb20-272" aria-hidden="true" tabindex="-1"></a><span class="st">        ccr restart &gt;/dev/null 2&gt;&amp;1 || true</span></span>
+<span id="cb20-273"><a href="#cb20-273" aria-hidden="true" tabindex="-1"></a><span class="st">      else</span></span>
+<span id="cb20-274"><a href="#cb20-274" aria-hidden="true" tabindex="-1"></a><span class="st">        rm -f &quot;$tmp&quot;</span></span>
+<span id="cb20-275"><a href="#cb20-275" aria-hidden="true" tabindex="-1"></a><span class="st">      fi</span></span>
+<span id="cb20-276"><a href="#cb20-276" aria-hidden="true" tabindex="-1"></a><span class="st">    fi</span></span>
+<span id="cb20-277"><a href="#cb20-277" aria-hidden="true" tabindex="-1"></a><span class="st">    ccr code &quot;$@&quot;; rc=$?</span></span>
+<span id="cb20-278"><a href="#cb20-278" aria-hidden="true" tabindex="-1"></a><span class="st">  else</span></span>
+<span id="cb20-279"><a href="#cb20-279" aria-hidden="true" tabindex="-1"></a><span class="st">    export ANTHROPIC_BASE_URL=&quot;$CMA_PROVIDER_BASE_URL&quot;</span></span>
+<span id="cb20-280"><a href="#cb20-280" aria-hidden="true" tabindex="-1"></a><span class="st">    export ANTHROPIC_AUTH_TOKEN=&quot;$token&quot;</span></span>
+<span id="cb20-281"><a href="#cb20-281" aria-hidden="true" tabindex="-1"></a><span class="st">    export ANTHROPIC_MODEL=&quot;$CMA_PROVIDER_MODEL&quot;</span></span>
+<span id="cb20-282"><a href="#cb20-282" aria-hidden="true" tabindex="-1"></a><span class="st">    [[ -n &quot;${CMA_PROVIDER_FAST_MODEL:-}&quot; ]] &amp;&amp; export ANTHROPIC_SMALL_FAST_MODEL=&quot;$CMA_PROVIDER_FAST_MODEL&quot;</span></span>
+<span id="cb20-283"><a href="#cb20-283" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$CLAUDE_BIN&quot; &quot;$@&quot;; rc=$?</span></span>
+<span id="cb20-284"><a href="#cb20-284" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-285"><a href="#cb20-285" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ -x &quot;$HOME/.local/bin/claude-sync-state&quot; ]]; then</span></span>
+<span id="cb20-286"><a href="#cb20-286" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;$HOME/.local/bin/claude-sync-state&quot; push &quot;$CLAUDE_CONFIG_DIR&quot; 2&gt;/dev/null || true</span></span>
+<span id="cb20-287"><a href="#cb20-287" aria-hidden="true" tabindex="-1"></a><span class="st">  fi</span></span>
+<span id="cb20-288"><a href="#cb20-288" aria-hidden="true" tabindex="-1"></a><span class="st">  return $rc</span></span>
+<span id="cb20-289"><a href="#cb20-289" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb20-290"><a href="#cb20-290" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span>
+<span id="cb20-291"><a href="#cb20-291" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb20-292"><a href="#cb20-292" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">rc</span> <span class="va">src_line</span><span class="op">=</span><span class="st">&quot;source </span><span class="dt">\&quot;</span><span class="va">$ALIAS_FILE</span><span class="dt">\&quot;</span><span class="st">&quot;</span></span>
+<span id="cb20-293"><a href="#cb20-293" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> rc <span class="kw">in</span> <span class="st">&quot;</span><span class="va">${CMA_RC_FILES</span><span class="op">[@]</span><span class="va">}</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb20-294"><a href="#cb20-294" aria-hidden="true" tabindex="-1"></a>    <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="cf">continue</span></span>
+<span id="cb20-295"><a href="#cb20-295" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="ot">! </span><span class="fu">grep</span> <span class="at">-F</span> <span class="at">-q</span> <span class="st">&quot;</span><span class="va">$src_line</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb20-296"><a href="#cb20-296" aria-hidden="true" tabindex="-1"></a>      <span class="bu">printf</span> <span class="st">&#39;\n# Claude multi-account aliases\n%s\n&#39;</span> <span class="st">&quot;</span><span class="va">$src_line</span><span class="st">&quot;</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span></span>
+<span id="cb20-297"><a href="#cb20-297" aria-hidden="true" tabindex="-1"></a>      <span class="ex">cma_log</span> <span class="st">&quot;added source line to </span><span class="va">$rc</span><span class="st">&quot;</span></span>
+<span id="cb20-298"><a href="#cb20-298" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb20-299"><a href="#cb20-299" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
+<span id="cb20-300"><a href="#cb20-300" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-301"><a href="#cb20-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-302"><a href="#cb20-302" aria-hidden="true" tabindex="-1"></a><span class="co"># Add (or refresh) a single alias entry in $ALIAS_FILE. Idempotent.</span></span>
+<span id="cb20-303"><a href="#cb20-303" aria-hidden="true" tabindex="-1"></a><span class="co"># The generated alias wraps `$CLAUDE_BIN` with sync-pull (before launch) and</span></span>
+<span id="cb20-304"><a href="#cb20-304" aria-hidden="true" tabindex="-1"></a><span class="co"># sync-push (after exit) so the project/session index inside .claude.json</span></span>
+<span id="cb20-305"><a href="#cb20-305" aria-hidden="true" tabindex="-1"></a><span class="co"># stays merged across every logged-in account without manual unify runs.</span></span>
+<span id="cb20-306"><a href="#cb20-306" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_write_alias()</span> <span class="kw">{</span></span>
+<span id="cb20-307"><a href="#cb20-307" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">alias_name</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="va">config_dir</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span></span>
+<span id="cb20-308"><a href="#cb20-308" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_validate_alias</span> <span class="st">&quot;</span><span class="va">$alias_name</span><span class="st">&quot;</span></span>
+<span id="cb20-309"><a href="#cb20-309" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_ensure_alias_file</span></span>
+<span id="cb20-310"><a href="#cb20-310" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Strip any prior line for this alias, then append the new one.</span></span>
+<span id="cb20-311"><a href="#cb20-311" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb20-312"><a href="#cb20-312" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span> <span class="at">-v</span> <span class="at">-E</span> <span class="st">&quot;^alias[[:space:]]+</span><span class="va">${alias_name}</span><span class="st">=&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb20-313"><a href="#cb20-313" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Note: bash aliases can&#39;t take args, so we use a quoted CLAUDE_CONFIG_DIR= prefix</span></span>
+<span id="cb20-314"><a href="#cb20-314" aria-hidden="true" tabindex="-1"></a>  <span class="co"># plus a wrapped invocation. The wrapper is a shell function reference (cma_run)</span></span>
+<span id="cb20-315"><a href="#cb20-315" aria-hidden="true" tabindex="-1"></a>  <span class="co"># defined alongside in the alias file (added once by cma_ensure_alias_file).</span></span>
+<span id="cb20-316"><a href="#cb20-316" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">&#39;alias %s=&quot;CLAUDE_CONFIG_DIR=%s cma_run&quot;\n&#39;</span> <span class="dt">\</span></span>
+<span id="cb20-317"><a href="#cb20-317" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;</span><span class="va">$alias_name</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$config_dir</span><span class="st">&quot;</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span></span>
+<span id="cb20-318"><a href="#cb20-318" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
+<span id="cb20-319"><a href="#cb20-319" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-320"><a href="#cb20-320" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-321"><a href="#cb20-321" aria-hidden="true" tabindex="-1"></a><span class="co"># Remove an alias line. Idempotent.</span></span>
+<span id="cb20-322"><a href="#cb20-322" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_remove_alias()</span> <span class="kw">{</span></span>
+<span id="cb20-323"><a href="#cb20-323" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">alias_name</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span></span>
+<span id="cb20-324"><a href="#cb20-324" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">0</span></span>
+<span id="cb20-325"><a href="#cb20-325" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb20-326"><a href="#cb20-326" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span> <span class="at">-v</span> <span class="at">-E</span> <span class="st">&quot;^alias[[:space:]]+</span><span class="va">${alias_name}</span><span class="st">=&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb20-327"><a href="#cb20-327" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
+<span id="cb20-328"><a href="#cb20-328" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-329"><a href="#cb20-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-330"><a href="#cb20-330" aria-hidden="true" tabindex="-1"></a><span class="co"># ===========================================================================</span></span>
+<span id="cb20-331"><a href="#cb20-331" aria-hidden="true" tabindex="-1"></a><span class="co"># Provider-alias helpers (used by claude-providers.sh)</span></span>
+<span id="cb20-332"><a href="#cb20-332" aria-hidden="true" tabindex="-1"></a><span class="co"># ===========================================================================</span></span>
+<span id="cb20-333"><a href="#cb20-333" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-334"><a href="#cb20-334" aria-hidden="true" tabindex="-1"></a><span class="co"># The shared items every account/provider dir symlinks into $SHARED_DIR.</span></span>
+<span id="cb20-335"><a href="#cb20-335" aria-hidden="true" tabindex="-1"></a><span class="co"># Kept here (single source) so claude-add-account and claude-providers agree.</span></span>
+<span id="cb20-336"><a href="#cb20-336" aria-hidden="true" tabindex="-1"></a><span class="va">CMA_SHARED_ITEMS</span><span class="op">=</span><span class="va">(</span></span>
+<span id="cb20-337"><a href="#cb20-337" aria-hidden="true" tabindex="-1"></a>  projects todos tasks plans file-history paste-cache shell-snapshots</span>
+<span id="cb20-338"><a href="#cb20-338" aria-hidden="true" tabindex="-1"></a>  session-env telemetry sessions backups cache plugins</span>
+<span id="cb20-339"><a href="#cb20-339" aria-hidden="true" tabindex="-1"></a>  stats-cache.json history.jsonl settings.json CLAUDE.md</span>
+<span id="cb20-340"><a href="#cb20-340" aria-hidden="true" tabindex="-1"></a><span class="va">)</span></span>
+<span id="cb20-341"><a href="#cb20-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-342"><a href="#cb20-342" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_providers_dir()</span> <span class="kw">{</span> <span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$HOME</span><span class="st">/.local/share/claude-multi-account/providers&quot;</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb20-343"><a href="#cb20-343" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-344"><a href="#cb20-344" aria-hidden="true" tabindex="-1"></a><span class="co"># Symlink every shared item into a config dir (account or provider), creating</span></span>
+<span id="cb20-345"><a href="#cb20-345" aria-hidden="true" tabindex="-1"></a><span class="co"># empty placeholders in $SHARED_DIR for any item that doesn&#39;t exist yet.</span></span>
+<span id="cb20-346"><a href="#cb20-346" aria-hidden="true" tabindex="-1"></a><span class="co"># Idempotent: skips items already present in the target.</span></span>
+<span id="cb20-347"><a href="#cb20-347" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_link_shared_items()</span> <span class="kw">{</span></span>
+<span id="cb20-348"><a href="#cb20-348" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">cdir</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="va">item</span> <span class="va">src</span> <span class="va">tgt</span></span>
+<span id="cb20-349"><a href="#cb20-349" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$SHARED_DIR</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$cdir</span><span class="st">&quot;</span></span>
+<span id="cb20-350"><a href="#cb20-350" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> item <span class="kw">in</span> <span class="st">&quot;</span><span class="va">${CMA_SHARED_ITEMS</span><span class="op">[@]</span><span class="va">}</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb20-351"><a href="#cb20-351" aria-hidden="true" tabindex="-1"></a>    <span class="va">src</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$SHARED_DIR</span><span class="st">/</span><span class="va">$item</span><span class="st">&quot;</span><span class="kw">;</span> <span class="va">tgt</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$cdir</span><span class="st">/</span><span class="va">$item</span><span class="st">&quot;</span></span>
+<span id="cb20-352"><a href="#cb20-352" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">!</span> <span class="ot">-e</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb20-353"><a href="#cb20-353" aria-hidden="true" tabindex="-1"></a>      <span class="cf">case</span> <span class="st">&quot;</span><span class="va">$item</span><span class="st">&quot;</span> <span class="kw">in</span></span>
+<span id="cb20-354"><a href="#cb20-354" aria-hidden="true" tabindex="-1"></a>        <span class="pp">*</span><span class="ss">.json</span><span class="kw">|</span><span class="pp">*</span><span class="ss">.jsonl</span><span class="kw">|</span><span class="pp">*</span><span class="ss">.md</span><span class="kw">)</span> <span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="cf">;;</span></span>
+<span id="cb20-355"><a href="#cb20-355" aria-hidden="true" tabindex="-1"></a>        <span class="pp">*</span><span class="kw">)</span> <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="cf">;;</span></span>
+<span id="cb20-356"><a href="#cb20-356" aria-hidden="true" tabindex="-1"></a>      <span class="cf">esac</span></span>
+<span id="cb20-357"><a href="#cb20-357" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb20-358"><a href="#cb20-358" aria-hidden="true" tabindex="-1"></a>    <span class="kw">[[</span> <span class="ot">-e</span> <span class="st">&quot;</span><span class="va">$tgt</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="ot">-L</span> <span class="st">&quot;</span><span class="va">$tgt</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="fu">ln</span> <span class="at">-s</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$tgt</span><span class="st">&quot;</span></span>
+<span id="cb20-359"><a href="#cb20-359" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
+<span id="cb20-360"><a href="#cb20-360" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-361"><a href="#cb20-361" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-362"><a href="#cb20-362" aria-hidden="true" tabindex="-1"></a><span class="co"># Force-enable the always-on plugins in the shared settings.json enabledPlugins</span></span>
+<span id="cb20-363"><a href="#cb20-363" aria-hidden="true" tabindex="-1"></a><span class="co"># map (additive union — never removes a user&#39;s existing entries). Each arg is a</span></span>
+<span id="cb20-364"><a href="#cb20-364" aria-hidden="true" tabindex="-1"></a><span class="co"># plugin key as it appears in enabledPlugins (e.g. &quot;superpowers@anthropics&quot;).</span></span>
+<span id="cb20-365"><a href="#cb20-365" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_enable_plugins()</span> <span class="kw">{</span></span>
+<span id="cb20-366"><a href="#cb20-366" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_require</span> jq</span>
+<span id="cb20-367"><a href="#cb20-367" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">settings</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$SHARED_DIR</span><span class="st">/settings.json&quot;</span> <span class="va">tmp</span></span>
+<span id="cb20-368"><a href="#cb20-368" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$SHARED_DIR</span><span class="st">&quot;</span></span>
+<span id="cb20-369"><a href="#cb20-369" aria-hidden="true" tabindex="-1"></a>  <span class="kw">[[</span> <span class="ot">-s</span> <span class="st">&quot;</span><span class="va">$settings</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="bu">printf</span> <span class="st">&#39;{}\n&#39;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$settings</span><span class="st">&quot;</span></span>
+<span id="cb20-370"><a href="#cb20-370" aria-hidden="true" tabindex="-1"></a>  <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb20-371"><a href="#cb20-371" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">args</span><span class="op">=</span><span class="va">()</span> <span class="va">p</span></span>
+<span id="cb20-372"><a href="#cb20-372" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> p <span class="kw">in</span> <span class="st">&quot;</span><span class="va">$@</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">do</span> <span class="va">args</span><span class="op">+=</span><span class="va">(</span>--arg <span class="st">&quot;p</span><span class="va">$((${</span><span class="op">#</span><span class="va">args</span><span class="op">[@]</span><span class="va">}</span><span class="op">/</span><span class="dv">2</span><span class="va">))</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$p</span><span class="st">&quot;</span><span class="va">)</span><span class="kw">;</span> <span class="cf">done</span></span>
+<span id="cb20-373"><a href="#cb20-373" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Build a jq program that sets each provided key true if absent.</span></span>
+<span id="cb20-374"><a href="#cb20-374" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">prog</span><span class="op">=</span><span class="st">&#39;.enabledPlugins //= {}&#39;</span></span>
+<span id="cb20-375"><a href="#cb20-375" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">i</span><span class="op">=</span>0</span>
+<span id="cb20-376"><a href="#cb20-376" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> p <span class="kw">in</span> <span class="st">&quot;</span><span class="va">$@</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb20-377"><a href="#cb20-377" aria-hidden="true" tabindex="-1"></a>    <span class="va">prog</span><span class="op">+=</span><span class="st">&quot; | .enabledPlugins[</span><span class="dt">\$</span><span class="st">p</span><span class="va">$i</span><span class="st">] //= true&quot;</span><span class="kw">;</span> <span class="va">i</span><span class="op">=</span><span class="va">$((i</span><span class="op">+</span><span class="dv">1</span><span class="va">))</span></span>
+<span id="cb20-378"><a href="#cb20-378" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
+<span id="cb20-379"><a href="#cb20-379" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="ex">jq</span> <span class="st">&quot;</span><span class="va">${args</span><span class="op">[@]</span><span class="va">}</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$prog</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$settings</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb20-380"><a href="#cb20-380" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$settings</span><span class="st">&quot;</span></span>
+<span id="cb20-381"><a href="#cb20-381" aria-hidden="true" tabindex="-1"></a>  <span class="cf">else</span></span>
+<span id="cb20-382"><a href="#cb20-382" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rm</span> <span class="at">-f</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span><span class="kw">;</span> <span class="ex">cma_warn</span> <span class="st">&quot;could not update enabledPlugins in </span><span class="va">$settings</span><span class="st">&quot;</span></span>
+<span id="cb20-383"><a href="#cb20-383" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
+<span id="cb20-384"><a href="#cb20-384" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-385"><a href="#cb20-385" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-386"><a href="#cb20-386" aria-hidden="true" tabindex="-1"></a><span class="co"># Write the non-secret per-provider env file consumed by cma_run_provider.</span></span>
+<span id="cb20-387"><a href="#cb20-387" aria-hidden="true" tabindex="-1"></a><span class="co"># Args: id keyvar transport base_url model fast_model config_dir</span></span>
+<span id="cb20-388"><a href="#cb20-388" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_provider_write_env()</span> <span class="kw">{</span></span>
+<span id="cb20-389"><a href="#cb20-389" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">id</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="va">keyvar</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span> <span class="va">transport</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$3</span><span class="st">&quot;</span> <span class="va">base</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$4</span><span class="st">&quot;</span> <span class="va">model</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$5</span><span class="st">&quot;</span> <span class="va">fast</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$6</span><span class="st">&quot;</span> <span class="va">cdir</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$7</span><span class="st">&quot;</span></span>
+<span id="cb20-390"><a href="#cb20-390" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">pdir</span><span class="kw">;</span> <span class="va">pdir</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="ex">cma_providers_dir</span><span class="va">)</span><span class="st">&quot;</span><span class="kw">;</span> <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$pdir</span><span class="st">&quot;</span></span>
+<span id="cb20-391"><a href="#cb20-391" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$pdir</span><span class="st">/</span><span class="va">$id</span><span class="st">.env&quot;</span> <span class="op">&lt;&lt;EOF</span></span>
+<span id="cb20-392"><a href="#cb20-392" aria-hidden="true" tabindex="-1"></a><span class="st"># generated by claude-providers — non-secret. Do not edit by hand.</span></span>
+<span id="cb20-393"><a href="#cb20-393" aria-hidden="true" tabindex="-1"></a><span class="st"># Secrets are NEVER stored here; the key is read from the keys file at launch.</span></span>
+<span id="cb20-394"><a href="#cb20-394" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_ID=</span><span class="va">$id</span></span>
+<span id="cb20-395"><a href="#cb20-395" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_KEYVAR=</span><span class="va">$keyvar</span></span>
+<span id="cb20-396"><a href="#cb20-396" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_TRANSPORT=</span><span class="va">$transport</span></span>
+<span id="cb20-397"><a href="#cb20-397" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_BASE_URL=</span><span class="va">$base</span></span>
+<span id="cb20-398"><a href="#cb20-398" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_MODEL=</span><span class="va">$model</span></span>
+<span id="cb20-399"><a href="#cb20-399" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_FAST_MODEL=</span><span class="va">$fast</span></span>
+<span id="cb20-400"><a href="#cb20-400" aria-hidden="true" tabindex="-1"></a><span class="st">CMA_PROVIDER_CONFIG_DIR=</span><span class="va">$cdir</span></span>
+<span id="cb20-401"><a href="#cb20-401" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span>
+<span id="cb20-402"><a href="#cb20-402" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb20-403"><a href="#cb20-403" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-404"><a href="#cb20-404" aria-hidden="true" tabindex="-1"></a><span class="co"># Write (or refresh) a provider alias: alias &lt;name&gt;=&quot;cma_run_provider &lt;id&gt;&quot;.</span></span>
+<span id="cb20-405"><a href="#cb20-405" aria-hidden="true" tabindex="-1"></a><span class="fu">cma_provider_write_alias()</span> <span class="kw">{</span></span>
+<span id="cb20-406"><a href="#cb20-406" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">alias_name</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="va">id</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span></span>
+<span id="cb20-407"><a href="#cb20-407" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_validate_alias</span> <span class="st">&quot;</span><span class="va">$alias_name</span><span class="st">&quot;</span></span>
+<span id="cb20-408"><a href="#cb20-408" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_ensure_alias_file</span></span>
+<span id="cb20-409"><a href="#cb20-409" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">tmp</span><span class="kw">;</span> <span class="va">tmp</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb20-410"><a href="#cb20-410" aria-hidden="true" tabindex="-1"></a>  <span class="fu">grep</span> <span class="at">-v</span> <span class="at">-E</span> <span class="st">&quot;^alias[[:space:]]+</span><span class="va">${alias_name}</span><span class="st">=&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb20-411"><a href="#cb20-411" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">&#39;alias %s=&quot;cma_run_provider %s&quot;\n&#39;</span> <span class="st">&quot;</span><span class="va">$alias_name</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$id</span><span class="st">&quot;</span> <span class="op">&gt;&gt;</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span></span>
+<span id="cb20-412"><a href="#cb20-412" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mv</span> <span class="st">&quot;</span><span class="va">$tmp</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$ALIAS_FILE</span><span class="st">&quot;</span></span>
+<span id="cb20-413"><a href="#cb20-413" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span></code></pre></div>
 <h3 id="82-claude-unifysh">8.2 <code>claude-unify.sh</code></h3>
 <div class="sourceCode" id="cb21"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co"># claude-unify.sh — Unify N Claude Code account config dirs into a single</span></span>
@@ -1587,49 +1765,30 @@ reproduced below. The authoritative copies live at
 <span id="cb22-78"><a href="#cb22-78" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
 <span id="cb22-79"><a href="#cb22-79" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;created </span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
 <span id="cb22-80"><a href="#cb22-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-81"><a href="#cb22-81" aria-hidden="true" tabindex="-1"></a><span class="co"># Symlink every shared item into the new account dir. We mirror the same</span></span>
-<span id="cb22-82"><a href="#cb22-82" aria-hidden="true" tabindex="-1"></a><span class="co"># list that claude-unify uses so a brand-new account starts in lockstep</span></span>
-<span id="cb22-83"><a href="#cb22-83" aria-hidden="true" tabindex="-1"></a><span class="co"># with the others without re-running the full merge.</span></span>
-<span id="cb22-84"><a href="#cb22-84" aria-hidden="true" tabindex="-1"></a><span class="va">SHARED_ITEMS</span><span class="op">=</span><span class="va">(</span></span>
-<span id="cb22-85"><a href="#cb22-85" aria-hidden="true" tabindex="-1"></a>  projects todos tasks plans file-history paste-cache shell-snapshots</span>
-<span id="cb22-86"><a href="#cb22-86" aria-hidden="true" tabindex="-1"></a>  session-env telemetry sessions backups cache plugins</span>
-<span id="cb22-87"><a href="#cb22-87" aria-hidden="true" tabindex="-1"></a>  stats-cache.json history.jsonl settings.json CLAUDE.md</span>
-<span id="cb22-88"><a href="#cb22-88" aria-hidden="true" tabindex="-1"></a><span class="va">)</span></span>
-<span id="cb22-89"><a href="#cb22-89" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-90"><a href="#cb22-90" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$SHARED_DIR</span><span class="st">&quot;</span></span>
-<span id="cb22-91"><a href="#cb22-91" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> item <span class="kw">in</span> <span class="st">&quot;</span><span class="va">${SHARED_ITEMS</span><span class="op">[@]</span><span class="va">}</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb22-92"><a href="#cb22-92" aria-hidden="true" tabindex="-1"></a>  <span class="va">src</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$SHARED_DIR</span><span class="st">/</span><span class="va">$item</span><span class="st">&quot;</span></span>
-<span id="cb22-93"><a href="#cb22-93" aria-hidden="true" tabindex="-1"></a>  <span class="va">tgt</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$CONFIG_DIR</span><span class="st">/</span><span class="va">$item</span><span class="st">&quot;</span></span>
-<span id="cb22-94"><a href="#cb22-94" aria-hidden="true" tabindex="-1"></a>  <span class="co"># If the shared item doesn&#39;t yet exist, create an empty placeholder so</span></span>
-<span id="cb22-95"><a href="#cb22-95" aria-hidden="true" tabindex="-1"></a>  <span class="co"># the symlink isn&#39;t dangling. Directories are mkdir&#39;d, files are touched.</span></span>
-<span id="cb22-96"><a href="#cb22-96" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> <span class="kw">[[</span> <span class="ot">!</span> <span class="ot">-e</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
-<span id="cb22-97"><a href="#cb22-97" aria-hidden="true" tabindex="-1"></a>    <span class="cf">case</span> <span class="st">&quot;</span><span class="va">$item</span><span class="st">&quot;</span> <span class="kw">in</span></span>
-<span id="cb22-98"><a href="#cb22-98" aria-hidden="true" tabindex="-1"></a>      <span class="pp">*</span><span class="ss">.json</span><span class="kw">|</span><span class="pp">*</span><span class="ss">.jsonl</span><span class="kw">|</span><span class="pp">*</span><span class="ss">.md</span><span class="kw">)</span> <span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="cf">;;</span></span>
-<span id="cb22-99"><a href="#cb22-99" aria-hidden="true" tabindex="-1"></a>      <span class="pp">*</span><span class="kw">)</span> <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="cf">;;</span></span>
-<span id="cb22-100"><a href="#cb22-100" aria-hidden="true" tabindex="-1"></a>    <span class="cf">esac</span></span>
-<span id="cb22-101"><a href="#cb22-101" aria-hidden="true" tabindex="-1"></a>  <span class="cf">fi</span></span>
-<span id="cb22-102"><a href="#cb22-102" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ln</span> <span class="at">-s</span> <span class="st">&quot;</span><span class="va">$src</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$tgt</span><span class="st">&quot;</span></span>
-<span id="cb22-103"><a href="#cb22-103" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
-<span id="cb22-104"><a href="#cb22-104" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;linked </span><span class="va">${</span><span class="op">#</span><span class="va">SHARED_ITEMS</span><span class="op">[@]</span><span class="va">}</span><span class="st"> shared items into </span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
-<span id="cb22-105"><a href="#cb22-105" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-106"><a href="#cb22-106" aria-hidden="true" tabindex="-1"></a><span class="co"># Add the alias. lib.sh handles dedupe, rc-file sourcing, etc.</span></span>
-<span id="cb22-107"><a href="#cb22-107" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_write_alias</span> <span class="st">&quot;</span><span class="va">$ALIAS_NAME</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
-<span id="cb22-108"><a href="#cb22-108" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;registered alias: </span><span class="va">$ALIAS_NAME</span><span class="st"> -&gt; </span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
-<span id="cb22-109"><a href="#cb22-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-110"><a href="#cb22-110" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="op">&lt;&lt;EOF</span></span>
-<span id="cb22-111"><a href="#cb22-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-112"><a href="#cb22-112" aria-hidden="true" tabindex="-1"></a><span class="st">[done] new account: </span><span class="va">$ALIAS_NAME</span></span>
-<span id="cb22-113"><a href="#cb22-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-114"><a href="#cb22-114" aria-hidden="true" tabindex="-1"></a><span class="st">Next steps:</span></span>
-<span id="cb22-115"><a href="#cb22-115" aria-hidden="true" tabindex="-1"></a><span class="st">  1. Reload your shell (or run: source </span><span class="va">$ALIAS_FILE</span><span class="st">).</span></span>
-<span id="cb22-116"><a href="#cb22-116" aria-hidden="true" tabindex="-1"></a><span class="st">  2. Authenticate the new account:</span></span>
-<span id="cb22-117"><a href="#cb22-117" aria-hidden="true" tabindex="-1"></a><span class="st">       </span><span class="va">$ALIAS_NAME</span><span class="st"> /login</span></span>
-<span id="cb22-118"><a href="#cb22-118" aria-hidden="true" tabindex="-1"></a><span class="st">  3. After login, run any project — history, memory, plugins, and</span></span>
-<span id="cb22-119"><a href="#cb22-119" aria-hidden="true" tabindex="-1"></a><span class="st">     settings will already match your other accounts via </span><span class="va">$SHARED_DIR</span><span class="st">.</span></span>
-<span id="cb22-120"><a href="#cb22-120" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-121"><a href="#cb22-121" aria-hidden="true" tabindex="-1"></a><span class="st">To remove this account later:</span></span>
-<span id="cb22-122"><a href="#cb22-122" aria-hidden="true" tabindex="-1"></a><span class="st">  </span><span class="va">$LIB_DIR</span><span class="st">/claude-remove-account.sh --alias </span><span class="va">$ALIAS_NAME</span></span>
-<span id="cb22-123"><a href="#cb22-123" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span></code></pre></div>
+<span id="cb22-81"><a href="#cb22-81" aria-hidden="true" tabindex="-1"></a><span class="co"># Symlink every shared item into the new account dir, using the single</span></span>
+<span id="cb22-82"><a href="#cb22-82" aria-hidden="true" tabindex="-1"></a><span class="co"># canonical list (CMA_SHARED_ITEMS in lib.sh) so accounts and provider</span></span>
+<span id="cb22-83"><a href="#cb22-83" aria-hidden="true" tabindex="-1"></a><span class="co"># aliases stay in lockstep without two copies of the list drifting apart.</span></span>
+<span id="cb22-84"><a href="#cb22-84" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_link_shared_items</span> <span class="st">&quot;</span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
+<span id="cb22-85"><a href="#cb22-85" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;linked </span><span class="va">${</span><span class="op">#</span><span class="va">CMA_SHARED_ITEMS</span><span class="op">[@]</span><span class="va">}</span><span class="st"> shared items into </span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
+<span id="cb22-86"><a href="#cb22-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-87"><a href="#cb22-87" aria-hidden="true" tabindex="-1"></a><span class="co"># Add the alias. lib.sh handles dedupe, rc-file sourcing, etc.</span></span>
+<span id="cb22-88"><a href="#cb22-88" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_write_alias</span> <span class="st">&quot;</span><span class="va">$ALIAS_NAME</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
+<span id="cb22-89"><a href="#cb22-89" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;registered alias: </span><span class="va">$ALIAS_NAME</span><span class="st"> -&gt; </span><span class="va">$CONFIG_DIR</span><span class="st">&quot;</span></span>
+<span id="cb22-90"><a href="#cb22-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-91"><a href="#cb22-91" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="op">&lt;&lt;EOF</span></span>
+<span id="cb22-92"><a href="#cb22-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-93"><a href="#cb22-93" aria-hidden="true" tabindex="-1"></a><span class="st">[done] new account: </span><span class="va">$ALIAS_NAME</span></span>
+<span id="cb22-94"><a href="#cb22-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-95"><a href="#cb22-95" aria-hidden="true" tabindex="-1"></a><span class="st">Next steps:</span></span>
+<span id="cb22-96"><a href="#cb22-96" aria-hidden="true" tabindex="-1"></a><span class="st">  1. Reload your shell (or run: source </span><span class="va">$ALIAS_FILE</span><span class="st">).</span></span>
+<span id="cb22-97"><a href="#cb22-97" aria-hidden="true" tabindex="-1"></a><span class="st">  2. Authenticate the new account:</span></span>
+<span id="cb22-98"><a href="#cb22-98" aria-hidden="true" tabindex="-1"></a><span class="st">       </span><span class="va">$ALIAS_NAME</span><span class="st"> /login</span></span>
+<span id="cb22-99"><a href="#cb22-99" aria-hidden="true" tabindex="-1"></a><span class="st">  3. After login, run any project — history, memory, plugins, and</span></span>
+<span id="cb22-100"><a href="#cb22-100" aria-hidden="true" tabindex="-1"></a><span class="st">     settings will already match your other accounts via </span><span class="va">$SHARED_DIR</span><span class="st">.</span></span>
+<span id="cb22-101"><a href="#cb22-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-102"><a href="#cb22-102" aria-hidden="true" tabindex="-1"></a><span class="st">To remove this account later:</span></span>
+<span id="cb22-103"><a href="#cb22-103" aria-hidden="true" tabindex="-1"></a><span class="st">  </span><span class="va">$LIB_DIR</span><span class="st">/claude-remove-account.sh --alias </span><span class="va">$ALIAS_NAME</span></span>
+<span id="cb22-104"><a href="#cb22-104" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span></code></pre></div>
 <h3 id="84-claude-remove-accountsh">8.4
 <code>claude-remove-account.sh</code></h3>
 <div class="sourceCode" id="cb23"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
@@ -1844,107 +2003,136 @@ reproduced below. The authoritative copies live at
 <span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a><span class="va">MD_FILE</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${MD_FILE</span><span class="op">:-</span><span class="va">$DOC_DIR</span>/Claude_Multi_Account_Fine_Tuning.md<span class="va">}</span><span class="st">&quot;</span></span>
 <span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a><span class="va">HTML_FILE</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${MD_FILE</span><span class="op">%</span>.md<span class="va">}</span><span class="st">.html&quot;</span></span>
 <span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a><span class="va">PDF_FILE</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${MD_FILE</span><span class="op">%</span>.md<span class="va">}</span><span class="st">.pdf&quot;</span></span>
-<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a><span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$MD_FILE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="ex">cma_die</span> <span class="st">&quot;markdown not found: </span><span class="va">$MD_FILE</span><span class="st">&quot;</span></span>
-<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_require</span> pandoc</span>
-<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Preprocess: expand `&lt;!-- INCLUDE: relative/path --&gt;` markers ---</span></span>
-<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a><span class="co"># These markers, placed inside a fenced code block in the source markdown,</span></span>
-<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a><span class="co"># get replaced with the contents of the referenced file (relative to the</span></span>
-<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a><span class="co"># directory containing the markdown). That keeps the .md small while the</span></span>
-<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a><span class="co"># generated HTML/PDF stays self-contained.</span></span>
-<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a><span class="co"># Portable temp file: BSD/macOS mktemp has no --suffix. pandoc reads the</span></span>
-<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a><span class="co"># format from --from, so the missing .md extension is irrelevant.</span></span>
-<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a><span class="va">PROCESSED_MD</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="st">&quot;</span><span class="va">${TMPDIR</span><span class="op">:-</span>/tmp<span class="va">}</span><span class="st">/cma-export.XXXXXX&quot;</span><span class="va">)</span><span class="st">&quot;</span></span>
-<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a><span class="bu">trap</span> <span class="st">&#39;rm -f &quot;$PROCESSED_MD&quot;&#39;</span> EXIT</span>
-<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Use only POSIX/2-arg awk match() (RSTART/RLENGTH + substr): the 3-arg</span></span>
-<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a><span class="co"># match($0,re,arr) capture form is a GNU-awk extension and breaks on the BSD</span></span>
-<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a><span class="co"># awk that ships with macOS.</span></span>
-<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a><span class="fu">awk</span> <span class="at">-v</span> base=<span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$MD_FILE</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&#39;</span></span>
-<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a><span class="st">  /&lt;!-- INCLUDE: / {</span></span>
-<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a><span class="st">    if (match($0, /INCLUDE: [^ ]+ --&gt;/)) {</span></span>
-<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a><span class="st">      tok = substr($0, RSTART, RLENGTH)   # &quot;INCLUDE: path --&gt;&quot;</span></span>
-<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a><span class="st">      sub(/^INCLUDE: /, &quot;&quot;, tok)</span></span>
-<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a><span class="st">      sub(/ --&gt;$/, &quot;&quot;, tok)               # -&gt; &quot;path&quot;</span></span>
-<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a><span class="st">      path = tok</span></span>
-<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a><span class="st">      if (path !~ /^\//) path = base &quot;/&quot; path</span></span>
-<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a><span class="st">      while ((getline line &lt; path) &gt; 0) print line</span></span>
-<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a><span class="st">      close(path)</span></span>
-<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a><span class="st">      next</span></span>
-<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a><span class="st">    }</span></span>
-<span id="cb26-56"><a href="#cb26-56" aria-hidden="true" tabindex="-1"></a><span class="st">  }</span></span>
-<span id="cb26-57"><a href="#cb26-57" aria-hidden="true" tabindex="-1"></a><span class="st">  { print }</span></span>
-<span id="cb26-58"><a href="#cb26-58" aria-hidden="true" tabindex="-1"></a><span class="st">&#39;</span> <span class="st">&quot;</span><span class="va">$MD_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span></span>
-<span id="cb26-59"><a href="#cb26-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-60"><a href="#cb26-60" aria-hidden="true" tabindex="-1"></a><span class="co"># --- HTML ---</span></span>
-<span id="cb26-61"><a href="#cb26-61" aria-hidden="true" tabindex="-1"></a><span class="co"># --standalone makes a complete HTML doc (head/body), --embed-resources</span></span>
-<span id="cb26-62"><a href="#cb26-62" aria-hidden="true" tabindex="-1"></a><span class="co"># inlines CSS/JS/images so the file is self-contained.</span></span>
-<span id="cb26-63"><a href="#cb26-63" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;rendering HTML -&gt; </span><span class="va">$HTML_FILE</span><span class="st">&quot;</span></span>
-<span id="cb26-64"><a href="#cb26-64" aria-hidden="true" tabindex="-1"></a><span class="ex">pandoc</span> <span class="dt">\</span></span>
-<span id="cb26-65"><a href="#cb26-65" aria-hidden="true" tabindex="-1"></a>  <span class="at">--from</span><span class="op">=</span>gfm+yaml_metadata_block <span class="dt">\</span></span>
-<span id="cb26-66"><a href="#cb26-66" aria-hidden="true" tabindex="-1"></a>  <span class="at">--to</span><span class="op">=</span>html5 <span class="dt">\</span></span>
-<span id="cb26-67"><a href="#cb26-67" aria-hidden="true" tabindex="-1"></a>  <span class="at">--standalone</span> <span class="dt">\</span></span>
-<span id="cb26-68"><a href="#cb26-68" aria-hidden="true" tabindex="-1"></a>  <span class="at">--embed-resources</span> <span class="dt">\</span></span>
-<span id="cb26-69"><a href="#cb26-69" aria-hidden="true" tabindex="-1"></a>  <span class="at">--toc</span> <span class="at">--toc-depth</span><span class="op">=</span>3 <span class="dt">\</span></span>
-<span id="cb26-70"><a href="#cb26-70" aria-hidden="true" tabindex="-1"></a>  <span class="at">--highlight-style</span><span class="op">=</span>tango <span class="dt">\</span></span>
-<span id="cb26-71"><a href="#cb26-71" aria-hidden="true" tabindex="-1"></a>  <span class="at">--metadata</span> title=<span class="st">&quot;Claude Multi-Account Fine Tuning&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a>  <span class="at">-o</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span></span>
-<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a><span class="co"># --- PDF ---</span></span>
-<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;rendering PDF -&gt; </span><span class="va">$PDF_FILE</span><span class="st">&quot;</span></span>
-<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a><span class="fu">render_pdf_via_pandoc_engine()</span> <span class="kw">{</span></span>
-<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">engine</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span></span>
-<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a>  <span class="bu">command</span> <span class="at">-v</span> <span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">1</span></span>
-<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a>  <span class="ex">pandoc</span> <span class="dt">\</span></span>
-<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a>    <span class="at">--from</span><span class="op">=</span>gfm+yaml_metadata_block <span class="dt">\</span></span>
-<span id="cb26-83"><a href="#cb26-83" aria-hidden="true" tabindex="-1"></a>    <span class="at">--pdf-engine</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-84"><a href="#cb26-84" aria-hidden="true" tabindex="-1"></a>    <span class="at">--toc</span> <span class="at">--toc-depth</span><span class="op">=</span>3 <span class="dt">\</span></span>
-<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a>    <span class="at">--highlight-style</span><span class="op">=</span>tango <span class="dt">\</span></span>
-<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a>    <span class="at">-V</span> geometry:margin=0.9in <span class="dt">\</span></span>
-<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a>    <span class="at">-V</span> mainfont=<span class="st">&quot;DejaVu Serif&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a>    <span class="at">-V</span> monofont=<span class="st">&quot;DejaVu Sans Mono&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-89"><a href="#cb26-89" aria-hidden="true" tabindex="-1"></a>    <span class="at">--metadata</span> title=<span class="st">&quot;Claude Multi-Account Fine Tuning&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-90"><a href="#cb26-90" aria-hidden="true" tabindex="-1"></a>    <span class="at">-o</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-91"><a href="#cb26-91" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span></span>
-<span id="cb26-92"><a href="#cb26-92" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb26-93"><a href="#cb26-93" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-94"><a href="#cb26-94" aria-hidden="true" tabindex="-1"></a><span class="fu">render_pdf_via_chromium()</span> <span class="kw">{</span></span>
-<span id="cb26-95"><a href="#cb26-95" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">engine</span></span>
-<span id="cb26-96"><a href="#cb26-96" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> engine <span class="kw">in</span> chromium chromium-browser google-chrome chrome<span class="kw">;</span> <span class="cf">do</span></span>
-<span id="cb26-97"><a href="#cb26-97" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">command</span> <span class="at">-v</span> <span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb26-98"><a href="#cb26-98" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Use the freshly generated HTML so styling matches.</span></span>
-<span id="cb26-99"><a href="#cb26-99" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="at">--headless</span> <span class="at">--no-sandbox</span> <span class="at">--disable-gpu</span> <span class="dt">\</span></span>
-<span id="cb26-100"><a href="#cb26-100" aria-hidden="true" tabindex="-1"></a>        <span class="at">--print-to-pdf</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span> <span class="dt">\</span></span>
-<span id="cb26-101"><a href="#cb26-101" aria-hidden="true" tabindex="-1"></a>        <span class="at">--print-to-pdf-no-header</span> <span class="dt">\</span></span>
-<span id="cb26-102"><a href="#cb26-102" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;file://</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span></span>
-<span id="cb26-103"><a href="#cb26-103" aria-hidden="true" tabindex="-1"></a>      <span class="cf">return</span> <span class="va">$?</span></span>
-<span id="cb26-104"><a href="#cb26-104" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
-<span id="cb26-105"><a href="#cb26-105" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
-<span id="cb26-106"><a href="#cb26-106" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">1</span></span>
-<span id="cb26-107"><a href="#cb26-107" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb26-108"><a href="#cb26-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-109"><a href="#cb26-109" aria-hidden="true" tabindex="-1"></a><span class="fu">render_pdf_via_weasyprint_on_html()</span> <span class="kw">{</span></span>
-<span id="cb26-110"><a href="#cb26-110" aria-hidden="true" tabindex="-1"></a>  <span class="bu">command</span> <span class="at">-v</span> weasyprint <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">1</span></span>
-<span id="cb26-111"><a href="#cb26-111" aria-hidden="true" tabindex="-1"></a>  <span class="ex">weasyprint</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span></span>
-<span id="cb26-112"><a href="#cb26-112" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
-<span id="cb26-113"><a href="#cb26-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-114"><a href="#cb26-114" aria-hidden="true" tabindex="-1"></a><span class="co"># Try engines in order; the first that succeeds wins.</span></span>
-<span id="cb26-115"><a href="#cb26-115" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ex">render_pdf_via_pandoc_engine</span> weasyprint <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb26-116"><a href="#cb26-116" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: weasyprint (via pandoc)&quot;</span></span>
-<span id="cb26-117"><a href="#cb26-117" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="ex">render_pdf_via_pandoc_engine</span> wkhtmltopdf <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb26-118"><a href="#cb26-118" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: wkhtmltopdf (via pandoc)&quot;</span></span>
-<span id="cb26-119"><a href="#cb26-119" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="ex">render_pdf_via_weasyprint_on_html</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb26-120"><a href="#cb26-120" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: weasyprint on html&quot;</span></span>
-<span id="cb26-121"><a href="#cb26-121" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="ex">render_pdf_via_chromium</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb26-122"><a href="#cb26-122" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: chromium headless&quot;</span></span>
-<span id="cb26-123"><a href="#cb26-123" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span></span>
-<span id="cb26-124"><a href="#cb26-124" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_die</span> <span class="st">&quot;no usable PDF engine. Install one of: weasyprint, wkhtmltopdf, chromium.&quot;</span></span>
-<span id="cb26-125"><a href="#cb26-125" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb26-126"><a href="#cb26-126" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-127"><a href="#cb26-127" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-lh</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span></span></code></pre></div>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="va">DOCX_FILE</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${MD_FILE</span><span class="op">%</span>.md<span class="va">}</span><span class="st">.docx&quot;</span></span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional Word styling: first existing reference doc wins. Generate a starter</span></span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a><span class="co"># with: pandoc -o reference.docx --print-default-data-file reference.docx</span></span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a><span class="va">DOCX_REFERENCE</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${DOCX_REFERENCE</span><span class="op">:-</span><span class="va">}</span><span class="st">&quot;</span></span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a><span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$MD_FILE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">||</span> <span class="ex">cma_die</span> <span class="st">&quot;markdown not found: </span><span class="va">$MD_FILE</span><span class="st">&quot;</span></span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_require</span> pandoc</span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Preprocess: expand `&lt;!-- INCLUDE: relative/path --&gt;` markers ---</span></span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a><span class="co"># These markers, placed inside a fenced code block in the source markdown,</span></span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a><span class="co"># get replaced with the contents of the referenced file (relative to the</span></span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a><span class="co"># directory containing the markdown). That keeps the .md small while the</span></span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a><span class="co"># generated HTML/PDF stays self-contained.</span></span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a><span class="co"># Portable temp file: BSD/macOS mktemp has no --suffix. pandoc reads the</span></span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a><span class="co"># format from --from, so the missing .md extension is irrelevant.</span></span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a><span class="va">PROCESSED_MD</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="st">&quot;</span><span class="va">${TMPDIR</span><span class="op">:-</span>/tmp<span class="va">}</span><span class="st">/cma-export.XXXXXX&quot;</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a><span class="bu">trap</span> <span class="st">&#39;rm -f &quot;$PROCESSED_MD&quot;&#39;</span> EXIT</span>
+<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a><span class="co"># Use only POSIX/2-arg awk match() (RSTART/RLENGTH + substr): the 3-arg</span></span>
+<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a><span class="co"># match($0,re,arr) capture form is a GNU-awk extension and breaks on the BSD</span></span>
+<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a><span class="co"># awk that ships with macOS.</span></span>
+<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a><span class="fu">awk</span> <span class="at">-v</span> base=<span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$MD_FILE</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&#39;</span></span>
+<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a><span class="st">  /&lt;!-- INCLUDE: / {</span></span>
+<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a><span class="st">    if (match($0, /INCLUDE: [^ ]+ --&gt;/)) {</span></span>
+<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a><span class="st">      tok = substr($0, RSTART, RLENGTH)   # &quot;INCLUDE: path --&gt;&quot;</span></span>
+<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a><span class="st">      sub(/^INCLUDE: /, &quot;&quot;, tok)</span></span>
+<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a><span class="st">      sub(/ --&gt;$/, &quot;&quot;, tok)               # -&gt; &quot;path&quot;</span></span>
+<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a><span class="st">      path = tok</span></span>
+<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a><span class="st">      if (path !~ /^\//) path = base &quot;/&quot; path</span></span>
+<span id="cb26-56"><a href="#cb26-56" aria-hidden="true" tabindex="-1"></a><span class="st">      while ((getline line &lt; path) &gt; 0) print line</span></span>
+<span id="cb26-57"><a href="#cb26-57" aria-hidden="true" tabindex="-1"></a><span class="st">      close(path)</span></span>
+<span id="cb26-58"><a href="#cb26-58" aria-hidden="true" tabindex="-1"></a><span class="st">      next</span></span>
+<span id="cb26-59"><a href="#cb26-59" aria-hidden="true" tabindex="-1"></a><span class="st">    }</span></span>
+<span id="cb26-60"><a href="#cb26-60" aria-hidden="true" tabindex="-1"></a><span class="st">  }</span></span>
+<span id="cb26-61"><a href="#cb26-61" aria-hidden="true" tabindex="-1"></a><span class="st">  { print }</span></span>
+<span id="cb26-62"><a href="#cb26-62" aria-hidden="true" tabindex="-1"></a><span class="st">&#39;</span> <span class="st">&quot;</span><span class="va">$MD_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span></span>
+<span id="cb26-63"><a href="#cb26-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-64"><a href="#cb26-64" aria-hidden="true" tabindex="-1"></a><span class="co"># --- HTML ---</span></span>
+<span id="cb26-65"><a href="#cb26-65" aria-hidden="true" tabindex="-1"></a><span class="co"># --standalone makes a complete HTML doc (head/body), --embed-resources</span></span>
+<span id="cb26-66"><a href="#cb26-66" aria-hidden="true" tabindex="-1"></a><span class="co"># inlines CSS/JS/images so the file is self-contained.</span></span>
+<span id="cb26-67"><a href="#cb26-67" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;rendering HTML -&gt; </span><span class="va">$HTML_FILE</span><span class="st">&quot;</span></span>
+<span id="cb26-68"><a href="#cb26-68" aria-hidden="true" tabindex="-1"></a><span class="ex">pandoc</span> <span class="dt">\</span></span>
+<span id="cb26-69"><a href="#cb26-69" aria-hidden="true" tabindex="-1"></a>  <span class="at">--from</span><span class="op">=</span>gfm+yaml_metadata_block <span class="dt">\</span></span>
+<span id="cb26-70"><a href="#cb26-70" aria-hidden="true" tabindex="-1"></a>  <span class="at">--to</span><span class="op">=</span>html5 <span class="dt">\</span></span>
+<span id="cb26-71"><a href="#cb26-71" aria-hidden="true" tabindex="-1"></a>  <span class="at">--standalone</span> <span class="dt">\</span></span>
+<span id="cb26-72"><a href="#cb26-72" aria-hidden="true" tabindex="-1"></a>  <span class="at">--embed-resources</span> <span class="dt">\</span></span>
+<span id="cb26-73"><a href="#cb26-73" aria-hidden="true" tabindex="-1"></a>  <span class="at">--toc</span> <span class="at">--toc-depth</span><span class="op">=</span>3 <span class="dt">\</span></span>
+<span id="cb26-74"><a href="#cb26-74" aria-hidden="true" tabindex="-1"></a>  <span class="at">--highlight-style</span><span class="op">=</span>tango <span class="dt">\</span></span>
+<span id="cb26-75"><a href="#cb26-75" aria-hidden="true" tabindex="-1"></a>  <span class="at">--metadata</span> title=<span class="st">&quot;Claude Multi-Account Fine Tuning&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-76"><a href="#cb26-76" aria-hidden="true" tabindex="-1"></a>  <span class="at">-o</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-77"><a href="#cb26-77" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span></span>
+<span id="cb26-78"><a href="#cb26-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-79"><a href="#cb26-79" aria-hidden="true" tabindex="-1"></a><span class="co"># --- PDF ---</span></span>
+<span id="cb26-80"><a href="#cb26-80" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;rendering PDF -&gt; </span><span class="va">$PDF_FILE</span><span class="st">&quot;</span></span>
+<span id="cb26-81"><a href="#cb26-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-82"><a href="#cb26-82" aria-hidden="true" tabindex="-1"></a><span class="fu">render_pdf_via_pandoc_engine()</span> <span class="kw">{</span></span>
+<span id="cb26-83"><a href="#cb26-83" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">engine</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span></span>
+<span id="cb26-84"><a href="#cb26-84" aria-hidden="true" tabindex="-1"></a>  <span class="bu">command</span> <span class="at">-v</span> <span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb26-85"><a href="#cb26-85" aria-hidden="true" tabindex="-1"></a>  <span class="ex">pandoc</span> <span class="dt">\</span></span>
+<span id="cb26-86"><a href="#cb26-86" aria-hidden="true" tabindex="-1"></a>    <span class="at">--from</span><span class="op">=</span>gfm+yaml_metadata_block <span class="dt">\</span></span>
+<span id="cb26-87"><a href="#cb26-87" aria-hidden="true" tabindex="-1"></a>    <span class="at">--pdf-engine</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-88"><a href="#cb26-88" aria-hidden="true" tabindex="-1"></a>    <span class="at">--toc</span> <span class="at">--toc-depth</span><span class="op">=</span>3 <span class="dt">\</span></span>
+<span id="cb26-89"><a href="#cb26-89" aria-hidden="true" tabindex="-1"></a>    <span class="at">--highlight-style</span><span class="op">=</span>tango <span class="dt">\</span></span>
+<span id="cb26-90"><a href="#cb26-90" aria-hidden="true" tabindex="-1"></a>    <span class="at">-V</span> geometry:margin=0.9in <span class="dt">\</span></span>
+<span id="cb26-91"><a href="#cb26-91" aria-hidden="true" tabindex="-1"></a>    <span class="at">-V</span> mainfont=<span class="st">&quot;DejaVu Serif&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-92"><a href="#cb26-92" aria-hidden="true" tabindex="-1"></a>    <span class="at">-V</span> monofont=<span class="st">&quot;DejaVu Sans Mono&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-93"><a href="#cb26-93" aria-hidden="true" tabindex="-1"></a>    <span class="at">--metadata</span> title=<span class="st">&quot;Claude Multi-Account Fine Tuning&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-94"><a href="#cb26-94" aria-hidden="true" tabindex="-1"></a>    <span class="at">-o</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-95"><a href="#cb26-95" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span></span>
+<span id="cb26-96"><a href="#cb26-96" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb26-97"><a href="#cb26-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-98"><a href="#cb26-98" aria-hidden="true" tabindex="-1"></a><span class="fu">render_pdf_via_chromium()</span> <span class="kw">{</span></span>
+<span id="cb26-99"><a href="#cb26-99" aria-hidden="true" tabindex="-1"></a>  <span class="bu">local</span> <span class="va">engine</span></span>
+<span id="cb26-100"><a href="#cb26-100" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> engine <span class="kw">in</span> chromium chromium-browser google-chrome chrome<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb26-101"><a href="#cb26-101" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">command</span> <span class="at">-v</span> <span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb26-102"><a href="#cb26-102" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Use the freshly generated HTML so styling matches.</span></span>
+<span id="cb26-103"><a href="#cb26-103" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;</span><span class="va">$engine</span><span class="st">&quot;</span> <span class="at">--headless</span> <span class="at">--no-sandbox</span> <span class="at">--disable-gpu</span> <span class="dt">\</span></span>
+<span id="cb26-104"><a href="#cb26-104" aria-hidden="true" tabindex="-1"></a>        <span class="at">--print-to-pdf</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb26-105"><a href="#cb26-105" aria-hidden="true" tabindex="-1"></a>        <span class="at">--print-to-pdf-no-header</span> <span class="dt">\</span></span>
+<span id="cb26-106"><a href="#cb26-106" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;file://</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span></span>
+<span id="cb26-107"><a href="#cb26-107" aria-hidden="true" tabindex="-1"></a>      <span class="cf">return</span> <span class="va">$?</span></span>
+<span id="cb26-108"><a href="#cb26-108" aria-hidden="true" tabindex="-1"></a>    <span class="cf">fi</span></span>
+<span id="cb26-109"><a href="#cb26-109" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
+<span id="cb26-110"><a href="#cb26-110" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb26-111"><a href="#cb26-111" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb26-112"><a href="#cb26-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-113"><a href="#cb26-113" aria-hidden="true" tabindex="-1"></a><span class="fu">render_pdf_via_weasyprint_on_html()</span> <span class="kw">{</span></span>
+<span id="cb26-114"><a href="#cb26-114" aria-hidden="true" tabindex="-1"></a>  <span class="bu">command</span> <span class="at">-v</span> weasyprint <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span> <span class="kw">||</span> <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb26-115"><a href="#cb26-115" aria-hidden="true" tabindex="-1"></a>  <span class="ex">weasyprint</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span></span>
+<span id="cb26-116"><a href="#cb26-116" aria-hidden="true" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb26-117"><a href="#cb26-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-118"><a href="#cb26-118" aria-hidden="true" tabindex="-1"></a><span class="co"># Try engines in order; the first that succeeds wins.</span></span>
+<span id="cb26-119"><a href="#cb26-119" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ex">render_pdf_via_pandoc_engine</span> weasyprint <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb26-120"><a href="#cb26-120" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: weasyprint (via pandoc)&quot;</span></span>
+<span id="cb26-121"><a href="#cb26-121" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="ex">render_pdf_via_pandoc_engine</span> wkhtmltopdf <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb26-122"><a href="#cb26-122" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: wkhtmltopdf (via pandoc)&quot;</span></span>
+<span id="cb26-123"><a href="#cb26-123" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="ex">render_pdf_via_weasyprint_on_html</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb26-124"><a href="#cb26-124" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: weasyprint on html&quot;</span></span>
+<span id="cb26-125"><a href="#cb26-125" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="ex">render_pdf_via_chromium</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb26-126"><a href="#cb26-126" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;pdf engine: chromium headless&quot;</span></span>
+<span id="cb26-127"><a href="#cb26-127" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span></span>
+<span id="cb26-128"><a href="#cb26-128" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_die</span> <span class="st">&quot;no usable PDF engine. Install one of: weasyprint, wkhtmltopdf, chromium.&quot;</span></span>
+<span id="cb26-129"><a href="#cb26-129" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb26-130"><a href="#cb26-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-131"><a href="#cb26-131" aria-hidden="true" tabindex="-1"></a><span class="co"># --- DOCX ---</span></span>
+<span id="cb26-132"><a href="#cb26-132" aria-hidden="true" tabindex="-1"></a><span class="co"># pandoc writes .docx natively (no external engine). A reference doc supplies</span></span>
+<span id="cb26-133"><a href="#cb26-133" aria-hidden="true" tabindex="-1"></a><span class="co"># styling (fonts, headings, code blocks) when provided.</span></span>
+<span id="cb26-134"><a href="#cb26-134" aria-hidden="true" tabindex="-1"></a><span class="ex">cma_log</span> <span class="st">&quot;rendering DOCX -&gt; </span><span class="va">$DOCX_FILE</span><span class="st">&quot;</span></span>
+<span id="cb26-135"><a href="#cb26-135" aria-hidden="true" tabindex="-1"></a><span class="va">docx_args</span><span class="op">=</span><span class="va">(</span></span>
+<span id="cb26-136"><a href="#cb26-136" aria-hidden="true" tabindex="-1"></a>  --from=gfm+yaml_metadata_block</span>
+<span id="cb26-137"><a href="#cb26-137" aria-hidden="true" tabindex="-1"></a>  --to=docx</span>
+<span id="cb26-138"><a href="#cb26-138" aria-hidden="true" tabindex="-1"></a>  --toc --toc-depth=3</span>
+<span id="cb26-139"><a href="#cb26-139" aria-hidden="true" tabindex="-1"></a>  --highlight-style=tango</span>
+<span id="cb26-140"><a href="#cb26-140" aria-hidden="true" tabindex="-1"></a>  --metadata title=<span class="st">&quot;Claude Multi-Account Fine Tuning&quot;</span></span>
+<span id="cb26-141"><a href="#cb26-141" aria-hidden="true" tabindex="-1"></a>  -o <span class="st">&quot;</span><span class="va">$DOCX_FILE</span><span class="st">&quot;</span></span>
+<span id="cb26-142"><a href="#cb26-142" aria-hidden="true" tabindex="-1"></a><span class="va">)</span></span>
+<span id="cb26-143"><a href="#cb26-143" aria-hidden="true" tabindex="-1"></a><span class="co"># Auto-discover a reference doc if none was passed explicitly.</span></span>
+<span id="cb26-144"><a href="#cb26-144" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">[[</span> <span class="ot">-z</span> <span class="st">&quot;</span><span class="va">$DOCX_REFERENCE</span><span class="st">&quot;</span> <span class="kw">]];</span> <span class="cf">then</span></span>
+<span id="cb26-145"><a href="#cb26-145" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> cand <span class="kw">in</span> <span class="st">&quot;</span><span class="va">$DOC_DIR</span><span class="st">/reference.docx&quot;</span> <span class="st">&quot;</span><span class="va">$LIB_DIR</span><span class="st">/assets/reference.docx&quot;</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb26-146"><a href="#cb26-146" aria-hidden="true" tabindex="-1"></a>    <span class="kw">[[</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$cand</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">&amp;&amp;</span> <span class="kw">{</span> <span class="va">DOCX_REFERENCE</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$cand</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">break</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb26-147"><a href="#cb26-147" aria-hidden="true" tabindex="-1"></a>  <span class="cf">done</span></span>
+<span id="cb26-148"><a href="#cb26-148" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb26-149"><a href="#cb26-149" aria-hidden="true" tabindex="-1"></a><span class="kw">[[</span> <span class="ot">-n</span> <span class="st">&quot;</span><span class="va">$DOCX_REFERENCE</span><span class="st">&quot;</span> <span class="kw">&amp;&amp;</span> <span class="ot">-f</span> <span class="st">&quot;</span><span class="va">$DOCX_REFERENCE</span><span class="st">&quot;</span> <span class="kw">]]</span> <span class="kw">&amp;&amp;</span> <span class="va">docx_args</span><span class="op">+=</span><span class="va">(</span>--reference-doc <span class="st">&quot;</span><span class="va">$DOCX_REFERENCE</span><span class="st">&quot;</span><span class="va">)</span></span>
+<span id="cb26-150"><a href="#cb26-150" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="ex">pandoc</span> <span class="st">&quot;</span><span class="va">${docx_args</span><span class="op">[@]</span><span class="va">}</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$PROCESSED_MD</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb26-151"><a href="#cb26-151" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_log</span> <span class="st">&quot;docx ok</span><span class="va">${DOCX_REFERENCE</span><span class="op">:+</span> (styled via <span class="va">$DOCX_REFERENCE</span>)<span class="va">}</span><span class="st">&quot;</span></span>
+<span id="cb26-152"><a href="#cb26-152" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span></span>
+<span id="cb26-153"><a href="#cb26-153" aria-hidden="true" tabindex="-1"></a>  <span class="ex">cma_warn</span> <span class="st">&quot;DOCX render failed (pandoc); HTML + PDF are still produced&quot;</span></span>
+<span id="cb26-154"><a href="#cb26-154" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb26-155"><a href="#cb26-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-156"><a href="#cb26-156" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-lh</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$DOCX_FILE</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="fu">ls</span> <span class="at">-lh</span> <span class="st">&quot;</span><span class="va">$HTML_FILE</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$PDF_FILE</span><span class="st">&quot;</span></span></code></pre></div>
 <h3 id="88-installsh">8.8 <code>install.sh</code></h3>
 <div class="sourceCode" id="cb27"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="co"># install.sh — One-shot bootstrap for the Claude multi-account toolkit.</span></span>
@@ -2815,8 +3003,78 @@ OpenCode binary, writing inspectable evidence to
 live in <strong><code>OpenCode_Integration.md</code></strong> and
 <code>docs/diagrams/</code>.</p>
 <hr />
-<p><em>Generated 2026-05-26 (OpenCode integration added 2026-06-06).
-Maintain by editing this markdown file and re-running
-<code>claude-export-docs.sh</code>.</em></p>
+<h2 id="11-provider-aliases--running-other-llms-through-claude-code">11.
+Provider aliases — running other LLMs through Claude Code</h2>
+<p>The same alias machinery that powers <code>claude1..N</code> also
+drives <strong>provider aliases</strong>: a Claude Code alias per LLM
+provider whose key you keep in your keys file, pointed at that
+provider&#39;s strongest model. The command is <code>claude-providers</code>
+and it is <strong>fully dynamic</strong> — no provider, base URL, or
+model ID is hardcoded.</p>
+<h3 id="data-flow-nothing-hardcoded">Data flow (nothing hardcoded)</h3>
+<ol type="1">
+<li><code>~/api_keys.sh</code> provides the API-key <em>variable
+names</em> (read by <code>grep</code>, never executed).</li>
+<li><code>models.dev/api.json</code> (fetched + cached, with graceful
+offline degrade) provides each provider&#39;s endpoint, transport hint
+(<code>npm</code>), and full model catalog with cost/context/reasoning
+metadata.</li>
+<li><code>providers_resolve.py</code> resolves each key into a record:
+provider id, alias, base URL, transport (<code>native</code> iff the
+provider speaks the Anthropic API, else <code>router</code>), and a
+strong + fast model chosen from the metadata.</li>
+<li>The bundled <strong><code>LLMsVerifier</code></strong> submodule (or
+a lightweight HTTP probe) optionally verifies the key + model before the
+alias is activated.</li>
+<li>For each provider: a non-secret env file, a
+<code>cma_run_provider &lt;id&gt;</code> alias, a
+<code>~/.claude-prov-&lt;id&gt;</code> config dir linking all shared
+items (so every plugin is available), and the always-on plugin set are
+generated.</li>
+</ol>
+<p>Two tiny editable inputs cover the only things data can&#39;t infer:
+<code>providers/key-aliases.json</code> (key-name → provider
+normalization) and <code>providers/overrides.json</code> (per-provider
+pins, e.g. a short <code>dseek</code> alias or a native
+<code>/anthropic</code> endpoint).</p>
+<h3 id="transports">Transports</h3>
+<ul>
+<li><strong>native</strong> — <code>claude</code> runs directly with
+<code>ANTHROPIC_BASE_URL</code>, <code>ANTHROPIC_AUTH_TOKEN</code>,
+<code>ANTHROPIC_MODEL</code>,
+<code>ANTHROPIC_SMALL_FAST_MODEL</code>.</li>
+<li><strong>router</strong> — launches through <a href="https://github.com/musistudio/claude-code-router">claude-code-router</a>
+(<code>ccr code</code>), which translates Anthropic ↔︎ OpenAI/Gemini. The
+provider entry is written into the ccr config with the live key at
+launch (chmod 600), so the toolkit itself never persists secrets.</li>
+</ul>
+<h3 id="safety">Safety</h3>
+<p>Provider config dirs are <strong>excluded from account
+auto-detection</strong>, so they never merge into real-account auth and
+never disturb <code>claude-unify</code> /
+<code>claude-add-account</code>. Existing <code>claudeN</code> accounts
+keep working unchanged, and new accounts are still created the same
+way.</p>
+<h3 id="commands">Commands</h3>
+<div class="sourceCode" id="cb38"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync          <span class="co"># discover + create/refresh every provider alias</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list          <span class="co"># alias, provider, transport, strong/fast model</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> show <span class="op">&lt;</span>id<span class="op">&gt;</span>     <span class="co"># one provider&#39;s resolved env</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> remove <span class="op">&lt;</span>id<span class="op">&gt;</span>   <span class="co"># remove alias + env, back up the config dir</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> add <span class="at">--from-key</span> VAR <span class="at">--id</span> PROVIDER   <span class="co"># register a mapping, then sync</span></span></code></pre></div>
+<h3 id="known-limitation--session-color">Known limitation — session
+color</h3>
+<p>The goal of defaulting each provider session&#39;s <code>/color</code> to
+orange is <strong>not automatable</strong> on the installed Claude Code
+(v2.1.178): <code>/color</code> is session-scoped and TUI-only, never
+persisted, with no settings key or env var. Type
+<code>/color orange</code> per session. (Documented in
+<code>docs/Provider_Aliases_User_Guide.md</code>.)</p>
+<p>Full details, overrides, verification, and troubleshooting live in
+<strong><code>docs/Provider_Aliases_User_Guide.md</code></strong>;
+diagrams in <code>docs/diagrams/provider-aliases.md</code>.</p>
+<hr />
+<p><em>Generated 2026-05-26 (OpenCode integration added 2026-06-06;
+provider aliases added 2026-06-16). Maintain by editing this markdown
+file and re-running <code>claude-export-docs.sh</code>.</em></p>
 </body>
 </html>

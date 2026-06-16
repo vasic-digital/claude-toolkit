@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Claude Toolkit</title>
+  <title>Claude Multi-Account Fine Tuning</title>
   <style>
 
 html {
@@ -234,7 +234,7 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">Claude Toolkit</h1>
+<h1 class="title">Claude Multi-Account Fine Tuning</h1>
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
@@ -252,6 +252,8 @@ Clean-slate host (Claude Code installed but no accounts yet)</a></li>
 </ul></li>
 <li><a href="#daily-commands" id="toc-daily-commands">Daily
 commands</a></li>
+<li><a href="#provider-aliases-other-llms" id="toc-provider-aliases-other-llms">Provider aliases (other
+LLMs)</a></li>
 <li><a href="#layout-after-unification" id="toc-layout-after-unification">Layout after unification</a></li>
 <li><a href="#how-cross-account-session-sync-works" id="toc-how-cross-account-session-sync-works">How cross-account session
 sync works</a></li>
@@ -397,10 +399,44 @@ from the markdown.</td>
 <td>Expose all Claude plugin Skills + MCP servers +
 <code>CLAUDE.md</code> to a host-installed OpenCode. See <a href="OpenCode_Integration.md">OpenCode_Integration.md</a>.</td>
 </tr>
+<tr>
+<td><code>claude-providers</code></td>
+<td>Create/refresh Claude Code aliases for <strong>other LLM
+providers</strong> (DeepSeek, Groq, Mistral, GLM, …) from your keys
+file, pointed at each provider&#39;s strongest model.
+<code>sync</code>/<code>list</code>/<code>show</code>/<code>remove</code>/<code>add</code>.
+See <a href="docs/Provider_Aliases_User_Guide.md">Provider Aliases User
+Guide</a>.</td>
+</tr>
 </tbody>
 </table>
 <p>After adding an account, log in once:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude3</span> /login</span></code></pre></div>
+<h2 id="provider-aliases-other-llms">Provider aliases (other LLMs)</h2>
+<p><code>claude-providers</code> turns every LLM API key in your keys
+file (<code>~/api_keys.sh</code>) into its own Claude Code alias,
+pointed at that provider&#39;s strongest model — <strong>fully
+dynamically</strong>, with no hardcoded provider list, base URLs, or
+model IDs (everything is derived from your keys + the <a href="https://models.dev">models.dev</a> catalog, validated by the
+bundled <code>LLMsVerifier</code> submodule).</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync          <span class="co"># discover keys -&gt; create one alias per provider</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> ~/.local/share/claude-multi-account/aliases.sh</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list          <span class="co"># alias, provider, transport, strong/fast model</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>                       <span class="co"># launch Claude Code on DeepSeek&#39;s best model</span></span></code></pre></div>
+<ul>
+<li><strong>Native</strong> providers (Anthropic-compatible) run
+<code>claude</code> directly; <strong>router</strong> providers
+(OpenAI-compatible / Gemini) go through <a href="https://github.com/musistudio/claude-code-router">claude-code-router</a>.</li>
+<li>Provider config dirs (<code>~/.claude-prov-&lt;id&gt;</code>) reuse
+all your plugins + history and are <strong>excluded from account
+detection</strong>, so existing <code>claudeN</code> accounts and
+<code>claude-add-account</code> are completely unaffected.</li>
+<li>Secrets never leave the keys file — the launch wrapper injects them
+per session; nothing is written to the repo or the alias file.</li>
+</ul>
+<p>See the <a href="docs/Provider_Aliases_User_Guide.md">Provider
+Aliases User Guide</a> for overrides, verification, and the documented
+<code>/color</code> limitation.</p>
 <h2 id="layout-after-unification">Layout after unification</h2>
 <pre><code>~/.claude-shared/                   # single source of truth
   projects/  todos/  tasks/  plans/  file-history/  paste-cache/
@@ -444,9 +480,9 @@ so sessions created in one account are visible to others on the very
 next launch.</li>
 </ol>
 <p>If you ever need to refresh manually:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> all       <span class="co"># merge across every detected account</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> pull ~/.claude-<span class="op">&lt;</span>account<span class="op">&gt;</span>   <span class="co"># before launching account</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> push ~/.claude-<span class="op">&lt;</span>account<span class="op">&gt;</span>   <span class="co"># after exiting account</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> all       <span class="co"># merge across every detected account</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> pull ~/.claude-<span class="op">&lt;</span>account<span class="op">&gt;</span>   <span class="co"># before launching account</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-sync-state</span> push ~/.claude-<span class="op">&lt;</span>account<span class="op">&gt;</span>   <span class="co"># after exiting account</span></span></code></pre></div>
 <p>Auth keys never cross. Verified via the <code>test_sessions.sh</code>
 test suite (30 assertions covering byte-stable idempotency, identity
 preservation, cross-account visibility, and corrupt-file
@@ -464,18 +500,18 @@ subset is enabled, the rest configured-but-disabled)</li>
 <li><strong><code>CLAUDE.md</code></strong> →
 <code>instructions[]</code></li>
 </ul>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span> <span class="at">--dry-run</span> <span class="at">--stats</span>   <span class="co"># preview</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span>                      <span class="co"># apply (additive, backs up prior config)</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span> <span class="at">--dry-run</span> <span class="at">--stats</span>   <span class="co"># preview</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-opencode-sync</span>                      <span class="co"># apply (additive, backs up prior config)</span></span></code></pre></div>
 <p>On the reference host this wires <strong>1,000+ skills</strong> and
 <strong>110+ MCP servers</strong> into OpenCode while preserving its
 existing providers and servers. Full guide, diagrams, enable policy, and
 auth steps: <strong><a href="OpenCode_Integration.md">OpenCode_Integration.md</a></strong>.</p>
 <h2 id="testing">Testing</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                  <span class="co"># all sandboxed suites</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify sessions opencode   <span class="co"># subset by suffix</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/verify_opencode_live.sh     <span class="co"># live proof vs real OpenCode</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh                <span class="co"># both + dated evidence bundle</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh                  <span class="co"># all sandboxed suites</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-all.sh lib unify sessions opencode   <span class="co"># subset by suffix</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/verify_opencode_live.sh     <span class="co"># live proof vs real OpenCode</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/tests/run-proof.sh                <span class="co"># both + dated evidence bundle</span></span></code></pre></div>
 <p>Tests use a sandboxed <code>$HOME</code> via <code>mktemp</code> —
 your real <code>~/.claude*</code> state is never touched.
 <code>test_sessions.sh</code> verifies cross-account session/memory
@@ -485,9 +521,9 @@ covers the OpenCode sync (MCP translation, dedup, enable gating,
 idempotency, config preservation). <code>run-proof.sh</code> writes
 inspectable evidence to <code>scripts/tests/proof/</code>.</p>
 <h2 id="rollback">Rollback</h2>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># or equivalently:</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span> <span class="at">--rollback</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-rollback</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># or equivalently:</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span> <span class="at">--rollback</span></span></code></pre></div>
 <p>Restores every <code>.preunify.&lt;timestamp&gt;</code> backup
 created during unification and moves the shared store aside to
 <code>~/.claude-shared.removed.&lt;timestamp&gt;</code>.</p>
