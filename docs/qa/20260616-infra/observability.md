@@ -3,6 +3,14 @@
 Read-only verification of the prometheus/grafana chain against the live nezha
 stack. Captured, no bluff.
 
+> **UPDATE (resolved):** the `/metrics` gap below has been FIXED. The app now
+> serves `GET /api/metrics` + `/metrics` (stdlib Prometheus exposition — patch
+> `0004-app-prometheus-metrics-endpoint.patch`, also in LLMsVerifier PR #2).
+> Verified live: `/api/metrics` → **200** (`llmverifier_up 1`, `database_up 1`,
+> goroutines, memory gauges) and the prometheus **`llm-verifier` target is now
+> `up`** (was down/404). The exporter-sidecar targets remain intentionally
+> omitted.
+
 ## Results
 
 | Check | Result |
