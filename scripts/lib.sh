@@ -121,6 +121,12 @@ cma_detect_accounts() {
   local d
   while IFS= read -r d; do
     [[ "$d" == *"-shared" ]] && continue
+    # Provider-alias dirs (~/.claude-prov-<id>, created by claude-providers)
+    # are account-like for SHARED state but must NEVER be merged into
+    # real-account auth/identity or unify, so they're excluded from detection
+    # exactly like *-shared. This is the linchpin that keeps the existing
+    # claudeN accounts and add-account untouched by the provider feature.
+    [[ "$(basename "$d")" == "${ACCOUNT_PREFIX}prov-"* ]] && continue
     # Empty dirs always count (a brand-new account before any claude run).
     if [[ -z "$(ls -A "$d" 2>/dev/null)" ]]; then
       echo "$d"
@@ -207,6 +213,93 @@ cma_run() {
 }
 EOF
   fi
+  # Ensure the cma_run_provider wrapper is present. This launches Claude Code
+  # against a non-Anthropic provider: it reads the per-provider non-secret env
+  # file, injects the API key from the keys file at launch (the toolkit never
+  # persists secrets itself), then runs claude directly (native transport) or
+  # via claude-code-router (router transport). Self-contained: the user's shell
+  # sources only this alias file, not lib.sh.
+  if ! grep -q '^cma_run_provider\(\)' "$ALIAS_FILE"; then
+    cat >> "$ALIAS_FILE" <<'EOF'
+
+cma_run_provider() {
+  local id="$1"; shift 2>/dev/null || true
+  local pdir="$HOME/.local/share/claude-multi-account/providers"
+  local envf="$pdir/$id.env"
+  if [[ ! -f "$envf" ]]; then
+    printf 'claude-providers: unknown provider %s (missing %s)\n' "$id" "$envf" >&2
+    return 1
+  fi
+  # shellcheck disable=SC1090
+  source "$envf"
+  local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
+  [[ -f "$keysf" ]] && { set -a; source "$keysf"; set +a; }
+  # Indirect-expand the key var name. ${!var} is bash-only and a fatal error in
+  # zsh (the default macOS interactive shell this alias file is sourced into),
+  # so use eval, which works in both. CMA_PROVIDER_KEYVAR is a validated env
+  # var name ([A-Za-z_][A-Za-z0-9_]*), so this eval is safe.
+  local token=""
+  eval "token=\"\${$CMA_PROVIDER_KEYVAR:-}\""
+  if [[ -z "$token" ]]; then
+    printf 'claude-providers: $%s is empty (set it in %s)\n' "$CMA_PROVIDER_KEYVAR" "$keysf" >&2
+    return 1
+  fi
+  export CLAUDE_CONFIG_DIR="$CMA_PROVIDER_CONFIG_DIR"
+  if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
+    "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+  fi
+  local rc
+  if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
+    if ! command -v ccr >/dev/null 2>&1; then
+      printf 'claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n' "$id" >&2
+      return 127
+    fi
+    # Upsert THIS provider into ccr config with the live key (regenerated each
+    # launch, chmod 600 — never stored by the toolkit), set it as the active
+    # route, then launch through ccr.
+    local cfg="$HOME/.claude-code-router/config.json" base="$CMA_PROVIDER_BASE_URL"
+    # Create the dir + config with restrictive perms from the start: this file
+    # will hold the live API key, so it must never be group/world readable,
+    # even transiently or if a later jq rewrite fails.
+    ( umask 077; mkdir -p "$HOME/.claude-code-router"
+      [[ -f "$cfg" ]] || echo '{"Providers":[],"Router":{}}' > "$cfg" )
+    chmod 600 "$cfg" 2>/dev/null || true
+    case "$base" in
+      */chat/completions|*/v1beta/models/|*/v1beta/models) ;;
+      *) base="${base%/}/chat/completions" ;;
+    esac
+    if command -v jq >/dev/null 2>&1; then
+      local tmp; tmp="$(mktemp)"; chmod 600 "$tmp" 2>/dev/null || true
+      # Pass the secret through the environment ($ENV.tok), never as a jq argv
+      # argument — argv is visible in ps/proc to other local users.
+      if CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
+            --arg s "$CMA_PROVIDER_MODEL" --arg f "${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}" '
+          .Providers = ([ .Providers[]? | select(.name != $n) ]
+            + [{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f]}])
+          | .Router.default = ($n + "," + $s)
+          | .Router.background = ($n + "," + $f)
+        ' "$cfg" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
+        ccr restart >/dev/null 2>&1 || true
+      else
+        rm -f "$tmp"
+      fi
+    fi
+    ccr code "$@"; rc=$?
+  else
+    export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
+    export ANTHROPIC_AUTH_TOKEN="$token"
+    export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
+    [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
+    "$CLAUDE_BIN" "$@"; rc=$?
+  fi
+  if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
+    "$HOME/.local/bin/claude-sync-state" push "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+  fi
+  return $rc
+}
+EOF
+  fi
   local rc src_line="source \"$ALIAS_FILE\""
   for rc in "${CMA_RC_FILES[@]}"; do
     [[ -f "$rc" ]] || continue
@@ -242,5 +335,98 @@ cma_remove_alias() {
   [[ -f "$ALIAS_FILE" ]] || return 0
   local tmp; tmp="$(mktemp)"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
+  mv "$tmp" "$ALIAS_FILE"
+}
+
+# ===========================================================================
+# Provider-alias helpers (used by claude-providers.sh)
+# ===========================================================================
+
+# The shared items every account/provider dir symlinks into $SHARED_DIR.
+# Kept here (single source) so claude-add-account and claude-providers agree.
+CMA_SHARED_ITEMS=(
+  projects todos tasks plans file-history paste-cache shell-snapshots
+  session-env telemetry sessions backups cache plugins
+  stats-cache.json history.jsonl settings.json CLAUDE.md
+)
+
+cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
+
+# Symlink every shared item into a config dir (account or provider), creating
+# empty placeholders in $SHARED_DIR for any item that doesn't exist yet.
+# Idempotent: skips items already present in the target.
+cma_link_shared_items() {
+  local cdir="$1" item src tgt
+  mkdir -p "$SHARED_DIR" "$cdir"
+  for item in "${CMA_SHARED_ITEMS[@]}"; do
+    src="$SHARED_DIR/$item"; tgt="$cdir/$item"
+    if [[ ! -e "$src" ]]; then
+      case "$item" in
+        *.json|*.jsonl|*.md) : > "$src" ;;
+        *) mkdir -p "$src" ;;
+      esac
+    fi
+    [[ -e "$tgt" || -L "$tgt" ]] || ln -s "$src" "$tgt"
+  done
+}
+
+# Force-enable the always-on plugins in the shared settings.json enabledPlugins
+# map (additive union — never removes a user's existing entries). Each arg is a
+# plugin key as it appears in enabledPlugins (e.g. "superpowers@anthropics").
+cma_enable_plugins() {
+  cma_require jq
+  local settings="$SHARED_DIR/settings.json" tmp
+  mkdir -p "$SHARED_DIR"
+  [[ -s "$settings" ]] || printf '{}\n' > "$settings"
+  tmp="$(mktemp)"
+  local args=() p
+  for p in "$@"; do args+=(--arg "p$((${#args[@]}/2))" "$p"); done
+  # Build a jq program that sets each provided key true if absent.
+  local prog='.enabledPlugins //= {}'
+  local i=0
+  for p in "$@"; do
+    prog+=" | .enabledPlugins[\$p$i] //= true"; i=$((i+1))
+  done
+  if jq "${args[@]}" "$prog" "$settings" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$settings"
+  else
+    rm -f "$tmp"; cma_warn "could not update enabledPlugins in $settings"
+  fi
+}
+
+# Write the non-secret per-provider env file consumed by cma_run_provider.
+# Args: id keyvar transport base_url model fast_model config_dir
+cma_provider_write_env() {
+  local id="$1" keyvar="$2" transport="$3" base="$4" model="$5" fast="$6" cdir="$7"
+  # Normalize the literal "null" (from a missing JSON field) to empty so it
+  # never leaks into the wrapper as a bogus value.
+  [[ "$base" == "null" ]] && base=""
+  [[ "$fast" == "null" ]] && fast=""
+  local pdir; pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
+  # Values are single-quoted (with embedded-quote escaping) so sourcing the file
+  # in the user's shell is safe regardless of characters in URLs/model ids.
+  _cma_q() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
+  cat > "$pdir/$id.env" <<EOF
+# generated by claude-providers — non-secret. Do not edit by hand.
+# Secrets are NEVER stored here; the key is read from the keys file at launch.
+CMA_PROVIDER_ID=$(_cma_q "$id")
+CMA_PROVIDER_KEYVAR=$(_cma_q "$keyvar")
+CMA_PROVIDER_TRANSPORT=$(_cma_q "$transport")
+CMA_PROVIDER_BASE_URL=$(_cma_q "$base")
+CMA_PROVIDER_MODEL=$(_cma_q "$model")
+CMA_PROVIDER_FAST_MODEL=$(_cma_q "$fast")
+CMA_PROVIDER_CONFIG_DIR=$(_cma_q "$cdir")
+EOF
+  unset -f _cma_q
+}
+
+# Write (or refresh) a provider alias: alias <name>="cma_run_provider <id>".
+cma_provider_write_alias() {
+  local alias_name="$1" id="$2"
+  cma_validate_alias "$alias_name"
+  cma_ensure_alias_file
+  local tmp; tmp="$(mktemp)"
+  grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
+  printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"
   mv "$tmp" "$ALIAS_FILE"
 }

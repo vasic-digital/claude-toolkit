@@ -24,8 +24,11 @@ claude-list-accounts    # show the resulting setup
 | `claude-remove-account.sh`  | Drop an account's alias + archive/delete its config dir.    |
 | `claude-list-accounts.sh`   | Tabular status of every detected account.                   |
 | `claude-rollback.sh`        | Restore the pre-unification backups.                        |
-| `claude-export-docs.sh`     | Generate the `.html` and `.pdf` siblings of the markdown.   |
-| `lib.sh`                    | Shared helpers (alias file, account detection). Sourced.    |
+| `claude-export-docs.sh`     | Generate the `.html`, `.pdf` and `.docx` siblings of the markdown. |
+| `claude-providers.sh`       | Create/refresh/list/remove Claude Code aliases for other LLM providers. |
+| `providers_resolve.py`      | Pure resolver: models.dev catalog + keys → provider records. |
+| `providers-verify.sh`       | Pluggable verification (LLMsVerifier binary or HTTP probe). |
+| `lib.sh`                    | Shared helpers (alias file, account detection, provider helpers). Sourced. |
 
 ## What lives where after unification
 

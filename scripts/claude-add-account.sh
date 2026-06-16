@@ -78,30 +78,11 @@ case "$CONFIG_DIR" in /*) ;; *) CONFIG_DIR="$HOME/$CONFIG_DIR" ;; esac
 mkdir -p "$CONFIG_DIR"
 cma_log "created $CONFIG_DIR"
 
-# Symlink every shared item into the new account dir. We mirror the same
-# list that claude-unify uses so a brand-new account starts in lockstep
-# with the others without re-running the full merge.
-SHARED_ITEMS=(
-  projects todos tasks plans file-history paste-cache shell-snapshots
-  session-env telemetry sessions backups cache plugins
-  stats-cache.json history.jsonl settings.json CLAUDE.md
-)
-
-mkdir -p "$SHARED_DIR"
-for item in "${SHARED_ITEMS[@]}"; do
-  src="$SHARED_DIR/$item"
-  tgt="$CONFIG_DIR/$item"
-  # If the shared item doesn't yet exist, create an empty placeholder so
-  # the symlink isn't dangling. Directories are mkdir'd, files are touched.
-  if [[ ! -e "$src" ]]; then
-    case "$item" in
-      *.json|*.jsonl|*.md) : > "$src" ;;
-      *) mkdir -p "$src" ;;
-    esac
-  fi
-  ln -s "$src" "$tgt"
-done
-cma_log "linked ${#SHARED_ITEMS[@]} shared items into $CONFIG_DIR"
+# Symlink every shared item into the new account dir, using the single
+# canonical list (CMA_SHARED_ITEMS in lib.sh) so accounts and provider
+# aliases stay in lockstep without two copies of the list drifting apart.
+cma_link_shared_items "$CONFIG_DIR"
+cma_log "linked ${#CMA_SHARED_ITEMS[@]} shared items into $CONFIG_DIR"
 
 # Add the alias. lib.sh handles dedupe, rc-file sourcing, etc.
 cma_write_alias "$ALIAS_NAME" "$CONFIG_DIR"

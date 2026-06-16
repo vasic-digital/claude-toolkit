@@ -1,0 +1,7 @@
+{
+  "ZAI_API_KEY": "zai",
+  "CODESTRAL_API_KEY": "mistral",
+  "HUGGINGFACE_API_KEY": "huggingface",
+  "GITHUB_MODELS_API_KEY": "github-models",
+  "TENCENT_CLOUD_API_KEY": "tencent-tokenhub"
+}

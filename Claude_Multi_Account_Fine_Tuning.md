@@ -674,5 +674,76 @@ Full guide, architecture diagrams, and the enable-policy flowchart live in
 
 ---
 
-*Generated 2026-05-26 (OpenCode integration added 2026-06-06). Maintain by
-editing this markdown file and re-running `claude-export-docs.sh`.*
+## 11. Provider aliases — running other LLMs through Claude Code
+
+The same alias machinery that powers `claude1..N` also drives **provider
+aliases**: a Claude Code alias per LLM provider whose key you keep in your keys
+file, pointed at that provider's strongest model. The command is
+`claude-providers` and it is **fully dynamic** — no provider, base URL, or model
+ID is hardcoded.
+
+### Data flow (nothing hardcoded)
+
+1. `~/api_keys.sh` provides the API-key *variable names* (read by `grep`, never
+   executed).
+2. `models.dev/api.json` (fetched + cached, with graceful offline degrade)
+   provides each provider's endpoint, transport hint (`npm`), and full model
+   catalog with cost/context/reasoning metadata.
+3. `providers_resolve.py` resolves each key into a record: provider id, alias,
+   base URL, transport (`native` iff the provider speaks the Anthropic API,
+   else `router`), and a strong + fast model chosen from the metadata.
+4. The bundled **`LLMsVerifier`** submodule (or a lightweight HTTP probe)
+   optionally verifies the key + model before the alias is activated.
+5. For each provider: a non-secret env file, a `cma_run_provider <id>` alias, a
+   `~/.claude-prov-<id>` config dir linking all shared items (so every plugin is
+   available), and the always-on plugin set are generated.
+
+Two tiny editable inputs cover the only things data can't infer:
+`providers/key-aliases.json` (key-name → provider normalization) and
+`providers/overrides.json` (per-provider pins, e.g. a short `dseek` alias or a
+native `/anthropic` endpoint).
+
+### Transports
+
+- **native** — `claude` runs directly with `ANTHROPIC_BASE_URL`,
+  `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`, `ANTHROPIC_SMALL_FAST_MODEL`.
+- **router** — launches through
+  [claude-code-router](https://github.com/musistudio/claude-code-router)
+  (`ccr code`), which translates Anthropic ↔ OpenAI/Gemini. The provider entry
+  is written into the ccr config with the live key at launch (chmod 600), so the
+  toolkit itself never persists secrets.
+
+### Safety
+
+Provider config dirs are **excluded from account auto-detection**, so they never
+merge into real-account auth and never disturb `claude-unify` /
+`claude-add-account`. Existing `claudeN` accounts keep working unchanged, and new
+accounts are still created the same way.
+
+### Commands
+
+```bash
+claude-providers sync          # discover + create/refresh every provider alias
+claude-providers list          # alias, provider, transport, strong/fast model
+claude-providers show <id>     # one provider's resolved env
+claude-providers remove <id>   # remove alias + env, back up the config dir
+claude-providers add --from-key VAR --id PROVIDER   # register a mapping, then sync
+```
+
+### Known limitation — session color
+
+The goal of defaulting each provider session's `/color` to orange is **not
+automatable** on the installed Claude Code (v2.1.178): `/color` is session-scoped
+and TUI-only, never persisted, with no settings key or env var. Type
+`/color orange` per session. (Documented in
+`docs/Provider_Aliases_User_Guide.md`.)
+
+Full details, overrides, verification, and troubleshooting live in
+**`docs/Provider_Aliases_User_Guide.md`**; diagrams in
+`docs/diagrams/provider-aliases.md`.
+
+---
+
+*Generated 2026-05-26 (OpenCode integration added 2026-06-06; provider aliases
+added 2026-06-16). Maintain by editing this markdown file and re-running
+`claude-export-docs.sh`.*

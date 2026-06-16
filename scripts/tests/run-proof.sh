@@ -24,11 +24,18 @@ echo "==> live OpenCode verification"
 bash "$TESTS_DIR/verify_opencode_live.sh" 2>&1 | tee "$LIVE_LOG"
 live_rc=${PIPESTATUS[0]}
 
+echo
+echo "==> live provider-alias verification"
+PROV_LOG="$PROOF_DIR/42-live-providers.log"
+bash "$TESTS_DIR/verify_providers_live.sh" 2>&1 | tee "$PROV_LOG"
+prov_rc=${PIPESTATUS[0]}
+
 # Distil the tallies for the report.
 # Strip ANSI colour so the distilled report is clean plain text.
 strip_ansi() { sed -E 's/\x1b\[[0-9;]*m//g'; }
 sand_line="$(grep -E 'Test files:|ALL GREEN' "$SAND_LOG" | tail -2 | strip_ansi | tr '\n' ' ')"
 live_line="$(grep -E '[0-9]+ passed|SKIP:' "$LIVE_LOG" | tail -1 | strip_ansi)"
+prov_line="$(grep -E '[0-9]+ passed|SKIP:' "$PROV_LOG" | tail -1 | strip_ansi)"
 
 {
   echo "# Toolkit proof of work"
@@ -48,15 +55,21 @@ live_line="$(grep -E '[0-9]+ passed|SKIP:' "$LIVE_LOG" | tail -1 | strip_ansi)"
   echo '```'
   echo "result: \`$live_line\`  ·  exit code: \`$live_rc\`"
   echo
+  echo "## Live provider-alias verification (real installed state)"
+  echo '```'
+  echo "$prov_line"
+  echo '```'
+  echo "exit code: \`$prov_rc\`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)"
+  echo
   echo "Artifacts: \`10-debug-config.json\`, \`21-skill-names.txt\`," \
-       "\`31-mcp-list.clean.txt\`."
+       "\`31-mcp-list.clean.txt\`, \`50-providers-live.txt\`."
 } > "$PROOF_DIR/PROOF.md"
 
 echo
 echo "============================================"
 echo "PROOF written to $PROOF_DIR/PROOF.md"
-echo "sandbox rc=$sand_rc   live rc=$live_rc"
-if (( sand_rc == 0 && live_rc == 0 )); then
+echo "sandbox rc=$sand_rc   live rc=$live_rc   providers rc=$prov_rc"
+if (( sand_rc == 0 && live_rc == 0 && prov_rc == 0 )); then
   echo "ALL GREEN — evidence is in $PROOF_DIR"
   exit 0
 fi

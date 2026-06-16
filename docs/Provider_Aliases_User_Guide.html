@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Claude Multi-Account Fine Tuning</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ background-color: #f8f8f8; }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ef2929; } 
+code span.an { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.at { color: #204a87; } 
+code span.bn { color: #0000cf; } 
+code span.cf { color: #204a87; font-weight: bold; } 
+code span.ch { color: #4e9a06; } 
+code span.cn { color: #8f5902; } 
+code span.co { color: #8f5902; font-style: italic; } 
+code span.cv { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.do { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.dt { color: #204a87; } 
+code span.dv { color: #0000cf; } 
+code span.er { color: #a40000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #0000cf; } 
+code span.fu { color: #204a87; font-weight: bold; } 
+code span.im { } 
+code span.in { color: #8f5902; font-weight: bold; font-style: italic; } 
+code span.kw { color: #204a87; font-weight: bold; } 
+code span.op { color: #ce5c00; font-weight: bold; } 
+code span.ot { color: #8f5902; } 
+code span.pp { color: #8f5902; font-style: italic; } 
+code span.sc { color: #ce5c00; font-weight: bold; } 
+code span.ss { color: #4e9a06; } 
+code span.st { color: #4e9a06; } 
+code span.va { color: #000000; } 
+code span.vs { color: #4e9a06; } 
+code span.wa { color: #8f5902; font-weight: bold; font-style: italic; } 
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Claude Multi-Account Fine Tuning</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#provider-aliases--user-guide" id="toc-provider-aliases--user-guide">Provider Aliases — User Guide</a>
+<ul>
+<li><a href="#1-prerequisites" id="toc-1-prerequisites">1.
+Prerequisites</a></li>
+<li><a href="#2-quick-start" id="toc-2-quick-start">2. Quick
+start</a></li>
+<li><a href="#3-commands" id="toc-3-commands">3. Commands</a>
+<ul>
+<li><a href="#useful-flags" id="toc-useful-flags">Useful flags</a></li>
+</ul></li>
+<li><a href="#4-how-a-provider-alias-is-named-and-what-it-runs" id="toc-4-how-a-provider-alias-is-named-and-what-it-runs">4. How a
+provider alias is named and what it runs</a></li>
+<li><a href="#5-config-dirs-plugins-and-shared-state" id="toc-5-config-dirs-plugins-and-shared-state">5. Config dirs, plugins,
+and shared state</a></li>
+<li><a href="#6-overrides--scriptsprovidersoverridesjson" id="toc-6-overrides--scriptsprovidersoverridesjson">6. Overrides —
+<code>scripts/providers/overrides.json</code></a>
+<ul>
+<li><a href="#scriptsproviderskey-aliasesjson" id="toc-scriptsproviderskey-aliasesjson"><code>scripts/providers/key-aliases.json</code></a></li>
+</ul></li>
+<li><a href="#7-verification-optional-via-llmsverifier" id="toc-7-verification-optional-via-llmsverifier">7. Verification
+(optional, via LLMsVerifier)</a></li>
+<li><a href="#8-known-limitation--default-session-color" id="toc-8-known-limitation--default-session-color">8. Known limitation —
+default session color</a></li>
+<li><a href="#9-troubleshooting" id="toc-9-troubleshooting">9.
+Troubleshooting</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="provider-aliases--user-guide">Provider Aliases — User Guide</h1>
+<p><code>claude-providers</code> turns every LLM API key you keep in
+your keys file into its own Claude Code alias, pointed at that
+provider&#39;s strongest model. It reuses the multi-account toolkit&#39;s
+machinery (shared plugins/history, automatic
+<code>.bashrc</code>/<code>.zshrc</code> wiring) so a provider alias
+behaves like a normal <code>claudeN</code> account, just talking to a
+different model backend.</p>
+<p>It is <strong>fully dynamic</strong>: the provider list, base URLs,
+transports, and model IDs are all derived at run time from your keys
+file + the <a href="https://models.dev">models.dev</a> catalog. Nothing
+is hardcoded. Re-run it any time to pick up new keys or refresh existing
+providers.</p>
+<hr />
+<h2 id="1-prerequisites">1. Prerequisites</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Why</th>
+<th>Install</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The toolkit installed</td>
+<td>provides <code>lib.sh</code>, the alias file, sync-state</td>
+<td><code>bash scripts/install.sh</code></td>
+</tr>
+<tr>
+<td>A keys file</td>
+<td>one <code>export NAME_API_KEY=...</code> per provider</td>
+<td><code>~/api_keys.sh</code> (default) or pass
+<code>--keys-file</code></td>
+</tr>
+<tr>
+<td><code>jq</code>, <code>python3</code>, <code>curl</code></td>
+<td>catalog parse + resolve + fetch</td>
+<td>system package manager</td>
+</tr>
+<tr>
+<td><code>claude-code-router</code> <em>(only for routed
+providers)</em></td>
+<td>translate Anthropic↔︎OpenAI/Gemini</td>
+<td><code>npm install -g @musistudio/claude-code-router</code></td>
+</tr>
+<tr>
+<td><code>submodules/LLMsVerifier</code> built <em>(optional)</em></td>
+<td>full &quot;does this model work?&quot; verification</td>
+<td>see §7</td>
+</tr>
+</tbody>
+</table>
+<p>Your keys file is the <strong>only</strong> place secrets live.
+<code>claude-providers</code> reads the variable <em>names</em> from it
+(without executing it) to discover providers, and the launch wrapper
+reads the <em>value</em> at the moment you start a session. No key is
+ever written into the repo, the alias file, or the per-provider env
+files.</p>
+<h2 id="2-quick-start">2. Quick start</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync         <span class="co"># discover + create/refresh all provider aliases</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> ~/.local/share/claude-multi-account/aliases.sh   <span class="co"># or open a new shell</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list         <span class="co"># see what you got</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>                      <span class="co"># launch Claude Code on DeepSeek&#39;s strongest model</span></span></code></pre></div>
+<h2 id="3-commands">3. Commands</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>claude-providers sync</code> <em>(default)</em></td>
+<td>Discover every LLM key, resolve it via models.dev, verify (if
+available), and create/refresh one alias per provider. Idempotent — safe
+to run repeatedly.</td>
+</tr>
+<tr>
+<td><code>claude-providers list</code></td>
+<td>Table of installed provider aliases: alias name, provider,
+transport, strong + fast model.</td>
+</tr>
+<tr>
+<td><code>claude-providers show &lt;id&gt;</code></td>
+<td>Print the resolved env file for one provider.</td>
+</tr>
+<tr>
+<td><code>claude-providers remove &lt;id&gt;</code></td>
+<td>Remove the alias + env file; back up and remove the config dir.</td>
+</tr>
+<tr>
+<td><code>claude-providers add --from-key VAR --id PROVIDER</code></td>
+<td>Register a key→provider mapping (when a key&#39;s name doesn&#39;t match
+models.dev), then sync.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="useful-flags">Useful flags</h3>
+<ul>
+<li><code>--keys-file PATH</code> — use a different keys file (default
+<code>~/api_keys.sh</code>).</li>
+<li><code>--no-verify</code> — skip verification; create aliases
+regardless.</li>
+<li><code>--offline</code> — don&#39;t fetch models.dev; use the local cache
+(errors if none).</li>
+<li><code>--dry-run</code> — print what would change; write
+nothing.</li>
+</ul>
+<h2 id="4-how-a-provider-alias-is-named-and-what-it-runs">4. How a
+provider alias is named and what it runs</h2>
+<ul>
+<li><strong>Alias name</strong> defaults to the models.dev provider id
+(<code>deepseek</code>, <code>groq</code>, <code>mistral</code>, …).
+Want something shorter like <code>dseek</code>? Set it in
+<code>scripts/providers/overrides.json</code> (see §6).</li>
+<li><strong>Strong model</strong> → Claude Code&#39;s main model
+(<code>ANTHROPIC_MODEL</code>). Chosen as the provider&#39;s most capable:
+reasoning-capable first, then newest, then largest context.</li>
+<li><strong>Fast model</strong> → Claude Code&#39;s background model
+(<code>ANTHROPIC_SMALL_FAST_MODEL</code>), chosen as the cheapest
+tool-call-capable model.</li>
+<li><strong>Transport</strong>:
+<ul>
+<li><code>native</code> — provider speaks the Anthropic API directly
+(models.dev <code>npm</code> is <code>@ai-sdk/anthropic</code>). The
+alias runs <code>claude</code> with <code>ANTHROPIC_BASE_URL</code> /
+<code>ANTHROPIC_AUTH_TOKEN</code> / <code>ANTHROPIC_MODEL</code>
+set.</li>
+<li><code>router</code> — provider is OpenAI-compatible / Gemini. The
+alias launches through <code>claude-code-router</code>
+(<code>ccr code</code>), which translates the protocol.</li>
+</ul></li>
+</ul>
+<h2 id="5-config-dirs-plugins-and-shared-state">5. Config dirs, plugins,
+and shared state</h2>
+<p>Each provider gets <code>~/.claude-prov-&lt;id&gt;</code>, which
+symlinks the same shared items as your accounts (<code>projects</code>,
+<code>todos</code>, <code>plugins</code>, <code>settings.json</code>,
+<code>CLAUDE.md</code>, …). So <strong>every plugin you have in
+<code>claude1..N</code> is available in every provider session</strong>,
+and history/projects are unified. <code>sync</code> also force-enables
+the always-on set in shared settings: <strong>superpowers,
+systematic-debugging, frontend-design, code-review</strong>.</p>
+<p>Provider dirs are deliberately <strong>excluded from account
+auto-detection</strong>, so they never get merged into your real
+accounts&#39; auth/identity and never interfere with
+<code>claude-unify</code> or <code>claude-add-account</code>. Your
+existing <code>claudeN</code> aliases keep working exactly as before,
+and you can still create new accounts the same way.</p>
+<h2 id="6-overrides--scriptsprovidersoverridesjson">6. Overrides —
+<code>scripts/providers/overrides.json</code></h2>
+<p>Per-provider pins. Empty by default. Any field you set wins over the
+models.dev-derived value:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;deepseek&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;alias&quot;</span><span class="fu">:</span> <span class="st">&quot;dseek&quot;</span><span class="fu">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;transport&quot;</span><span class="fu">:</span> <span class="st">&quot;native&quot;</span><span class="fu">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.deepseek.com/anthropic&quot;</span><span class="fu">,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;strong_model&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek-reasoner&quot;</span><span class="fu">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;fast_model&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek-chat&quot;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>This is how you (for example) promote DeepSeek to its native
+Anthropic endpoint (<code>/anthropic</code>) instead of routing it, or
+give it the short alias <code>dseek</code> — all without touching any
+code.</p>
+<h3 id="scriptsproviderskey-aliasesjson"><code>scripts/providers/key-aliases.json</code></h3>
+<p>Maps a key variable name to a models.dev provider id, for the cases
+where the name differs (e.g. <code>CODESTRAL_API_KEY</code> →
+<code>mistral</code>, <code>ZAI_API_KEY</code> → <code>zai</code>). Use
+<code>claude-providers add --from-key VAR --id PROVIDER</code> to append
+entries.</p>
+<h2 id="7-verification-optional-via-llmsverifier">7. Verification
+(optional, via LLMsVerifier)</h2>
+<p>By default <code>sync</code> does a best-effort check (an HTTP probe
+of the provider&#39;s <code>/models</code>, when a key + network are
+available) and otherwise marks a provider <code>unverified</code> — the
+alias is <strong>still created</strong> (full verification is
+opt-in).</p>
+<p>For authoritative verification (&quot;does this model exist and can it see
+my code?&quot;) build the LLMsVerifier submodule:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> submodule update <span class="at">--init</span> <span class="at">--depth</span> 1 submodules/LLMsVerifier</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> submodules/LLMsVerifier <span class="kw">&amp;&amp;</span> <span class="ex">go</span> build <span class="at">-o</span> bin/model-verification ./llm-verifier/cmd/model-verification</span></code></pre></div>
+<p>Once <code>submodules/LLMsVerifier/bin/model-verification</code>
+exists, <code>sync</code> uses it: a provider that
+<strong>fails</strong> verification is recorded but its alias is
+<strong>not</strong> activated. (Requires the Go toolchain; the build
+reads keys from your keys file.)</p>
+<h2 id="8-known-limitation--default-session-color">8. Known limitation —
+default session color</h2>
+<p>The original goal was for each provider session to default its
+<code>/color</code> to <strong>orange</strong>. Investigation of the
+installed Claude Code (v2.1.178) found that <code>/color</code> is
+<strong>session-scoped and TUI-only — it is never persisted to
+disk</strong>, and there is no settings key, hook, or environment
+variable to set a default color. So this cannot be automated with the
+current Claude Code.</p>
+<p><strong>Workaround:</strong> type <code>/color orange</code> at the
+start of a provider session. <code>orange</code> is a valid color. If a
+future Claude Code adds a persistable color setting, <code>sync</code>
+will seed it automatically.</p>
+<h2 id="9-troubleshooting">9. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause / fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>provider &#39;X&#39; needs claude-code-router</code></td>
+<td>Routed provider, ccr not installed →
+<code>npm install -g @musistudio/claude-code-router</code>.</td>
+</tr>
+<tr>
+<td><code>$NAME_API_KEY is empty</code></td>
+<td>The key isn&#39;t set in your keys file.</td>
+</tr>
+<tr>
+<td><code>offline and no models.dev cache</code></td>
+<td>Run <code>claude-providers sync</code> once online to populate the
+cache.</td>
+</tr>
+<tr>
+<td>A key didn&#39;t become an alias</td>
+<td>It&#39;s <code>unmapped</code> (no models.dev match) or classified
+<code>vcs</code>/<code>infra</code>. Map it with <code>add</code>, or
+check <code>scripts/providers/evidence/mapping-report.md</code>.</td>
+</tr>
+<tr>
+<td>Alias missing after sync</td>
+<td><code>source ~/.local/share/claude-multi-account/aliases.sh</code>
+or open a new shell.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
