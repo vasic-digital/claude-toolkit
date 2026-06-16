@@ -1,0 +1,23 @@
+{
+  "uid": "llmsverifier-overview",
+  "title": "LLMsVerifier Overview",
+  "tags": ["llmsverifier"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {"id":1,"type":"stat","title":"App up","datasource":"Prometheus","gridPos":{"h":4,"w":6,"x":0,"y":0},
+     "targets":[{"expr":"llmverifier_up","refId":"A"}]},
+    {"id":2,"type":"stat","title":"Database handle up","datasource":"Prometheus","gridPos":{"h":4,"w":6,"x":6,"y":0},
+     "targets":[{"expr":"llmverifier_database_up","refId":"A"}]},
+    {"id":3,"type":"timeseries","title":"Goroutines","datasource":"Prometheus","gridPos":{"h":8,"w":12,"x":0,"y":4},
+     "targets":[{"expr":"llmverifier_goroutines","refId":"A"}]},
+    {"id":4,"type":"timeseries","title":"Heap alloc bytes","datasource":"Prometheus","gridPos":{"h":8,"w":12,"x":12,"y":4},
+     "targets":[{"expr":"llmverifier_memory_alloc_bytes","refId":"A"}]},
+    {"id":5,"type":"timeseries","title":"Node CPU (1 - idle rate)","datasource":"Prometheus","gridPos":{"h":8,"w":12,"x":0,"y":12},
+     "targets":[{"expr":"1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))","refId":"A"}]},
+    {"id":6,"type":"timeseries","title":"Node mem available bytes","datasource":"Prometheus","gridPos":{"h":8,"w":12,"x":12,"y":12},
+     "targets":[{"expr":"node_memory_MemAvailable_bytes","refId":"A"}]}
+  ]
+}

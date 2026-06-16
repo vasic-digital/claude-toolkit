@@ -17,7 +17,7 @@ alias whose:
 
 - **command name** derives from the provider (DeepSeek → `dseek`),
 - **models** are set to that provider's *strongest* (main) + a *fast* (background) model,
-- session **default color is orange** (to visually distinguish provider sessions),
+- session **default color is purple** (to visually distinguish provider sessions),
 - **all installed plugins** (from `claude1..N`) are available,
 - these are always ready: **superpowers, systematic-debugging, frontend-design
   ("claude design"), code-review**.
@@ -86,7 +86,7 @@ LLMsVerifier or built-in probe ─► [verify key works + models exist/respond]
                                   ▼
                           for each verified provider:
                             • write providers/<id>.env (non-secret)
-                            • ensure ~/.claude-prov-<id> (link SHARED_ITEMS, orange seed)
+                            • ensure ~/.claude-prov-<id> (link SHARED_ITEMS, purple seed)
                             • write alias: alias <name>="cma_run_provider <id>"
                             • if router transport: add to claude-code-router config
                           unverified ► written disabled + logged reason
@@ -123,9 +123,9 @@ systematic-debugging, frontend-design, code-review (additive; never removes exis
 Because settings + plugins are shared, every provider session inherits them. The
 `using-superpowers` bootstrap already auto-loads at session start.
 
-### 3.6 Default color = orange
+### 3.6 Default color = purple
 
-Each provider config dir is seeded so its default session color is orange. **Mechanism to
+Each provider config dir is seeded so its default session color is purple. **Mechanism to
 be verified during implementation** by inspecting how `/color` persists (it set "green"
 this session, so it writes a discoverable setting); if no persistable key exists, fall
 back to a documented note in the user guide rather than fabricating behavior.

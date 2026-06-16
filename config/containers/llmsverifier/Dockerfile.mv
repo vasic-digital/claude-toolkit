@@ -1,0 +1,12 @@
+# Builds the authoritative model-verification tool ("Do you see my code?" live
+# provider check) from the nested module. Same cgo/nested-module fix as the app.
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache git ca-certificates gcc musl-dev
+WORKDIR /src
+COPY LLMsVerifier/llm-verifier/ ./
+RUN go mod download
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -o /model-verification ./cmd/model-verification
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /model-verification /usr/local/bin/model-verification
+ENTRYPOINT ["/usr/local/bin/model-verification"]

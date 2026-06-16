@@ -732,10 +732,10 @@ claude-providers add --from-key VAR --id PROVIDER   # register a mapping, then s
 
 ### Known limitation — session color
 
-The goal of defaulting each provider session's `/color` to orange is **not
+The goal of defaulting each provider session's `/color` to purple is **not
 automatable** on the installed Claude Code (v2.1.178): `/color` is session-scoped
 and TUI-only, never persisted, with no settings key or env var. Type
-`/color orange` per session. (Documented in
+`/color purple` per session. (Documented in
 `docs/Provider_Aliases_User_Guide.md`.)
 
 Full details, overrides, verification, and troubleshooting live in

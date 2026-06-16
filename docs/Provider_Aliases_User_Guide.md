@@ -133,13 +133,13 @@ activated. (Requires the Go toolchain; the build reads keys from your keys file.
 ## 8. Known limitation — default session color
 
 The original goal was for each provider session to default its `/color` to
-**orange**. Investigation of the installed Claude Code (v2.1.178) found that
+**purple**. Investigation of the installed Claude Code (v2.1.178) found that
 `/color` is **session-scoped and TUI-only — it is never persisted to disk**, and
 there is no settings key, hook, or environment variable to set a default color.
 So this cannot be automated with the current Claude Code.
 
-**Workaround:** type `/color orange` at the start of a provider session.
-`orange` is a valid color. If a future Claude Code adds a persistable color
+**Workaround:** type `/color purple` at the start of a provider session.
+`purple` is a valid color. If a future Claude Code adds a persistable color
 setting, `sync` will seed it automatically.
 
 ## 9. Troubleshooting
