@@ -96,12 +96,40 @@ Both scripts are **idempotent** — safe to re-run after pulling updates.
 | `claude-rollback`        | Restore the `.preunify.*` backups and move the shared store aside. |
 | `claude-export-docs`     | Regenerate `Claude_Multi_Account_Fine_Tuning.{html,pdf}` from the markdown. |
 | `claude-opencode-sync`   | Expose all Claude plugin Skills + MCP servers + `CLAUDE.md` to a host-installed OpenCode. See [OpenCode_Integration.md](OpenCode_Integration.md). |
+| `claude-providers`       | Create/refresh Claude Code aliases for **other LLM providers** (DeepSeek, Groq, Mistral, GLM, …) from your keys file, pointed at each provider's strongest model. `sync`/`list`/`show`/`remove`/`add`. See [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md). |
 
 After adding an account, log in once:
 
 ```bash
 claude3 /login
 ```
+
+## Provider aliases (other LLMs)
+
+`claude-providers` turns every LLM API key in your keys file (`~/api_keys.sh`)
+into its own Claude Code alias, pointed at that provider's strongest model —
+**fully dynamically**, with no hardcoded provider list, base URLs, or model IDs
+(everything is derived from your keys + the [models.dev](https://models.dev)
+catalog, validated by the bundled `LLMsVerifier` submodule).
+
+```bash
+claude-providers sync          # discover keys -> create one alias per provider
+source ~/.local/share/claude-multi-account/aliases.sh
+claude-providers list          # alias, provider, transport, strong/fast model
+deepseek                       # launch Claude Code on DeepSeek's best model
+```
+
+- **Native** providers (Anthropic-compatible) run `claude` directly; **router**
+  providers (OpenAI-compatible / Gemini) go through
+  [claude-code-router](https://github.com/musistudio/claude-code-router).
+- Provider config dirs (`~/.claude-prov-<id>`) reuse all your plugins + history
+  and are **excluded from account detection**, so existing `claudeN` accounts
+  and `claude-add-account` are completely unaffected.
+- Secrets never leave the keys file — the launch wrapper injects them per
+  session; nothing is written to the repo or the alias file.
+
+See the [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) for
+overrides, verification, and the documented `/color` limitation.
 
 ## Layout after unification
 

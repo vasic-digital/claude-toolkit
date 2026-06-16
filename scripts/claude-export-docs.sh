@@ -24,6 +24,10 @@ DOC_DIR="${DOC_DIR:-$HOME/Documents}"
 MD_FILE="${MD_FILE:-$DOC_DIR/Claude_Multi_Account_Fine_Tuning.md}"
 HTML_FILE="${MD_FILE%.md}.html"
 PDF_FILE="${MD_FILE%.md}.pdf"
+DOCX_FILE="${MD_FILE%.md}.docx"
+# Optional Word styling: first existing reference doc wins. Generate a starter
+# with: pandoc -o reference.docx --print-default-data-file reference.docx
+DOCX_REFERENCE="${DOCX_REFERENCE:-}"
 
 [[ -f "$MD_FILE" ]] || cma_die "markdown not found: $MD_FILE"
 cma_require pandoc
@@ -124,4 +128,29 @@ else
   cma_die "no usable PDF engine. Install one of: weasyprint, wkhtmltopdf, chromium."
 fi
 
-ls -lh "$HTML_FILE" "$PDF_FILE"
+# --- DOCX ---
+# pandoc writes .docx natively (no external engine). A reference doc supplies
+# styling (fonts, headings, code blocks) when provided.
+cma_log "rendering DOCX -> $DOCX_FILE"
+docx_args=(
+  --from=gfm+yaml_metadata_block
+  --to=docx
+  --toc --toc-depth=3
+  --highlight-style=tango
+  --metadata title="Claude Multi-Account Fine Tuning"
+  -o "$DOCX_FILE"
+)
+# Auto-discover a reference doc if none was passed explicitly.
+if [[ -z "$DOCX_REFERENCE" ]]; then
+  for cand in "$DOC_DIR/reference.docx" "$LIB_DIR/assets/reference.docx"; do
+    [[ -f "$cand" ]] && { DOCX_REFERENCE="$cand"; break; }
+  done
+fi
+[[ -n "$DOCX_REFERENCE" && -f "$DOCX_REFERENCE" ]] && docx_args+=(--reference-doc "$DOCX_REFERENCE")
+if pandoc "${docx_args[@]}" "$PROCESSED_MD"; then
+  cma_log "docx ok${DOCX_REFERENCE:+ (styled via $DOCX_REFERENCE)}"
+else
+  cma_warn "DOCX render failed (pandoc); HTML + PDF are still produced"
+fi
+
+ls -lh "$HTML_FILE" "$PDF_FILE" "$DOCX_FILE" 2>/dev/null || ls -lh "$HTML_FILE" "$PDF_FILE"
