@@ -1,0 +1,41 @@
+# Deployment overlay for the LLMsVerifier System — data + observability tier.
+# Faithful to docker-compose.prod.yml (same images/env) but self-contained:
+# named volumes instead of host-bind driver_opts, and only services whose
+# config is committed (nginx/init.sql/grafana-provisioning are absent upstream).
+version: "3"
+services:
+  postgres:
+    image: docker.io/library/postgres:15-alpine
+    environment:
+      POSTGRES_DB: llm_verifier
+      POSTGRES_USER: llm_verifier
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports: ["55432:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llm_verifier -d llm_verifier"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: docker.io/library/redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    ports: ["56379:6379"]
+    volumes: ["redis_data:/data"]
+  prometheus:
+    image: docker.io/prom/prometheus:latest
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    ports: ["59090:9090"]
+  grafana:
+    image: docker.io/grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["53000:3000"]
+    volumes: ["grafana_data:/var/lib/grafana"]
+volumes:
+  postgres_data:
+  redis_data:
+  grafana_data:
