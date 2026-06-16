@@ -59,6 +59,21 @@ blindly:
 | F | `error reading config file: open config.yaml` | `server` requires `--config config.yaml`; none present | mount generated `config.yaml` (DB path → persistent volume) |
 | G | `config.yaml: permission denied` | container runs as `appuser`(65532); host-600 bind mount unreadable across rootless userns | `:ro,U` mount flag chowns to container user |
 | H | `/health` → 404 | real route is `/api/health` (upstream prod compose healthcheck wrong) | healthcheck + probes use `/api/health` |
+| I | model verification → HTTP 401 for every provider (valid keys) | `verification/code_verification.go` sent the chat request with NO `Authorization` header | `patches/0001-verification-add-auth-header.patch` (Bearer `GetAPIKey()`); RED 401 → GREEN verified (DeepSeek 0.78, Groq 0.98) — see `docs/qa/20260616-infra/verification-proof.md` |
+
+## Heavy testing (real LLM verification)
+
+With provider keys present in the on-host `.env`, the bundled `model-verification`
+tool runs real "Do you see my code?" checks against live provider APIs:
+
+```bash
+ssh milosvasic@nezha.local 'podman run --rm --env-file ~/helix-system/llmsverifier/.env \
+  llm-verifier-mv:nezha --provider deepseek --model deepseek-chat --verbose'
+```
+
+Verified live: DeepSeek `deepseek-chat` → `verified` (score 0.78), Groq
+`llama-3.3-70b-versatile` → `verified` (score 0.98). The `0001-...patch` must be
+applied to the build context first (it is, in the nezha build).
 
 `mattn/go-sqlite3` (cgo) forced `CGO_ENABLED=1` + an alpine (musl) runtime —
 the upstream `CGO_ENABLED=0` static build cannot link it.
