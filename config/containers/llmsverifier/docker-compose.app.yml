@@ -1,0 +1,37 @@
+# llm-verifier application service (the System's API). Runs the cgo-built image
+# from Dockerfile.nezha. Uses SQLite (LLM_DB_PATH); postgres/redis from the
+# infra overlay are auxiliary. Loopback-only; secrets fail-fast.
+version: "3"
+services:
+  llm-verifier:
+    image: llm-verifier:nezha
+    command: ["server", "--port", "8080"]
+    environment:
+      GIN_MODE: release
+      PORT: "8080"
+      LLM_DB_PATH: /app/data/llm-verifier.db
+      DATABASE_ENCRYPTION_KEY: ${DATABASE_ENCRYPTION_KEY:?DATABASE_ENCRYPTION_KEY is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      LOG_LEVEL: info
+      PROMETHEUS_ENABLED: "true"
+    ports: ["127.0.0.1:8080:8080"]
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro,U
+      - llmv_data:/app/data
+      - llmv_logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      # Real route is /api/health (upstream prod compose used /health -> 404).
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+volumes:
+  llmv_data:
+  llmv_logs:
