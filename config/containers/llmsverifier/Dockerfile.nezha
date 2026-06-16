@@ -1,0 +1,23 @@
+# Build llm-verifier from its self-contained nested module (digital.vasic.
+# llmsverifier at LLMsVerifier/llm-verifier). Root causes fixed vs upstream:
+#  - build the nested module standalone (its go.sum is complete; top module's
+#    is not) — no challenges / top-module needed;
+#  - build the ./cmd PACKAGE (main.go + i18n.go), not a single file;
+#  - CGO_ENABLED=1 (+gcc/musl) because it uses mattn/go-sqlite3 (cgo); alpine
+#    runtime to match musl linkage.
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache git ca-certificates gcc musl-dev
+WORKDIR /src
+COPY LLMsVerifier/llm-verifier/ ./
+RUN go mod download
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -o /llm-verifier ./cmd
+
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates tzdata wget && \
+    adduser -D -u 65532 appuser && mkdir -p /app/data /app/exports /app/logs && \
+    chown -R appuser /app
+COPY --from=builder /llm-verifier /usr/local/bin/llm-verifier
+USER appuser
+WORKDIR /app
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/llm-verifier"]

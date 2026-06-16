@@ -1,0 +1,36 @@
+# Prometheus configuration for the LLMsVerifier System (nezha deployment).
+# Sanitized from LLMsVerifier/monitoring/prometheus.yml, which was invalid:
+#   - top-level `storage:` and `web:` blocks are CLI flags, not config fields
+#     (caused: "field ... not found in type config.plain" -> container exit 2)
+#   - `remote_write` targeted a non-existent host; `rule_files`/`alerting`
+#     referenced files/services absent in this deployment.
+# Kept: global + the real scrape_configs (targets show down until exporters
+# exist, which is honest and non-fatal).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'llm-verifier'
+    static_configs:
+      - targets: ['llm-verifier:8080']
+    metrics_path: /metrics
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    scheme: http
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
