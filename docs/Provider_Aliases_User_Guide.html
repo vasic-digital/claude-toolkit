@@ -263,6 +263,9 @@ and shared state</a></li>
 default session color</a></li>
 <li><a href="#9-troubleshooting" id="toc-9-troubleshooting">9.
 Troubleshooting</a></li>
+<li><a href="#10-remote-distributed-deployment--heavy-testing" id="toc-10-remote-distributed-deployment--heavy-testing">10. Remote
+distributed deployment &amp; heavy testing</a></li>
+<li><a href="#11-command-quick-reference" id="toc-11-command-quick-reference">11. Command quick-reference</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -459,14 +462,14 @@ reads keys from your keys file.)</p>
 <h2 id="8-known-limitation--default-session-color">8. Known limitation —
 default session color</h2>
 <p>The original goal was for each provider session to default its
-<code>/color</code> to <strong>orange</strong>. Investigation of the
+<code>/color</code> to <strong>purple</strong>. Investigation of the
 installed Claude Code (v2.1.178) found that <code>/color</code> is
 <strong>session-scoped and TUI-only — it is never persisted to
 disk</strong>, and there is no settings key, hook, or environment
 variable to set a default color. So this cannot be automated with the
 current Claude Code.</p>
-<p><strong>Workaround:</strong> type <code>/color orange</code> at the
-start of a provider session. <code>orange</code> is a valid color. If a
+<p><strong>Workaround:</strong> type <code>/color purple</code> at the
+start of a provider session. <code>purple</code> is a valid color. If a
 future Claude Code adds a persistable color setting, <code>sync</code>
 will seed it automatically.</p>
 <h2 id="9-troubleshooting">9. Troubleshooting</h2>
@@ -505,5 +508,50 @@ or open a new shell.</td>
 </tr>
 </tbody>
 </table>
+<h2 id="10-remote-distributed-deployment--heavy-testing">10. Remote
+distributed deployment &amp; heavy testing</h2>
+<p>For heavy testing that depends on <strong>real production
+services</strong>, the toolkit can boot the full LLMsVerifier System on
+a remote host (registered in <code>config/containers/nezha.env</code>)
+via the <code>containers</code> submodule + podman, and run real
+per-provider verification through it.</p>
+<ul>
+<li><strong>Deployment guide + boot procedure:</strong>
+<code>config/containers/llmsverifier/README.md</code> (services, ports,
+the exact <code>podman-compose</code> boot steps, and every root-caused
+deployment fix).</li>
+<li><strong>What runs:</strong> the <code>llm-verifier</code> API + an
+observability tier (prometheus + grafana with an auto-provisioned
+datasource &amp; dashboard + node-exporter).</li>
+<li><strong>Heavy testing:</strong> the bundled
+<code>model-verification</code> tool runs a real &quot;Do you see my code?&quot;
+check against each provider&#39;s live API:
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="op">&lt;</span>user<span class="op">&gt;</span>@<span class="op">&lt;</span>host<span class="op">&gt;</span> <span class="st">&#39;podman run --rm --env-file ~/helix-system/llmsverifier/.env \</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="st">  llm-verifier-mv:nezha --provider deepseek --model deepseek-chat --verbose&#39;</span></span></code></pre></div></li>
+<li><strong>Evidence:</strong> every verification + deployment claim is
+captured under <code>docs/qa/20260616-infra/</code> (proofs, sweeps,
+security, observability).</li>
+</ul>
+<h2 id="11-command-quick-reference">11. Command quick-reference</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Provider aliases</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync                 <span class="co"># discover keys -&gt; create/refresh aliases</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--no-verify</span>     <span class="co"># skip verification (faster)</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> list                 <span class="co"># alias | provider | transport | models</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> show <span class="op">&lt;</span>id<span class="op">&gt;</span>            <span class="co"># one provider&#39;s resolved env</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> remove <span class="op">&lt;</span>id<span class="op">&gt;</span>          <span class="co"># remove alias + env, back up config dir</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> add <span class="at">--from-key</span> VAR <span class="at">--id</span> PROVIDER   <span class="co"># register mapping + sync</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Launch a provider session (after: source the alias file or open a new shell)</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span>                              <span class="co"># native provider -&gt; claude</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>router-provider<span class="op">&gt;</span>                     <span class="co"># routed provider -&gt; claude via ccr</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="ex">deepseek</span> <span class="at">-p</span> <span class="st">&quot;your prompt&quot;</span>             <span class="co"># non-interactive print mode</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Accounts (unchanged, still works)</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-add-account</span> <span class="at">--alias</span> claudeN    <span class="co"># add a Claude account</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-list-accounts</span>                  <span class="co"># status of all accounts</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-unify</span>                          <span class="co"># re-merge shared state</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Docs</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-export-docs</span>                    <span class="co"># regenerate HTML/PDF/DOCX</span></span></code></pre></div>
 </body>
 </html>

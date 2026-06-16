@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Claude Multi-Account Fine Tuning</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Claude Multi-Account Fine Tuning</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#changelog" id="toc-changelog">Changelog</a>
+<ul>
+<li><a href="#v110--2026-06-16--distributed-infrastructure--provider-verification" id="toc-v110--2026-06-16--distributed-infrastructure--provider-verification">v1.1.0
+— 2026-06-16 — Distributed infrastructure + provider verification</a>
+<ul>
+<li><a href="#added" id="toc-added">Added</a></li>
+<li><a href="#changed" id="toc-changed">Changed</a></li>
+<li><a href="#fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds" id="toc-fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds">Fixed
+(LLMsVerifier — shipped as PR #2, applied to deployed builds)</a></li>
+<li><a href="#verified-live-real-do-you-see-my-code-against-production-apis" id="toc-verified-live-real-do-you-see-my-code-against-production-apis">Verified
+live (real &quot;Do you see my code?&quot; against production APIs)</a></li>
+<li><a href="#safety" id="toc-safety">Safety</a></li>
+</ul></li>
+<li><a href="#v100--2026-06-16--dynamic-provider-alias-generator" id="toc-v100--2026-06-16--dynamic-provider-alias-generator">v1.0.0 —
+2026-06-16 — Dynamic provider-alias generator</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="changelog">Changelog</h1>
+<p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v110--2026-06-16--distributed-infrastructure--provider-verification">v1.1.0
+— 2026-06-16 — Distributed infrastructure + provider verification</h2>
+<p>Headline: stand up the full LLMsVerifier System on a remote host for
+heavy testing against <strong>real production LLM services</strong>,
+plus end-to-end provider aliases proven on two hosts and two
+transports.</p>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong><code>containers</code> + <code>challenges</code>
+submodules</strong> (<code>submodules/</code>) — the distributed-boot
+orchestrator and its sibling. <code>helix-deps.yaml</code> confirms
+<code>containers</code> has zero own-org submodule deps.</li>
+<li><strong>Remote host registration</strong> —
+<code>config/containers/nezha.env</code> registers
+<code>nezha.local</code> as a remote boot/test host (SSH key, podman
+runtime).</li>
+<li><strong>LLMsVerifier deployment overlays</strong>
+(<code>config/containers/llmsverifier/</code>):
+<ul>
+<li><code>docker-compose.app.yml</code> — the <code>llm-verifier</code>
+API (cgo image, config mount, <code>/api/health</code> healthcheck,
+loopback, fail-fast secrets).</li>
+<li><code>docker-compose.infra.yml</code> — observability tier:
+prometheus + grafana (auto-provisioned datasource + dashboard) +
+node-exporter. <strong>No DBs</strong> (the app uses SQLite;
+postgres/redis were unused and removed).</li>
+<li><code>Dockerfile.nezha</code> / <code>Dockerfile.mv</code> — cgo
+nested-module builds for the server + the
+<code>model-verification</code> tool.</li>
+<li><code>patches/0001..0005</code> — upstream LLMsVerifier fixes (see
+PR #2 below).</li>
+</ul></li>
+<li><strong>Deployment guide</strong>
+<code>config/containers/llmsverifier/README.md</code> and the
+<strong>Provider Aliases User Guide</strong>
+<code>docs/Provider_Aliases_User_Guide.md</code> (HTML/PDF/DOCX exports
+included).</li>
+<li><strong>QA evidence</strong> <code>docs/qa/20260616-infra/</code> —
+verification proofs, endpoint coverage, security posture, observability,
+per-provider sweeps, dual-host end-to-end alias proofs.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Provider session accent color: orange → purple</strong>
+across spec, guide, and the long-form doc. (Claude Code 2.1.178 cannot
+persist a default <code>/color</code>, so this is the documented default
++ a manual <code>/color purple</code> — a platform limit.)</li>
+<li><code>claude-add-account</code> consolidated onto the shared
+<code>cma_link_shared_items</code> helper (single
+<code>CMA_SHARED_ITEMS</code> source).</li>
+<li><code>claude-export-docs</code> now also emits <strong>DOCX</strong>
+(HTML/PDF/DOCX).</li>
+</ul>
+<h3 id="fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds">Fixed
+(LLMsVerifier — shipped as PR #2, applied to deployed builds)</h3>
+<ul>
+<li><strong>Auth header missing</strong> — verification requests sent no
+<code>Authorization</code> header → HTTP 401 for every provider. Now
+<code>Bearer &lt;key&gt;</code>.</li>
+<li><strong>cohere 405</strong> — switched to the OpenAI-compat endpoint
+(<code>api.cohere.ai/compatibility/v1</code>). Verifies at score
+1.00.</li>
+<li><strong>gemini / huggingface</strong> — corrected to OpenAI-compat /
+router endpoints (huggingface verifies; gemini code-ready pending a
+valid key).</li>
+<li><strong>model-id strictness</strong> — verifies a requested id
+directly when not in the discovered list (no premature
+<code>model_not_found</code>).</li>
+<li><strong>no <code>/metrics</code></strong> — added
+<code>GET /api/metrics</code> + <code>/metrics</code> (stdlib
+Prometheus).</li>
+<li><strong>provider-session sync-state noise</strong> —
+<code>cma_run_provider</code> no longer runs cross-account sync-state on
+isolated provider dirs.</li>
+</ul>
+<h3 id="verified-live-real-do-you-see-my-code-against-production-apis">Verified
+live (real &quot;Do you see my code?&quot; against production APIs)</h3>
+<ul>
+<li><strong>9 providers verified:</strong> DeepSeek, Groq, Mistral,
+Cerebras, Novita, NVIDIA, Cohere, Codestral, HuggingFace.</li>
+<li><strong>Both transports, both hosts:</strong> native (DeepSeek) +
+router (Novita via ccr) on macOS and on nezha.</li>
+<li>Account-side failures (402/401/429/403) and non-OpenAI providers
+documented honestly; excluded under &quot;valid users only&quot; but kept fully
+supported.</li>
+</ul>
+<h3 id="safety">Safety</h3>
+<ul>
+<li>Provider dirs (<code>~/.claude-prov-*</code>) excluded from account
+detection — existing <code>claudeN</code> accounts and
+<code>claude-add-account</code> untouched.</li>
+<li>Secrets only in the keys file + on-host mode-600 <code>.env</code>;
+never in the repo. All published ports bound to loopback.</li>
+</ul>
+<h2 id="v100--2026-06-16--dynamic-provider-alias-generator">v1.0.0 —
+2026-06-16 — Dynamic provider-alias generator</h2>
+<p>First tagged release. <code>claude-providers</code> creates
+per-provider Claude Code aliases (DeepSeek, Groq, GLM, …) from your keys
+file pointed at each provider&#39;s strongest model — fully dynamic via
+models.dev + the LLMsVerifier submodule, hybrid
+native/claude-code-router transport, full lifecycle + tests + docs. See
+<code>docs/Provider_Aliases_User_Guide.md</code>.</p>
+</body>
+</html>

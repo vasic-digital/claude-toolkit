@@ -151,3 +151,49 @@ setting, `sync` will seed it automatically.
 | `offline and no models.dev cache` | Run `claude-providers sync` once online to populate the cache. |
 | A key didn't become an alias | It's `unmapped` (no models.dev match) or classified `vcs`/`infra`. Map it with `add`, or check `scripts/providers/evidence/mapping-report.md`. |
 | Alias missing after sync | `source ~/.local/share/claude-multi-account/aliases.sh` or open a new shell. |
+
+## 10. Remote distributed deployment & heavy testing
+
+For heavy testing that depends on **real production services**, the toolkit can
+boot the full LLMsVerifier System on a remote host (registered in
+`config/containers/nezha.env`) via the `containers` submodule + podman, and run
+real per-provider verification through it.
+
+- **Deployment guide + boot procedure:** `config/containers/llmsverifier/README.md`
+  (services, ports, the exact `podman-compose` boot steps, and every
+  root-caused deployment fix).
+- **What runs:** the `llm-verifier` API + an observability tier (prometheus +
+  grafana with an auto-provisioned datasource & dashboard + node-exporter).
+- **Heavy testing:** the bundled `model-verification` tool runs a real
+  "Do you see my code?" check against each provider's live API:
+  ```bash
+  ssh <user>@<host> 'podman run --rm --env-file ~/helix-system/llmsverifier/.env \
+    llm-verifier-mv:nezha --provider deepseek --model deepseek-chat --verbose'
+  ```
+- **Evidence:** every verification + deployment claim is captured under
+  `docs/qa/20260616-infra/` (proofs, sweeps, security, observability).
+
+## 11. Command quick-reference
+
+```bash
+# Provider aliases
+claude-providers sync                 # discover keys -> create/refresh aliases
+claude-providers sync --no-verify     # skip verification (faster)
+claude-providers list                 # alias | provider | transport | models
+claude-providers show <id>            # one provider's resolved env
+claude-providers remove <id>          # remove alias + env, back up config dir
+claude-providers add --from-key VAR --id PROVIDER   # register mapping + sync
+
+# Launch a provider session (after: source the alias file or open a new shell)
+deepseek                              # native provider -> claude
+<router-provider>                     # routed provider -> claude via ccr
+deepseek -p "your prompt"             # non-interactive print mode
+
+# Accounts (unchanged, still works)
+claude-add-account --alias claudeN    # add a Claude account
+claude-list-accounts                  # status of all accounts
+claude-unify                          # re-merge shared state
+
+# Docs
+claude-export-docs                    # regenerate HTML/PDF/DOCX
+```
