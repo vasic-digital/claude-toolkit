@@ -129,4 +129,95 @@ assert_eq "skipped" "$(rfield "$OUT" GITHUB_TOKEN status)" "GITHUB_TOKEN skipped
 assert_eq "vcs" "$(rfield "$OUT" GITHUB_TOKEN classification)" "GITHUB_TOKEN vcs"
 assert_eq "unmapped" "$(rfield "$OUT" FOO_API_KEY status)" "FOO_API_KEY unmapped"
 
+# ---------------------------------------------------------------------------
+# Section 3 — claude-providers sync end-to-end (offline, fixture catalog)
+# Proves: alias creation, env files, config-dir linking, dedupe (one alias per
+# provider), idempotency, and that the existing claudeN alias machinery is
+# untouched. Uses CLAUDE_BIN=/usr/bin/true and --offline so nothing launches
+# or hits the network.
+# ---------------------------------------------------------------------------
+PROVIDERS_SH="$SCRIPTS_DIR/claude-providers.sh"
+
+# Seed the models.dev cache (offline) with a controlled catalog. mistral is
+# present so the real key-aliases.json mapping CODESTRAL_API_KEY->mistral
+# collides with MISTRAL_API_KEY -> exercises dedupe.
+PCACHE="$HOME/.local/share/claude-multi-account/providers/models.dev.cache.json"
+mkdir -p "$(dirname "$PCACHE")"
+cat > "$PCACHE" <<'JSON'
+{
+  "acme":   {"env":["ACME_API_KEY"],"api":"https://api.acme.com/anthropic","npm":"@ai-sdk/anthropic",
+             "models":{"b":{"id":"acme-big","reasoning":true,"release_date":"2025-05-01","limit":{"context":200000},"cost":{"input":3,"output":15},"tool_call":true},
+                       "s":{"id":"acme-small","reasoning":false,"release_date":"2024-01-01","limit":{"context":32000},"cost":{"input":0.1,"output":0.4},"tool_call":true}}},
+  "beta":   {"env":["BETA_API_KEY"],"api":"https://api.beta.ai/v1","npm":"@ai-sdk/openai-compatible",
+             "models":{"f":{"id":"beta-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}}},
+  "mistral":{"env":["MISTRAL_API_KEY"],"api":"https://api.mistral.ai/v1","npm":"@ai-sdk/openai-compatible",
+             "models":{"m":{"id":"mistral-large","reasoning":false,"release_date":"2025-04-01","limit":{"context":128000},"cost":{"input":2,"output":6},"tool_call":true}}}
+}
+JSON
+
+# Fake keys file (NAMES only matter; values are dummy and never executed by us).
+KEYS="$HOME/api_keys.sh"
+cat > "$KEYS" <<'SH'
+export ACME_API_KEY="dummy-acme"
+export BETA_API_KEY="dummy-beta"
+export MISTRAL_API_KEY="dummy-mistral"
+export CODESTRAL_API_KEY="dummy-codestral"
+export GITHUB_TOKEN="dummy-gh"
+SH
+
+# A pre-existing real account alias must survive untouched.
+cma_write_alias claude1 "$HOME/.claude-acct1"
+
+bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+sync_rc=$?
+
+it "sync exits cleanly"
+assert_eq 0 "$sync_rc" "sync rc"
+
+PDIR="$HOME/.local/share/claude-multi-account/providers"
+it "env files created for each resolved provider"
+assert_file "$PDIR/acme.env" "acme env"
+assert_file "$PDIR/beta.env" "beta env"
+assert_file "$PDIR/mistral.env" "mistral env"
+
+it "provider aliases written via cma_run_provider"
+grep -q '^alias acme="cma_run_provider acme"' "$ALIAS_FILE" ; assert_eq 0 $? "acme alias"
+grep -q '^alias beta="cma_run_provider beta"' "$ALIAS_FILE" ; assert_eq 0 $? "beta alias"
+
+it "CODESTRAL_API_KEY + MISTRAL_API_KEY dedupe to ONE mistral alias"
+c="$(grep -c 'cma_run_provider mistral"' "$ALIAS_FILE")"
+assert_eq "1" "$c" "exactly one mistral alias"
+
+it "native vs router transport recorded in env file"
+grep -q '^CMA_PROVIDER_TRANSPORT=native' "$PDIR/acme.env" ; assert_eq 0 $? "acme native"
+grep -q '^CMA_PROVIDER_TRANSPORT=router' "$PDIR/beta.env" ; assert_eq 0 $? "beta router"
+
+it "config dir created and shared items symlinked"
+assert_dir "$HOME/.claude-prov-acme" "acme config dir"
+assert_symlink_to "$HOME/.claude-prov-acme/plugins" "$SHARED_DIR/plugins" "plugins linked"
+
+it "the existing claudeN alias is untouched"
+grep -q '^alias claude1=' "$ALIAS_FILE" ; assert_eq 0 $? "claude1 still present"
+
+it "provider dirs remain excluded from account detection after sync"
+det="$(cma_detect_accounts)"
+echo "$det" | grep -q "prov-acme" ; assert_eq 1 $? "prov-acme excluded"
+
+it "no secret values leaked into env files or alias file"
+grep -rq "dummy-acme\|dummy-beta\|dummy-mistral" "$PDIR" "$ALIAS_FILE" ; assert_eq 1 $? "no key values present"
+
+it "sync is idempotent — second run does not duplicate aliases"
+bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+c2="$(grep -c 'cma_run_provider acme"' "$ALIAS_FILE")"
+assert_eq "1" "$c2" "still one acme alias after re-sync"
+
+it "list reports installed providers"
+list_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
+echo "$list_out" | grep -q "acme" ; assert_eq 0 $? "list shows acme"
+
+it "remove deletes alias + env, backs up config dir"
+bash "$PROVIDERS_SH" remove beta >/dev/null 2>&1
+[[ -f "$PDIR/beta.env" ]] ; assert_eq 1 $? "beta env gone"
+grep -q 'cma_run_provider beta"' "$ALIAS_FILE" ; assert_eq 1 $? "beta alias gone"
+
 summary
