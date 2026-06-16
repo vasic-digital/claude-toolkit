@@ -39,9 +39,31 @@ answers still returned). Removed (provider sessions are isolated/excluded from
 account detection). Re-test is clean: only `42` printed, no warnings. Full
 sandbox suite stays 8/8 green.
 
-## Coverage
+## Also installed + tested on nezha (full install)
 
-- Native path: ✅ proven (deepseek).
-- Router path: ✅ proven (novita-ai via ccr).
-- 17 aliases installed on this host; both transport mechanisms verified
-  end-to-end with real model answers.
+Toolkit scripts rsynced to `~/claude-toolkit/scripts`; Claude Code + ccr
+installed (`npm i -g @anthropic-ai/claude-code @musistudio/claude-code-router`,
+symlinked into `~/.local/bin`); `~/api_keys.sh` built from the host `.env` (23
+keys); `claude-providers sync` created 12 provider aliases (deepseek native via
+override).
+
+```
+# nezha — native
+$ cma_run_provider deepseek -p "What is 6 times 7? Reply with only the number."
+42
+# nezha — router (ccr)
+$ cma_run_provider novita-ai -p "What is 8 plus 8? Reply with only the number."
+16
+```
+
+## Coverage matrix (both hosts, both transports — real answers)
+
+| Host | Native (deepseek) | Router (novita-ai/ccr) |
+|------|-------------------|------------------------|
+| current host (macOS) | 42 ✓ | 14 ✓ |
+| nezha (Linux) | 42 ✓ | 16 ✓ |
+
+Note: Claude Code prints a benign `.claude.json` backup/restore hint on first
+launch in a provider dir (it has no persistent `.claude.json`); non-fatal — the
+model answer is still returned. (Distinct from the sync-state noise already
+removed from the wrapper.)
