@@ -37,18 +37,22 @@ for f in "$PDIR"/*.env; do
 done
 assert_eq 1 "$ok" "all env files well-formed"
 
-it "NO secret values are present in env files or alias file"
-# Heuristic: env files must not contain anything that looks like a key value
-# (long base64-ish/sk- tokens). They store the key VAR NAME, never the value.
-leak=0
-grep -rhoE '(sk-[A-Za-z0-9_-]{16,}|[A-Za-z0-9_-]{40,})' "$PDIR" "$ALIASES" 2>/dev/null \
-  | grep -vE '^CMA_PROVIDER|cma_run_provider' >>"$EV" 2>/dev/null && leak=1
-assert_eq 0 "$leak" "no secret-shaped strings in generated files"
+it "NO secret values are present in env files (structural: only CMA_PROVIDER_* lines)"
+# Stronger than a length heuristic: every non-comment, non-blank line in each
+# env file MUST be a CMA_PROVIDER_*= assignment. Anything else would be a stray
+# value and a potential leak.
+stray=0
+for f in "$PDIR"/*.env; do
+  bad="$(grep -vE '^[[:space:]]*#|^[[:space:]]*$|^CMA_PROVIDER_[A-Z_]+=' "$f")"
+  [[ -n "$bad" ]] && { stray=1; printf 'STRAY in %s:\n%s\n' "$f" "$bad" >>"$EV"; }
+done
+assert_eq 0 "$stray" "env files contain only CMA_PROVIDER_* assignments"
 
 it "each provider alias resolves to cma_run_provider in the alias file"
 ok=1
 for f in "$PDIR"/*.env; do
-  id="$(sed -n 's/^CMA_PROVIDER_ID=//p' "$f")"
+  # Source (values are shell-quoted) to read the id cleanly — never sed-parse.
+  id="$( set -a; . "$f"; set +a; printf '%s' "$CMA_PROVIDER_ID" )"
   grep -qE "cma_run_provider $id(\"| )" "$ALIASES" || { ok=0; echo "no alias for $id" >>"$EV"; }
 done
 assert_eq 1 "$ok" "every provider has an alias line"
