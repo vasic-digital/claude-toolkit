@@ -2,6 +2,23 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.2.0 — 2026-06-19 — Z.AI Coding Plan provider alias
+
+### Added
+- **`zai-coding-plan` provider alias** — OpenAI-compatible router transport via `https://api.z.ai/api/coding/paas/v4` (Coding Max-Yearly Plan endpoint).
+- **Model overrides**: strong = `glm-5.2` (flagship 1M context reasoning model, free on plan), fast = `glm-4.7` (204k context, tool_call, 0 cost).
+- **key-aliases.json mapping**: `ZAI_API_KEY` → `zai-coding-plan` (targets the coding plan API endpoint instead of the general `z.ai` paas endpoint).
+- **overrides.json pin**: overrides auto-selected strong/fast models for the coding plan.
+- **Sandbox test coverage**: resolver tests (env-key matching, coding endpoint, router transport, glm-5.2/glm-4.7 model selection) + sync e2e tests (env file, alias, model overrides).
+- **Live endpoint verification**: HTTP 200 at `/models` (8 models discovered), curl test of `glm-4.7` chat completion confirmed operational.
+- **ccr integration**: provider auto-registered in `~/.claude-code-router/config.json` as the active default route.
+
+### Changed
+- `overrides.json` extended with `zai-coding-plan` section for model pinning.
+
+### Full test suite
+- 8/8 test files passed (ALL GREEN), 0 failures. Provider tests include 5 new assertions for `zai-coding-plan`.
+
 ## v1.1.0 — 2026-06-16 — Distributed infrastructure + provider verification
 
 Headline: stand up the full LLMsVerifier System on a remote host for heavy
