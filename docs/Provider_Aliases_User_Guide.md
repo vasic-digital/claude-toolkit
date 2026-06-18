@@ -197,3 +197,66 @@ claude-unify                          # re-merge shared state
 # Docs
 claude-export-docs                    # regenerate HTML/PDF/DOCX
 ```
+
+## 12. Individual provider notes
+
+### z.ai Coding Plan (zai-coding-plan)
+
+The [z.ai](https://z.ai) Coding Max-Yearly Plan provides access to Zhipu AI's
+flagship GLM models through a dedicated coding-optimized API endpoint. This is
+separate from the base z.ai plan — the Coding Plan endpoint uses
+`api.z.ai/api/coding/paas/v4` and includes **Free access** to `glm-5.2` (the
+flagship with 1M context and reasoning) and `glm-4.7` (the fast model with 204k
+context, reasoning, and tool_call support), among others.
+
+#### How the alias works
+
+The key variable `ZAI_API_KEY` in your keys file is mapped to the
+`zai-coding-plan` provider ID via `scripts/providers/key-aliases.json`. An
+override in `scripts/providers/overrides.json` pins the strong model to
+`glm-5.2` and the fast model to `glm-4.7`, which are the optimal choices for
+coding workloads on this plan.
+
+Transport is **router** — the alias launches through `claude-code-router`
+(`ccr code`), which translates the Anthropic protocol to the OpenAI-compatible
+z.ai API.
+
+#### Models available on the Coding Plan
+
+All models are free on the Coding Max-Yearly Plan:
+
+| Model | Context | Reasoning | Tool Call | Notes |
+|-------|---------|-----------|-----------|-------|
+| **glm-5.2** | 1M tokens | Yes | Yes | Flagship — newest, most capable |
+| glm-5.1 | — | Yes | Yes | Intermediate |
+| glm-5-turbo | — | — | — | Turbo variant of glm-5 |
+| glm-5 | — | — | — | Base generation 5 |
+| **glm-4.7** | 204k tokens | Yes | Yes | Fast model — reasoning + tool_call |
+| glm-4.6 | — | — | — | Mid-range |
+| glm-4.5-air | — | — | — | Lightweight |
+| glm-4.5 | — | — | — | Base model |
+
+**Note on glm-5.2 rate limits:** The Coding Max-Yearly Plan enforces a Fair
+Usage Policy on the flagship model: rapid-fire requests (e.g., repeated
+programmatic calls at short intervals) may trigger a temporary rate limit (error
+code `1313`). Normal interactive use via `zai-coding-plan` at human pace is
+unaffected.
+
+#### Setup
+
+Everything is already configured on this host, but for a fresh install:
+
+1. Ensure `ZAI_API_KEY` is exported in your keys file (`~/api_keys.sh`).
+2. Run `claude-providers sync` to discover the key and create the alias.
+3. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new shell).
+4. Run `zai-coding-plan` to start a Claude Code session on glm-5.2.
+
+No additional manual steps are needed — the key alias, model override, and
+endpoint are all defined in the provider config files.
+
+#### Usage example
+
+```bash
+zai-coding-plan                    # launch Claude Code on glm-5.2
+zai-coding-plan -p "explain this function"   # non-interactive print mode
+```

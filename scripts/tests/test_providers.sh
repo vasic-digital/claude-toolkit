@@ -82,6 +82,15 @@ cat > "$FIX/catalog.json" <<'JSON'
     "models": {
       "flagship": {"id":"beta-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}
     }
+  },
+  "zai-coding-plan": {
+    "env": ["ZAI_API_KEY"],
+    "api": "https://api.z.ai/api/coding/paas/v4",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "glm-5.2": {"id":"glm-5.2","name":"GLM-5.2","reasoning":true,"tool_call":true,"release_date":"2026-06-13","limit":{"context":1000000},"cost":{"input":0,"output":0}},
+      "glm-4.7": {"id":"glm-4.7","name":"GLM-4.7","reasoning":true,"tool_call":true,"release_date":"2025-12-22","limit":{"context":204800},"cost":{"input":0,"output":0}}
+    }
   }
 }
 JSON
@@ -101,7 +110,7 @@ print(m[sys.argv[2]][sys.argv[3]])' "$1" "$2" "$3"
 OUT="$HOME/resolved.json"
 python3 "$RESOLVE" --models-dev "$FIX/catalog.json" \
   --key-aliases "$FIX/key-aliases.json" \
-  --keys "ACME_API_KEY,BETA_API_KEY,LEGACY_BETA_KEY,GITHUB_TOKEN,FOO_API_KEY" > "$OUT"
+  --keys "ACME_API_KEY,BETA_API_KEY,ZAI_API_KEY,LEGACY_BETA_KEY,GITHUB_TOKEN,FOO_API_KEY" > "$OUT"
 rc=$?
 
 it "resolver runs and emits valid JSON"
@@ -123,6 +132,18 @@ assert_eq "https://api.beta.ai/v1" "$(rfield "$OUT" BETA_API_KEY base_url)" "bet
 
 it "key-aliases.json normalizes a differently-named key var"
 assert_eq "beta" "$(rfield "$OUT" LEGACY_BETA_KEY provider_id)" "LEGACY_BETA_KEY -> beta"
+
+it "zai-coding-plan resolves from env key match on ZAI_API_KEY"
+assert_eq "zai-coding-plan" "$(rfield "$OUT" ZAI_API_KEY provider_id)" "zai-coding-plan provider_id"
+assert_eq "resolved" "$(rfield "$OUT" ZAI_API_KEY status)" "zai-coding-plan resolved"
+
+it "zai-coding-plan uses coding paas endpoint and router transport"
+assert_eq "https://api.z.ai/api/coding/paas/v4" "$(rfield "$OUT" ZAI_API_KEY base_url)" "coding endpoint"
+assert_eq "router" "$(rfield "$OUT" ZAI_API_KEY transport)" "zai-coding-plan router"
+
+it "zai-coding-plan strong model = glm-5.2 (newest+reasoning), fast model = glm-4.7"
+assert_eq "glm-5.2" "$(rfield "$OUT" ZAI_API_KEY strong_model)" "strong=glm-5.2"
+assert_eq "glm-4.7" "$(rfield "$OUT" ZAI_API_KEY fast_model)" "fast=glm-4.7"
 
 it "VCS token is skipped, unknown llm key is unmapped"
 assert_eq "skipped" "$(rfield "$OUT" GITHUB_TOKEN status)" "GITHUB_TOKEN skipped"
@@ -151,7 +172,10 @@ cat > "$PCACHE" <<'JSON'
   "beta":   {"env":["BETA_API_KEY"],"api":"https://api.beta.ai/v1","npm":"@ai-sdk/openai-compatible",
              "models":{"f":{"id":"beta-x","reasoning":false,"release_date":"2025-06-01","limit":{"context":128000},"cost":{"input":1,"output":5},"tool_call":true}}},
   "mistral":{"env":["MISTRAL_API_KEY"],"api":"https://api.mistral.ai/v1","npm":"@ai-sdk/openai-compatible",
-             "models":{"m":{"id":"mistral-large","reasoning":false,"release_date":"2025-04-01","limit":{"context":128000},"cost":{"input":2,"output":6},"tool_call":true}}}
+             "models":{"m":{"id":"mistral-large","reasoning":false,"release_date":"2025-04-01","limit":{"context":128000},"cost":{"input":2,"output":6},"tool_call":true}}},
+  "zai-coding-plan":{"env":["ZAI_API_KEY"],"api":"https://api.z.ai/api/coding/paas/v4","npm":"@ai-sdk/openai-compatible",
+             "models":{"g5.2":{"id":"glm-5.2","reasoning":true,"tool_call":true,"release_date":"2026-06-13","limit":{"context":1000000},"cost":{"input":0,"output":0}},
+                       "g4.7":{"id":"glm-4.7","reasoning":true,"tool_call":true,"release_date":"2025-12-22","limit":{"context":204800},"cost":{"input":0,"output":0}}}}
 }
 JSON
 
@@ -162,6 +186,7 @@ export ACME_API_KEY="dummy-acme"
 export BETA_API_KEY="dummy-beta"
 export MISTRAL_API_KEY="dummy-mistral"
 export CODESTRAL_API_KEY="dummy-codestral"
+export ZAI_API_KEY="dummy-zai"
 export GITHUB_TOKEN="dummy-gh"
 SH
 
@@ -191,6 +216,16 @@ assert_eq "1" "$c" "exactly one mistral alias"
 it "native vs router transport recorded in env file"
 grep -qE "^CMA_PROVIDER_TRANSPORT='?native'?" "$PDIR/acme.env" ; assert_eq 0 $? "acme native"
 grep -qE "^CMA_PROVIDER_TRANSPORT='?router'?" "$PDIR/beta.env" ; assert_eq 0 $? "beta router"
+
+it "zai-coding-plan env file created with coding endpoint and strong/fast overrides"
+assert_file "$PDIR/zai-coding-plan.env" "zai-coding-plan env"
+grep -qE "^CMA_PROVIDER_BASE_URL='?https://api.z.ai/api/coding/paas/v4'?" "$PDIR/zai-coding-plan.env" ; assert_eq 0 $? "coding endpoint"
+grep -qE "^CMA_PROVIDER_MODEL='?glm-5.2'?" "$PDIR/zai-coding-plan.env" ; assert_eq 0 $? "strong model glm-5.2"
+grep -qE "^CMA_PROVIDER_FAST_MODEL='?glm-4.7'?" "$PDIR/zai-coding-plan.env" ; assert_eq 0 $? "fast model glm-4.7"
+grep -qE "^CMA_PROVIDER_TRANSPORT='?router'?" "$PDIR/zai-coding-plan.env" ; assert_eq 0 $? "zai-coding-plan router"
+
+it "zai-coding-plan alias written via cma_run_provider"
+grep -q '^alias zai-coding-plan="cma_run_provider zai-coding-plan"' "$ALIAS_FILE" ; assert_eq 0 $? "zai-coding-plan alias"
 
 it "config dir created and shared items symlinked"
 assert_dir "$HOME/.claude-prov-acme" "acme config dir"
