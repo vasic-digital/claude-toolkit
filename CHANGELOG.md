@@ -2,6 +2,53 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.3.0 — 2026-06-19 — Xiaomi MiMo provider alias
+
+### Added
+- **`xiaomi` provider alias** — Xiaomi MiMo via the **Anthropic-native endpoint**
+  `https://api.xiaomimimo.com/anthropic` (`POST /anthropic/v1/messages`). Unlike most
+  providers in this toolkit, MiMo exposes a genuine native Anthropic endpoint that
+  accepts `Authorization: Bearer`, so the alias uses **native transport** with no
+  `claude-code-router` (`ccr`) dependency — the same direct-launch model as `deepseek`.
+- **Model overrides**: strong = `mimo-v2.5-pro` (flagship, 1M context, reasoning,
+  tool-call), fast = `mimo-v2-flash` (256K, cheapest tier). Pinning is deliberate —
+  models.dev lists a `mimo-v2.5-pro-ultraspeed` id the **live API does not serve**, so
+  the override guarantees only live-served ids are used.
+- **key-aliases.json mapping**: `XIAOMI_MIMO_API_KEY` → `xiaomi` (the user's key-var
+  name does not match the models.dev provider's documented `XIAOMI_API_KEY` env).
+- **overrides.json pin**: native transport, `/anthropic` base_url, `mimo-v2.5-pro` /
+  `mimo-v2-flash`.
+- **Sandbox test coverage**: resolver tests (key-alias mapping, override forces native
+  transport, `/anthropic` base_url beats catalog `/v1`, model pinning beats the stale
+  `ultraspeed` entry, stale-id-never-selected guard) + sync e2e tests (env file,
+  alias, config-dir + plugins symlink, account-detection exclusion, idempotency,
+  no-secret-leak). Providers test 60 → 69 assertions.
+- **Live endpoint verification**: `GET /v1/models` HTTP 200 (10 models); native
+  `/anthropic/v1/messages` round trip HTTP 200 with correct text for both
+  `mimo-v2.5-pro` and `mimo-v2-flash`; tool calling proven (`finish_reason: tool_calls`
+  + `reasoning_content`); streaming confirmed. Evidence in
+  `scripts/tests/proof/60-xiaomi-live.txt` (secret-free).
+- **Docs**: dedicated `xiaomi` section in `docs/Provider_Aliases_User_Guide.md`
+  (model table, setup, usage, live-verified notes).
+
+### Changed
+- `scripts/providers/key-aliases.json` and `scripts/providers/overrides.json` extended
+  with the `xiaomi` entries (config-only; no code changes — same dynamic pattern as
+  Z.AI v1.2.0 / DeepSeek).
+
+### Full test suite
+- 8/8 test files passed (ALL GREEN), 0 failures. Providers test includes 9 new
+  assertions for `xiaomi`. Live provider verifier 5/5 PASS.
+
+### Honest notes
+- The only failures in the repo's `run-proof.sh` are 2 **pre-existing, environmental**
+  opencode-skill-discovery checks, unrelated to Xiaomi (zero opencode files changed by
+  this release; they fail identically when run standalone).
+- The in-process LLMsVerifier step reports `(unverified)` for every provider because
+  `~/api_keys.sh` has a pre-existing unrelated `unbound variable` on a different
+  provider's key under `set -u`; authoritative proof is the direct native-endpoint
+  round trip (HTTP 200), recorded in the evidence file.
+
 ## v1.2.0 — 2026-06-19 — Z.AI Coding Plan provider alias
 
 ### Added

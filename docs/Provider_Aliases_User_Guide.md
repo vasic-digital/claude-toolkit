@@ -260,3 +260,77 @@ endpoint are all defined in the provider config files.
 zai-coding-plan                    # launch Claude Code on glm-5.2
 zai-coding-plan -p "explain this function"   # non-interactive print mode
 ```
+
+### Xiaomi MiMo (xiaomi)
+
+[Xiaomi MiMo](https://mimo.mi.com) is Xiaomi's LLM platform. Unlike most
+OpenAI-compatible providers in this toolkit, MiMo exposes a genuine
+**Anthropic-native endpoint** (`https://api.xiaomimimo.com/anthropic`,
+`POST /anthropic/v1/messages`) that accepts `Authorization: Bearer <key>` and
+returns native Anthropic-format responses. Because of this, the `xiaomi` alias
+uses **native transport** — Claude Code talks to MiMo directly with no
+`claude-code-router` (`ccr`) dependency, the same way the `deepseek` alias works.
+
+#### How the alias works
+
+The key variable `XIAOMI_MIMO_API_KEY` in your keys file does **not** match the
+models.dev `xiaomi` provider's documented env name (`XIAOMI_API_KEY`), so
+`scripts/providers/key-aliases.json` maps `XIAOMI_MIMO_API_KEY → xiaomi`. An
+override in `scripts/providers/overrides.json` pins:
+
+- **transport** `native`
+- **base_url** `https://api.xiaomimimo.com/anthropic` (the Anthropic-native
+  endpoint, overriding the catalog's OpenAI-compat `/v1` URL)
+- **strong_model** `mimo-v2.5-pro`
+- **fast_model** `mimo-v2-flash`
+
+The pinning is deliberate: models.dev lists a `mimo-v2.5-pro-ultraspeed` id
+that the **live API does not serve**, so the override guarantees only
+live-served model ids are used.
+
+#### Models
+
+MiMo's text-generation models (all support tool/function calling and
+reasoning; verified live 2026-06-19):
+
+| Model | Context | Reasoning | Tool Call | Notes |
+|-------|---------|-----------|-----------|-------|
+| **mimo-v2.5-pro** | 1M tokens | Yes | Yes | Flagship — strongest (alias default) |
+| mimo-v2.5 | 1M tokens | Yes | Yes | Omni / multimodal (image, audio, video) |
+| mimo-v2-pro | — | Yes | Yes | Legacy v2 Pro |
+| mimo-v2-omni | 256k tokens | Yes | Yes | Omni / multimodal (v2) |
+| **mimo-v2-flash** | 256k tokens | Yes | Yes | Fast model — cheapest tier (alias fast) |
+
+Non-text models exist (`mimo-v2.5-asr`, `mimo-v2.5-tts*`, `mimo-v2-tts`) but
+are speech-recognition / text-to-speech and cannot serve chat or code, so they
+are intentionally not wired as aliases.
+
+#### Verified live
+
+- `GET /v1/models` → HTTP 200, 10 models served (the 5 text models above + 5
+  ASR/TTS).
+- `POST /anthropic/v1/messages` with `Authorization: Bearer` → HTTP 200,
+  native Anthropic response (`type:"message"`, `content:[{type:"text"},{type:"thinking"}]`)
+  for both `mimo-v2.5-pro` and `mimo-v2-flash`.
+- `POST /v1/chat/completions` with `tools[]` → `finish_reason:"tool_calls"`,
+  valid tool-call array, `reasoning_content` present (tool calling works).
+- Streaming (`stream:true`) → SSE `chat.completion.chunk` deltas.
+- Rate limits: 100 RPM / 10M TPM per account for text models (per-account, not
+  per-key); expect `429` under load, retry with backoff.
+
+#### Setup
+
+Everything is already configured, but for a fresh install:
+
+1. Ensure `XIAOMI_MIMO_API_KEY` is exported in your keys file (`~/api_keys.sh`).
+2. Run `claude-providers sync` to discover the key and create the alias.
+3. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new shell).
+4. Run `xiaomi` to start a Claude Code session on `mimo-v2.5-pro`.
+
+#### Usage example
+
+```bash
+xiaomi                             # launch Claude Code on mimo-v2.5-pro
+xiaomi -p "explain this function"  # non-interactive print mode
+```
+
