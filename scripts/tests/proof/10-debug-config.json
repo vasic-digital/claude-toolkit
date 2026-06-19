@@ -1,21 +1,63 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "lmstudio": {
+    "helixagent": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "LM Studio (local)",
+      "name": "Helix Agent",
       "options": {
-        "baseURL": "http://192.168.0.218:7777/v1"
+        "baseURL": "http://localhost:8100/v1",
+        "apiKey": "sk-e890e68da3c98427dbf8e8fc5044a4054413110d9db0d17d50c20639bf55e78d"
       },
       "models": {
-        "deepseek/deepseek-r1-0528-qwen3-8b": {
-          "name": "deepseek-r1-0528-qwen3-8b (local)",
+        "helix-debate": {
+          "name": "Helix AI Debate Ensemble",
           "limit": {
-            "context": 32768,
-            "output": 16384
+            "context": 128000,
+            "output": 8192
+          }
+        },
+        "helix-llm": {
+          "name": "Helix LLM",
+          "limit": {
+            "context": 128000,
+            "output": 8192
           }
         }
       }
+    }
+  },
+  "agent": {
+    "coder": {
+      "model": "helixagent/helix-debate",
+      "maxTokens": 8192,
+      "options": {
+        "maxTokens": 8192
+      },
+      "permission": {}
+    },
+    "summarizer": {
+      "model": "helixagent/helix-debate",
+      "maxTokens": 4096,
+      "options": {
+        "maxTokens": 4096
+      },
+      "permission": {}
+    },
+    "task": {
+      "model": "helixagent/helix-llm",
+      "maxTokens": 4096,
+      "options": {
+        "maxTokens": 4096
+      },
+      "permission": {}
+    },
+    "title": {
+      "model": "helixagent/helix-llm",
+      "maxTokens": 80,
+      "options": {
+        "maxTokens": 80
+      },
+      "permission": {}
     }
   },
   "mcp": {
@@ -28,1095 +70,167 @@
       ],
       "enabled": true
     },
-    "Adobe-for-creativity": {
-      "type": "remote",
-      "url": "https://adobe-creativity.adobe.io/mcp",
-      "enabled": false
-    },
-    "aikido-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@aikidosec/mcp"
-      ],
-      "enabled": false,
-      "environment": {
-        "AIKIDO_API_KEY": "${AIKIDO_API_KEY}"
-      }
-    },
-    "aws-mcp": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "mcp-proxy-for-aws@latest",
-        "https://aws-mcp.us-east-1.api.aws/mcp"
-      ],
-      "enabled": false
-    },
-    "amplitude": {
-      "type": "remote",
-      "url": "https://mcp.amplitude.com/mcp",
-      "enabled": false
-    },
-    "apollo": {
-      "type": "remote",
-      "url": "https://mcp.apollo.io/mcp",
-      "enabled": false
-    },
-    "graphos-tools": {
-      "type": "remote",
-      "url": "https://mcp.apollographql.com",
-      "enabled": false
-    },
-    "appwrite-api": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "mcp-server-appwrite"
-      ],
-      "enabled": false,
-      "environment": {
-        "APPWRITE_ENDPOINT": "${user_config.appwrite_endpoint}",
-        "APPWRITE_PROJECT_ID": "${user_config.appwrite_project_id}",
-        "APPWRITE_API_KEY": "${user_config.appwrite_api_key}"
-      }
-    },
-    "appwrite-docs": {
-      "type": "remote",
-      "url": "https://mcp-for-docs.appwrite.io",
-      "enabled": true
-    },
-    "atlan": {
-      "type": "remote",
-      "url": "https://mcp.atlan.com/mcp",
-      "enabled": false
-    },
-    "atlassian": {
-      "type": "remote",
-      "url": "https://mcp.atlassian.com/v1/mcp",
-      "enabled": false
-    },
-    "awsknowledge": {
-      "type": "remote",
-      "url": "https://knowledge-mcp.global.api.aws",
-      "enabled": true
-    },
-    "awsiac": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "awslabs.aws-iac-mcp-server@latest"
-      ],
-      "enabled": true,
-      "environment": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awspricing": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "awslabs.aws-pricing-mcp-server@latest"
-      ],
-      "enabled": true,
-      "environment": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "aws-serverless-mcp": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "awslabs.aws-serverless-mcp-server@latest",
-        "--allow-write"
-      ],
-      "enabled": false,
-      "environment": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "azure": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@azure/mcp@latest",
-        "server",
-        "start"
-      ],
-      "enabled": false
-    },
-    "bigdata-com": {
-      "type": "remote",
-      "url": "https://mcp.bigdata.com",
-      "enabled": false
-    },
-    "cds-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@cap-js/mcp-server"
-      ],
-      "enabled": false
-    },
-    "circle": {
-      "type": "remote",
-      "url": "https://api.circle.com/v1/codegen/mcp",
-      "enabled": false
-    },
-    "circleback": {
-      "type": "remote",
-      "url": "https://app.circleback.ai/api/mcp",
-      "enabled": false
-    },
-    "clickhouse": {
-      "type": "remote",
-      "url": "https://mcp.clickhouse.cloud/mcp",
-      "enabled": false
-    },
-    "cloudflare-api": {
-      "type": "remote",
-      "url": "https://mcp.cloudflare.com/mcp",
-      "enabled": false
-    },
     "cloudflare-docs": {
       "type": "remote",
-      "url": "https://docs.mcp.cloudflare.com/mcp",
-      "enabled": true
+      "url": "https://docs.mcp.cloudflare.com/sse"
     },
-    "cloudflare-bindings": {
-      "type": "remote",
-      "url": "https://bindings.mcp.cloudflare.com/mcp",
-      "enabled": false
-    },
-    "cloudflare-builds": {
-      "type": "remote",
-      "url": "https://builds.mcp.cloudflare.com/mcp",
-      "enabled": false
-    },
-    "cloudflare-observability": {
-      "type": "remote",
-      "url": "https://observability.mcp.cloudflare.com/mcp",
-      "enabled": false
-    },
-    "cockroachdb-toolbox": {
-      "type": "local",
-      "command": [
-        "toolbox",
-        "--config",
-        "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.9/tools.yaml",
-        "--stdio"
-      ],
-      "enabled": false,
-      "environment": {
-        "COCKROACHDB_HOST": "${COCKROACHDB_HOST}",
-        "COCKROACHDB_PORT": "${COCKROACHDB_PORT}",
-        "COCKROACHDB_USER": "${COCKROACHDB_USER}",
-        "COCKROACHDB_PASSWORD": "${COCKROACHDB_PASSWORD}",
-        "COCKROACHDB_DATABASE": "${COCKROACHDB_DATABASE}",
-        "COCKROACHDB_SSLMODE": "${COCKROACHDB_SSLMODE}"
-      }
-    },
-    "cockroachdb-toolbox-http": {
-      "type": "remote",
-      "url": "http://127.0.0.1:5000/mcp",
-      "enabled": false
-    },
-    "cockroachdb-cloud": {
-      "type": "remote",
-      "url": "https://cockroachlabs.cloud/mcp",
-      "enabled": false,
-      "headers": {
-        "mcp-cluster-id": "${COCKROACHDB_CLUSTER_ID}"
-      }
-    },
-    "CodSpeed": {
-      "type": "remote",
-      "url": "https://mcp.codspeed.io/mcp",
-      "enabled": false
-    },
-    "convex": {
+    "commands": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "convex@latest",
-        "mcp",
-        "start"
-      ],
-      "enabled": false
-    },
-    "notebook": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git",
-        "--mode=notebook"
-      ],
-      "enabled": false
-    },
-    "visualization": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git",
-        "--mode=visualization"
-      ],
-      "enabled": false
-    },
-    "datacloud_bigquery_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "bigquery",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "BIGQUERY_LOCATION": "$BIGQUERY_LOCATION",
-        "BIGQUERY_PROJECT": "$PROJECT_ID"
-      }
-    },
-    "datacloud_spanner_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "spanner",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "SPANNER_DATABASE": "",
-        "SPANNER_DIALECT": "",
-        "SPANNER_INSTANCE": "",
-        "SPANNER_PROJECT": "$PROJECT_ID"
-      }
-    },
-    "datacloud_alloydb-postgres-admin_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "alloydb-postgres-admin",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false
-    },
-    "datacloud_alloydb-postgres_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "alloydb-postgres",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "ALLOYDB_POSTGRES_CLUSTER": "",
-        "ALLOYDB_POSTGRES_DATABASE": "",
-        "ALLOYDB_POSTGRES_INSTANCE": "",
-        "ALLOYDB_POSTGRES_IP_TYPE": "",
-        "ALLOYDB_POSTGRES_PASSWORD": "",
-        "ALLOYDB_POSTGRES_PROJECT": "$PROJECT_ID",
-        "ALLOYDB_POSTGRES_REGION": "$GCP_REGION",
-        "ALLOYDB_POSTGRES_USER": ""
-      }
-    },
-    "datacloud_cloud-sql-postgresql-admin_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "cloud-sql-postgres-admin",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false
-    },
-    "datacloud_cloud-sql-postgresql_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "cloud-sql-postgres",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "CLOUD_SQL_POSTGRES_DATABASE": "",
-        "CLOUD_SQL_POSTGRES_INSTANCE": "",
-        "CLOUD_SQL_POSTGRES_IP_TYPE": "",
-        "CLOUD_SQL_POSTGRES_PASSWORD": "",
-        "CLOUD_SQL_POSTGRES_PROJECT": "$PROJECT_ID",
-        "CLOUD_SQL_POSTGRES_REGION": "$GCP_REGION",
-        "CLOUD_SQL_POSTGRES_USER": ""
-      }
-    },
-    "datacloud_knowledge_catalog_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "dataplex",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "DATAPLEX_PROJECT": "$PROJECT_ID"
-      }
-    },
-    "datacloud_dataproc_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "dataproc",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "DATAPROC_PROJECT": "$PROJECT_ID",
-        "DATAPROC_REGION": "$GCP_REGION"
-      }
-    },
-    "datacloud_serverless-spark_toolbox": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@toolbox-sdk/server@>=1.1.0",
-        "--prebuilt",
-        "serverless-spark",
-        "--stdio",
-        "--user-agent-metadata",
-        "datacloud.codex"
-      ],
-      "enabled": false,
-      "environment": {
-        "SERVERLESS_SPARK_PROJECT": "$PROJECT_ID",
-        "SERVERLESS_SPARK_LOCATION": "$GCP_REGION"
-      }
-    },
-    "aurora-dsql": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "awslabs.aurora-dsql-mcp-server@latest"
-      ],
-      "enabled": false,
-      "environment": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "deploy-on-aws-awsiac": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "awslabs.aws-iac-mcp-server@latest"
-      ],
-      "enabled": false
-    },
-    "discord": {
-      "type": "local",
-      "command": [
-        "bun",
-        "run",
-        "--cwd",
-        "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4",
-        "--shell=bun",
-        "--silent",
-        "start"
-      ],
-      "enabled": false
-    },
-    "fakechat": {
-      "type": "local",
-      "command": [
-        "bun",
-        "run",
-        "--cwd",
-        "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1",
-        "--shell=bun",
-        "--silent",
-        "start"
-      ],
-      "enabled": false
-    },
-    "fiftyone": {
-      "type": "local",
-      "command": [
-        "fiftyone-mcp"
-      ],
-      "enabled": false
-    },
-    "figma": {
-      "type": "remote",
-      "url": "https://mcp.figma.com/mcp",
-      "enabled": false
-    },
-    "forge": {
-      "type": "remote",
-      "url": "https://mcp.atlassian.com/v1/forge/mcp",
-      "enabled": false
-    },
-    "ads-mcp": {
-      "type": "remote",
-      "url": "https://mcp.atlassian.com/v1/ads/public/mcp",
-      "enabled": false
-    },
-    "fullstory": {
-      "type": "remote",
-      "url": "https://api.fullstory.com/mcp/fullstory",
-      "enabled": false
-    },
-    "huggingface-skills": {
-      "type": "remote",
-      "url": "https://huggingface.co/mcp?login",
-      "enabled": false
-    },
-    "hunter": {
-      "type": "remote",
-      "url": "https://mcp.hunter.io/mcp",
-      "enabled": false
-    },
-    "imessage": {
-      "type": "local",
-      "command": [
-        "bun",
-        "run",
-        "--cwd",
-        "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0",
-        "--shell=bun",
-        "--silent",
-        "start"
-      ],
-      "enabled": false
-    },
-    "legalzoom": {
-      "type": "remote",
-      "url": "https://www.legalzoom.com/mcp/claude/v1",
-      "enabled": false
-    },
-    "logfire": {
-      "type": "remote",
-      "url": "https://logfire-us.pydantic.dev/mcp",
-      "enabled": false
-    },
-    "mapbox-devkit": {
-      "type": "remote",
-      "url": "https://mcp-devkit.mapbox.com/mcp",
-      "enabled": false
-    },
-    "mapbox": {
-      "type": "remote",
-      "url": "https://mcp.mapbox.com/mcp",
-      "enabled": false
-    },
-    "mapbox-docs": {
-      "type": "remote",
-      "url": "https://mcp-docs.mapbox.com/mcp",
-      "enabled": true
-    },
-    "mcp": {
-      "type": "remote",
-      "url": "https://mcp.mercadopago.com/mcp",
-      "enabled": false,
-      "headers": {
-        "X-Plugin-Version": "4.0.0",
-        "X-Invocation-Context": "router"
-      }
-    },
-    "microsoft-learn": {
-      "type": "remote",
-      "url": "https://learn.microsoft.com/api/mcp",
-      "enabled": true
-    },
-    "Mintlify": {
-      "type": "remote",
-      "url": "https://mintlify.com/docs/mcp",
-      "enabled": true
-    },
-    "miro": {
-      "type": "remote",
-      "url": "https://mcp.miro.com/",
-      "enabled": false,
-      "headers": {
-        "X-AI-Source": "claude-code-plugin"
-      }
-    },
-    "notion": {
-      "type": "remote",
-      "url": "https://mcp.notion.com/mcp",
-      "enabled": false
-    },
-    "pigment": {
-      "type": "remote",
-      "url": "https://pigment.app/api/mcp/public/{your-mcp-id}",
-      "enabled": false
-    },
-    "pinecone": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@pinecone-database/mcp"
-      ],
-      "enabled": false,
-      "environment": {
-        "PINECONE_API_KEY": "${PINECONE_API_KEY}"
-      }
-    },
-    "posthog": {
-      "type": "remote",
-      "url": "https://mcp.posthog.com/mcp",
-      "enabled": false,
-      "headers": {
-        "x-posthog-mcp-consumer": "plugin"
-      }
-    },
-    "postman": {
-      "type": "remote",
-      "url": "https://mcp.postman.com/mcp",
-      "enabled": false,
-      "headers": {
-        "X-Source": "claude-code-plugin",
-        "X-Plugin-Version": "1.1.0",
-        "User-Agent": "postman-claude-code-plugin/1.1.0"
-      }
-    },
-    "Prisma-Local": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "prisma",
-        "mcp"
-      ],
-      "enabled": false
-    },
-    "Prisma-Remote": {
-      "type": "remote",
-      "url": "https://mcp.prisma.io/mcp",
-      "enabled": false
-    },
-    "qt-docs": {
-      "type": "remote",
-      "url": "https://qt-docs-mcp.qt.io/mcp",
-      "enabled": true
-    },
-    "quarkus-agent": {
-      "type": "local",
-      "command": [
-        "jbang",
-        "quarkus-agent-mcp@quarkusio"
-      ],
-      "enabled": false
-    },
-    "railway": {
-      "type": "local",
-      "command": [
-        "railway",
-        "mcp"
-      ],
-      "enabled": false
-    },
-    "resend": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "resend-mcp"
-      ],
-      "enabled": false,
-      "environment": {
-        "RESEND_API_KEY": "${RESEND_API_KEY}"
-      }
-    },
-    "rootly": {
-      "type": "remote",
-      "url": "https://mcp.rootly.com/mcp",
-      "enabled": false
-    },
-    "Sanity": {
-      "type": "remote",
-      "url": "https://mcp.sanity.io",
-      "enabled": false
-    },
-    "fiori-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "--yes",
-        "@sap-ux/fiori-mcp-server@latest",
-        "fiori-mcp"
-      ],
-      "enabled": false
-    },
-    "mdk-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@sap/mdk-mcp-server"
-      ],
-      "enabled": false
-    },
-    "semgrep": {
-      "type": "local",
-      "command": [
-        "semgrep",
-        "mcp"
-      ],
-      "enabled": false
-    },
-    "sentry": {
-      "type": "remote",
-      "url": "https://mcp.sentry.dev/mcp",
-      "enabled": false
-    },
-    "shopify-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@shopify/dev-mcp@latest"
-      ],
-      "enabled": true
-    },
-    "slack": {
-      "type": "remote",
-      "url": "https://mcp.slack.com/mcp",
-      "enabled": false
-    },
-    "sourcegraph": {
-      "type": "remote",
-      "url": "${SOURCEGRAPH_ENDPOINT}/.api/mcp",
-      "enabled": false,
-      "headers": {
-        "Authorization": "token ${SOURCEGRAPH_ACCESS_TOKEN}"
-      }
-    },
-    "stripe": {
-      "type": "remote",
-      "url": "https://mcp.stripe.com",
-      "enabled": false
-    },
-    "sumup": {
-      "type": "remote",
-      "url": "https://mcp.sumup.com/mcp",
-      "enabled": false
-    },
-    "telegram": {
-      "type": "local",
-      "command": [
-        "bun",
-        "run",
-        "--cwd",
-        "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6",
-        "--shell=bun",
-        "--silent",
-        "start"
-      ],
-      "enabled": false
-    },
-    "vercel": {
-      "type": "remote",
-      "url": "https://mcp.vercel.com",
-      "enabled": false
-    },
-    "wix-mcp": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@wix/mcp-remote@latest",
-        "https://mcp.wix.com/mcp"
-      ],
-      "enabled": false
-    },
-    "zapier": {
-      "type": "remote",
-      "url": "https://mcp.zapier.com/api/v1/connect",
-      "enabled": false
-    },
-    "zoom-mcp": {
-      "type": "remote",
-      "url": "https://mcp.zoom.us/mcp/zoom/streamable",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${ZOOM_MCP_ACCESS_TOKEN}"
-      }
-    },
-    "zoom-docs-mcp": {
-      "type": "remote",
-      "url": "https://mcp.zoom.us/mcp/docs/streamable",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${ZOOM_DOCS_MCP_ACCESS_TOKEN}"
-      }
-    },
-    "zoom-whiteboard-mcp": {
-      "type": "remote",
-      "url": "https://mcp.zoom.us/mcp/whiteboard/streamable",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${ZOOM_WHITEBOARD_MCP_ACCESS_TOKEN}"
-      }
-    },
-    "zscaler-mcp-server": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "--env-file",
-        "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.12.4/.env",
-        "zscaler-mcp@0.12.4"
-      ],
-      "enabled": false
-    },
-    "airtable": {
-      "type": "remote",
-      "url": "https://mcp.airtable.com/mcp",
-      "enabled": false
-    },
-    "asana": {
-      "type": "remote",
-      "url": "https://mcp.asana.com/sse",
-      "enabled": false
+        "mcp-server-commands"
+      ]
     },
     "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "deepwiki": {
+      "type": "remote",
+      "url": "https://mcp.deepwiki.com/mcp"
+    },
+    "docker": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "@upstash/context7-mcp"
-      ],
-      "enabled": true
+        "mcp-server-docker"
+      ]
     },
-    "firebase": {
+    "everything": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "firebase-tools@latest",
-        "mcp"
-      ],
-      "enabled": false
+        "@modelcontextprotocol/server-everything"
+      ]
     },
-    "github": {
-      "type": "remote",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
-      }
-    },
-    "gitlab": {
-      "type": "remote",
-      "url": "https://gitlab.com/api/v4/mcp",
-      "enabled": false
-    },
-    "greptile": {
-      "type": "remote",
-      "url": "https://api.greptile.com/mcp",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${GREPTILE_API_KEY}"
-      }
-    },
-    "intercom": {
-      "type": "remote",
-      "url": "https://mcp.intercom.com/mcp",
-      "enabled": false
-    },
-    "laravel-boost": {
-      "type": "local",
-      "command": [
-        "php",
-        "artisan",
-        "boost:mcp"
-      ],
-      "enabled": false
-    },
-    "linear": {
-      "type": "remote",
-      "url": "https://mcp.linear.app/mcp",
-      "enabled": false
-    },
-    "nimble": {
-      "type": "remote",
-      "url": "https://mcp.nimbleway.com/mcp",
-      "enabled": false
-    },
-    "pagerduty": {
-      "type": "remote",
-      "url": "https://mcp.pagerduty.com/mcp",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Token token=${PAGERDUTY_API_KEY}"
-      }
-    },
-    "planetscale": {
-      "type": "remote",
-      "url": "https://mcp.pscale.dev/mcp/planetscale",
-      "enabled": false
-    },
-    "playwright": {
-      "type": "local",
-      "command": [
-        "npx",
-        "@playwright/mcp@latest"
-      ],
-      "enabled": false
-    },
-    "sonatype-guide": {
-      "type": "remote",
-      "url": "https://mcp.guide.sonatype.com/mcp",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${SONATYPE_GUIDE_TOKEN}"
-      }
-    },
-    "terraform": {
-      "type": "local",
-      "command": [
-        "docker",
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "TFE_TOKEN=${TFE_TOKEN}",
-        "hashicorp/terraform-mcp-server:0.4.0"
-      ],
-      "enabled": false
-    },
-    "ui5-mcp-server": {
+    "fetch": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "@ui5/mcp-server"
+        "mcp-fetch-server"
+      ]
+    },
+    "filesystem": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/milosvasic"
+      ]
+    },
+    "git": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-git"
+      ]
+    },
+    "markdown": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-server-markdown"
+      ]
+    },
+    "memory": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "notion": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@notionhq/notion-mcp-server"
       ],
-      "enabled": false
+      "environment": {
+        "NOTION_API_KEY": ""
+      }
     },
-    "vanta-us": {
-      "type": "remote",
-      "url": "https://mcp.vanta.com/mcp",
-      "enabled": false
+    "postgres": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://helixagent:helixagent123@localhost:15432/helixagent_db"
+      ]
     },
-    "vanta-eu": {
-      "type": "remote",
-      "url": "https://mcp.eu.vanta.com/mcp",
-      "enabled": false
+    "puppeteer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
     },
-    "vanta-aus": {
-      "type": "remote",
-      "url": "https://mcp.aus.vanta.com/mcp",
-      "enabled": false
+    "sequential-thinking": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
     },
-    "windsor-ai": {
-      "type": "remote",
-      "url": "https://mcp.windsor.ai",
-      "enabled": false
+    "shell": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-shell-server"
+      ]
+    },
+    "sqlite": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-server-sqlite-npx",
+        "/tmp/helixagent.db"
+      ]
+    },
+    "tavily": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "tavily-mcp"
+      ],
+      "environment": {
+        "TAVILY_API_KEY": ""
+      }
+    },
+    "time": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@theo.foobar/mcp-time"
+      ]
     }
   },
-  "skills": {
-    "paths": [
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/42crunch-api-security-testing/1.6.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/adobe-for-creativity/1.0.2/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/agentforce-adlc/0.6.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/ai-plugins/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aikido/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/airtable/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/alloydb/4a75653275b0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/amazon-location-service/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/amplitude/e9b4e1519366-f37d92d1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/apollo-skills/1.2.4/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/apollo-skills/9ccf13477e11/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/apollo/0.1.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/appwrite/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/appwrite/a42b16918159/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/astronomer-data-agents/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/atlassian/9b52fb18e184/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/auth0/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-agents/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-amplify/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-core/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-data-analytics/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-dev-toolkit/0.3.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/aws-serverless/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/azure-cosmos-db-assistant/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/azure/1.1.65/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/base44/1.0.0-beta.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/bigdata-com/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/box/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/brightdata-plugin/1.6.3/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/buildkite/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/buildkite/a43e944f2017/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/chrome-devtools-mcp/1.1.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/circle-skills/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/circle-skills/8ee9281f6e5a-b142b48c/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/clickhouse-best-practices/0.3.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/clickhouse-best-practices/46ef08ccf32f/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/clickhouse/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cloud-sql-postgresql/0.4.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cloudflare/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cloudinary/1.1.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/coderabbit/1.1.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/codspeed/f79d57d207f0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/convex/1.0.3/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/crowdstrike-falcon-foundry/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cwc-makers/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/data-agent-kit-starter-pack/0.2.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/data-engineering/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/data/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/databases-on-aws/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/datadog/0.7.13/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/datahub-skills/1.4.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/datahub-skills/68585b171060/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/datarobot-agent-skills/1.3.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/dataverse/1.5.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/deploy-on-aws/1.2.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/desktop-commander/cf857bf061cb-53b37853/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/duckdb-skills/0.2.4/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/duckdb-skills/7feda8e01e22/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/duende-skills/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/duende-skills/72e39de9f10c/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/exa/3.3.9/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/expo/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fastly-agent-toolkit/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fiftyone/1.0.3/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/figma/2.2.12/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/firecrawl/1.0.9/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/forge-skills/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/forge-skills/2014fae5b152/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fullstory/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/hookify/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/huggingface-skills/1.0.4/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/hunter/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/hunter/69c4e59ee573/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/hyperframes/7ea4d1c1314b/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/intercom/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/jfrog/0.2.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/legalzoom/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/liquid-skills/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/logfire/0.1.3/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/lumen/0.0.41/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/lumen/d0dee0efcc82/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mapbox/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mapbox/75ac667cae24/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/math-olympiad/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mcp-apps/9a37ad71827d-46fede76/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mcp-apps/a9907802937f-46fede76/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mcp-server-dev/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mercadopago/4.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/microsoft-docs/0.3.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mintlify/acd6d2e0128c/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/miro/1.2.6/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/mongodb/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/netlify-skills/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/nightvision/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/oracle-ai-data-platform-workbench-spark-connectors/0.5.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/outputai/0.3.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/pigment/1.0.6/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/pinecone/1.4.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/playground/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/plugin-dev/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/posthog/1b743cdbc568/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/postiz/2.0.12/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/postman/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/pydantic-ai/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/qdrant-skills/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/qodo-skills/0.6.1/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/qt-development-skills/1.4.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/railway/1.2.2/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/remember/0.7.3/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/resend/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/rootly/2.2.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/rootly/65832aa6ff7a/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/runway-api/2.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/runway-api/c5674fd2bfcf/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sanity/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sap-fiori-mcp-server/1.0.3/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sentry-cli/d9bcd70eaa46-c05a9cff/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sentry/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/servicenow-sdk/1.0.2/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/session-report/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/shopify-ai-toolkit/1.3.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/slack/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/snowflake-cortex-code/3.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sonarqube/2.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sonatype-guide/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sourcegraph/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/spotify-ads-api/1.4.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/stripe/0.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/sumup/a4b5a9789e10/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/supabase/1b910c021aee/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/teamcity-cli/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/teamcity-cli/3cc3013c0f81/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/togetherai-skills/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/togetherai-skills/9772f2a2f83e/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/ui5/0.1.2/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/vanta-mcp-plugin/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/vercel/6e51924cb249/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/windsor-ai/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/wix/1.1.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/wordpress-com/0.0.2/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/youdotcom-agent-skills/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/zapier/1.0.0/skills",
-      "/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/zoom-plugin/1.1.3/skills"
-    ]
-  },
-  "instructions": [
-    "/Users/milosvasic/.claude-shared/CLAUDE.md"
+  "plugin": [
+    "opencode-agent-skills@0.6.5"
   ],
-  "agent": {},
+  "plugin_origins": [
+    {
+      "spec": "opencode-agent-skills@0.6.5",
+      "source": "/Users/milosvasic/.config/opencode",
+      "scope": "global"
+    }
+  ],
   "mode": {},
-  "plugin": [],
   "command": {},
   "username": "milosvasic"
 }

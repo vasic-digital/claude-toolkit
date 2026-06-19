@@ -1,0 +1,50 @@
+# Task 1 review package: 02c3d90..c8843e3
+
+## Commits
+c8843e3 feat(providers): add Xiaomi MiMo provider alias (native transport)
+
+## Stat
+ scripts/providers/key-aliases.json | 5 +++--
+ scripts/providers/overrides.json   | 6 ++++++
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+## Full diff (-U10)
+diff --git a/scripts/providers/key-aliases.json b/scripts/providers/key-aliases.json
+index a1378d2..aebc61f 100644
+--- a/scripts/providers/key-aliases.json
++++ b/scripts/providers/key-aliases.json
+@@ -1,7 +1,8 @@
+ {
+   "ZAI_API_KEY": "zai-coding-plan",
+   "CODESTRAL_API_KEY": "mistral",
+   "HUGGINGFACE_API_KEY": "huggingface",
+   "GITHUB_MODELS_API_KEY": "github-models",
+-  "TENCENT_CLOUD_API_KEY": "tencent-tokenhub"
+-}
+\ No newline at end of file
++  "TENCENT_CLOUD_API_KEY": "tencent-tokenhub",
++  "XIAOMI_MIMO_API_KEY": "xiaomi"
++}
+diff --git a/scripts/providers/overrides.json b/scripts/providers/overrides.json
+index 85622aa..b42789d 100644
+--- a/scripts/providers/overrides.json
++++ b/scripts/providers/overrides.json
+@@ -1,12 +1,18 @@
+ {
+   "deepseek": {
+     "transport": "native",
+     "base_url": "https://api.deepseek.com/anthropic",
+     "strong_model": "deepseek-chat",
+     "fast_model": "deepseek-chat"
+   },
+   "zai-coding-plan": {
+     "strong_model": "glm-5.2",
+     "fast_model": "glm-4.7"
++  },
++  "xiaomi": {
++    "transport": "native",
++    "base_url": "https://api.xiaomimimo.com/anthropic",
++    "strong_model": "mimo-v2.5-pro",
++    "fast_model": "mimo-v2-flash"
+   }
+ }

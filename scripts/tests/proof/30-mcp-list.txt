@@ -4,344 +4,62 @@
 ●  ✓ codegraph [90mconnected
 │      [90mcodegraph serve --mcp
 │
-●  ○ Adobe-for-creativity [90mdisabled
-│      [90mhttps://adobe-creativity.adobe.io/mcp
-│
-●  ○ aikido-mcp [90mdisabled
-│      [90mnpx -y @aikidosec/mcp
-│
-●  ○ aws-mcp [90mdisabled
-│      [90muvx mcp-proxy-for-aws@latest https://aws-mcp.us-east-1.api.aws/mcp
-│
-●  ○ amplitude [90mdisabled
-│      [90mhttps://mcp.amplitude.com/mcp
-│
-●  ○ apollo [90mdisabled
-│      [90mhttps://mcp.apollo.io/mcp
-│
-●  ○ graphos-tools [90mdisabled
-│      [90mhttps://mcp.apollographql.com
-│
-●  ○ appwrite-api [90mdisabled
-│      [90muvx mcp-server-appwrite
-│
-●  ✓ appwrite-docs [90mconnected
-│      [90mhttps://mcp-for-docs.appwrite.io
-│
-●  ○ atlan [90mdisabled
-│      [90mhttps://mcp.atlan.com/mcp
-│
-●  ○ atlassian [90mdisabled
-│      [90mhttps://mcp.atlassian.com/v1/mcp
-│
-●  ✓ awsknowledge [90mconnected
-│      [90mhttps://knowledge-mcp.global.api.aws
-│
-●  ✓ awsiac [90mconnected
-│      [90muvx awslabs.aws-iac-mcp-server@latest
-│
-●  ✓ awspricing [90mconnected
-│      [90muvx awslabs.aws-pricing-mcp-server@latest
-│
-●  ○ aws-serverless-mcp [90mdisabled
-│      [90muvx awslabs.aws-serverless-mcp-server@latest --allow-write
-│
-●  ○ azure [90mdisabled
-│      [90mnpx -y @azure/mcp@latest server start
-│
-●  ○ bigdata-com [90mdisabled
-│      [90mhttps://mcp.bigdata.com
-│
-●  ○ cds-mcp [90mdisabled
-│      [90mnpx -y @cap-js/mcp-server
-│
-●  ○ circle [90mdisabled
-│      [90mhttps://api.circle.com/v1/codegen/mcp
-│
-●  ○ circleback [90mdisabled
-│      [90mhttps://app.circleback.ai/api/mcp
-│
-●  ○ clickhouse [90mdisabled
-│      [90mhttps://mcp.clickhouse.cloud/mcp
-│
-●  ○ cloudflare-api [90mdisabled
-│      [90mhttps://mcp.cloudflare.com/mcp
-│
 ●  ✓ cloudflare-docs [90mconnected
-│      [90mhttps://docs.mcp.cloudflare.com/mcp
+│      [90mhttps://docs.mcp.cloudflare.com/sse
 │
-●  ○ cloudflare-bindings [90mdisabled
-│      [90mhttps://bindings.mcp.cloudflare.com/mcp
-│
-●  ○ cloudflare-builds [90mdisabled
-│      [90mhttps://builds.mcp.cloudflare.com/mcp
-│
-●  ○ cloudflare-observability [90mdisabled
-│      [90mhttps://observability.mcp.cloudflare.com/mcp
-│
-●  ○ cockroachdb-toolbox [90mdisabled
-│      [90mtoolbox --config /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.9/tools.yaml --stdio
-│
-●  ○ cockroachdb-toolbox-http [90mdisabled
-│      [90mhttp://127.0.0.1:5000/mcp
-│
-●  ○ cockroachdb-cloud [90mdisabled
-│      [90mhttps://cockroachlabs.cloud/mcp
-│
-●  ○ CodSpeed [90mdisabled
-│      [90mhttps://mcp.codspeed.io/mcp
-│
-●  ○ convex [90mdisabled
-│      [90mnpx -y convex@latest mcp start
-│
-●  ○ notebook [90mdisabled
-│      [90mnpx -y git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git --mode=notebook
-│
-●  ○ visualization [90mdisabled
-│      [90mnpx -y git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git --mode=visualization
-│
-●  ○ datacloud_bigquery_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt bigquery --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_spanner_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt spanner --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_alloydb-postgres-admin_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt alloydb-postgres-admin --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_alloydb-postgres_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt alloydb-postgres --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_cloud-sql-postgresql-admin_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt cloud-sql-postgres-admin --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_cloud-sql-postgresql_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt cloud-sql-postgres --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_knowledge_catalog_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt dataplex --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_dataproc_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt dataproc --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ datacloud_serverless-spark_toolbox [90mdisabled
-│      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt serverless-spark --stdio --user-agent-metadata datacloud.codex
-│
-●  ○ aurora-dsql [90mdisabled
-│      [90muvx awslabs.aurora-dsql-mcp-server@latest
-│
-●  ○ deploy-on-aws-awsiac [90mdisabled
-│      [90muvx awslabs.aws-iac-mcp-server@latest
-│
-●  ○ discord [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4 --shell=bun --silent start
-│
-●  ○ fakechat [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1 --shell=bun --silent start
-│
-●  ○ fiftyone [90mdisabled
-│      [90mfiftyone-mcp
-│
-●  ○ figma [90mdisabled
-│      [90mhttps://mcp.figma.com/mcp
-│
-●  ○ forge [90mdisabled
-│      [90mhttps://mcp.atlassian.com/v1/forge/mcp
-│
-●  ○ ads-mcp [90mdisabled
-│      [90mhttps://mcp.atlassian.com/v1/ads/public/mcp
-│
-●  ○ fullstory [90mdisabled
-│      [90mhttps://api.fullstory.com/mcp/fullstory
-│
-●  ○ huggingface-skills [90mdisabled
-│      [90mhttps://huggingface.co/mcp?login
-│
-●  ○ hunter [90mdisabled
-│      [90mhttps://mcp.hunter.io/mcp
-│
-●  ○ imessage [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0 --shell=bun --silent start
-│
-●  ○ legalzoom [90mdisabled
-│      [90mhttps://www.legalzoom.com/mcp/claude/v1
-│
-●  ○ logfire [90mdisabled
-│      [90mhttps://logfire-us.pydantic.dev/mcp
-│
-●  ○ mapbox-devkit [90mdisabled
-│      [90mhttps://mcp-devkit.mapbox.com/mcp
-│
-●  ○ mapbox [90mdisabled
-│      [90mhttps://mcp.mapbox.com/mcp
-│
-●  ✓ mapbox-docs [90mconnected
-│      [90mhttps://mcp-docs.mapbox.com/mcp
-│
-●  ○ mcp [90mdisabled
-│      [90mhttps://mcp.mercadopago.com/mcp
-│
-●  ✓ microsoft-learn [90mconnected
-│      [90mhttps://learn.microsoft.com/api/mcp
-│
-●  ✓ Mintlify [90mconnected
-│      [90mhttps://mintlify.com/docs/mcp
-│
-●  ○ miro [90mdisabled
-│      [90mhttps://mcp.miro.com/
-│
-●  ○ notion [90mdisabled
-│      [90mhttps://mcp.notion.com/mcp
-│
-●  ○ pigment [90mdisabled
-│      [90mhttps://pigment.app/api/mcp/public/{your-mcp-id}
-│
-●  ○ pinecone [90mdisabled
-│      [90mnpx -y @pinecone-database/mcp
-│
-●  ○ posthog [90mdisabled
-│      [90mhttps://mcp.posthog.com/mcp
-│
-●  ○ postman [90mdisabled
-│      [90mhttps://mcp.postman.com/mcp
-│
-●  ○ Prisma-Local [90mdisabled
-│      [90mnpx -y prisma mcp
-│
-●  ○ Prisma-Remote [90mdisabled
-│      [90mhttps://mcp.prisma.io/mcp
-│
-●  ✓ qt-docs [90mconnected
-│      [90mhttps://qt-docs-mcp.qt.io/mcp
-│
-●  ○ quarkus-agent [90mdisabled
-│      [90mjbang quarkus-agent-mcp@quarkusio
-│
-●  ○ railway [90mdisabled
-│      [90mrailway mcp
-│
-●  ○ resend [90mdisabled
-│      [90mnpx -y resend-mcp
-│
-●  ○ rootly [90mdisabled
-│      [90mhttps://mcp.rootly.com/mcp
-│
-●  ○ Sanity [90mdisabled
-│      [90mhttps://mcp.sanity.io
-│
-●  ○ fiori-mcp [90mdisabled
-│      [90mnpx --yes @sap-ux/fiori-mcp-server@latest fiori-mcp
-│
-●  ○ mdk-mcp [90mdisabled
-│      [90mnpx -y @sap/mdk-mcp-server
-│
-●  ○ semgrep [90mdisabled
-│      [90msemgrep mcp
-│
-●  ○ sentry [90mdisabled
-│      [90mhttps://mcp.sentry.dev/mcp
-│
-●  ✓ shopify-mcp [90mconnected
-│      [90mnpx -y @shopify/dev-mcp@latest
-│
-●  ○ slack [90mdisabled
-│      [90mhttps://mcp.slack.com/mcp
-│
-●  ○ sourcegraph [90mdisabled
-│      [90m${SOURCEGRAPH_ENDPOINT}/.api/mcp
-│
-●  ○ stripe [90mdisabled
-│      [90mhttps://mcp.stripe.com
-│
-●  ○ sumup [90mdisabled
-│      [90mhttps://mcp.sumup.com/mcp
-│
-●  ○ telegram [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6 --shell=bun --silent start
-│
-●  ○ vercel [90mdisabled
-│      [90mhttps://mcp.vercel.com
-│
-●  ○ wix-mcp [90mdisabled
-│      [90mnpx -y @wix/mcp-remote@latest https://mcp.wix.com/mcp
-│
-●  ○ zapier [90mdisabled
-│      [90mhttps://mcp.zapier.com/api/v1/connect
-│
-●  ○ zoom-mcp [90mdisabled
-│      [90mhttps://mcp.zoom.us/mcp/zoom/streamable
-│
-●  ○ zoom-docs-mcp [90mdisabled
-│      [90mhttps://mcp.zoom.us/mcp/docs/streamable
-│
-●  ○ zoom-whiteboard-mcp [90mdisabled
-│      [90mhttps://mcp.zoom.us/mcp/whiteboard/streamable
-│
-●  ○ zscaler-mcp-server [90mdisabled
-│      [90muvx --env-file /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.12.4/.env zscaler-mcp@0.12.4
-│
-●  ○ airtable [90mdisabled
-│      [90mhttps://mcp.airtable.com/mcp
-│
-●  ○ asana [90mdisabled
-│      [90mhttps://mcp.asana.com/sse
+●  ✓ commands [90mconnected
+│      [90mnpx -y mcp-server-commands
 │
 ●  ✓ context7 [90mconnected
-│      [90mnpx -y @upstash/context7-mcp
+│      [90mhttps://mcp.context7.com/mcp
 │
-●  ○ firebase [90mdisabled
-│      [90mnpx -y firebase-tools@latest mcp
+●  ✓ deepwiki [90mconnected
+│      [90mhttps://mcp.deepwiki.com/mcp
 │
-●  ○ github [90mdisabled
-│      [90mhttps://api.githubcopilot.com/mcp/
+●  ✓ docker [90mconnected
+│      [90mnpx -y mcp-server-docker
 │
-●  ○ gitlab [90mdisabled
-│      [90mhttps://gitlab.com/api/v4/mcp
+●  ✓ everything [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-everything
 │
-●  ○ greptile [90mdisabled
-│      [90mhttps://api.greptile.com/mcp
+●  ✓ fetch [90mconnected
+│      [90mnpx -y mcp-fetch-server
 │
-●  ○ intercom [90mdisabled
-│      [90mhttps://mcp.intercom.com/mcp
+●  ✓ filesystem [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-filesystem /Users/milosvasic
 │
-●  ○ laravel-boost [90mdisabled
-│      [90mphp artisan boost:mcp
+●  ✓ git [90mconnected
+│      [90mnpx -y mcp-git
 │
-●  ○ linear [90mdisabled
-│      [90mhttps://mcp.linear.app/mcp
+●  ✓ markdown [90mconnected
+│      [90mnpx -y mcp-server-markdown
 │
-●  ○ nimble [90mdisabled
-│      [90mhttps://mcp.nimbleway.com/mcp
+●  ✓ memory [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-memory
 │
-●  ○ pagerduty [90mdisabled
-│      [90mhttps://mcp.pagerduty.com/mcp
+●  ✓ notion [90mconnected
+│      [90mnpx -y @notionhq/notion-mcp-server
 │
-●  ○ planetscale [90mdisabled
-│      [90mhttps://mcp.pscale.dev/mcp/planetscale
+●  ✓ postgres [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-postgres postgresql://helixagent:helixagent123@localhost:15432/helixagent_db
 │
-●  ○ playwright [90mdisabled
-│      [90mnpx @playwright/mcp@latest
+●  ✓ puppeteer [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-puppeteer
 │
-●  ○ sonatype-guide [90mdisabled
-│      [90mhttps://mcp.guide.sonatype.com/mcp
+●  ✓ sequential-thinking [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-sequential-thinking
 │
-●  ○ terraform [90mdisabled
-│      [90mdocker run -i --rm -e TFE_TOKEN=${TFE_TOKEN} hashicorp/terraform-mcp-server:0.4.0
+●  ✓ shell [90mconnected
+│      [90mnpx -y mcp-shell-server
 │
-●  ○ ui5-mcp-server [90mdisabled
-│      [90mnpx -y @ui5/mcp-server
+●  ✓ sqlite [90mconnected
+│      [90mnpx -y mcp-server-sqlite-npx /tmp/helixagent.db
 │
-●  ○ vanta-us [90mdisabled
-│      [90mhttps://mcp.vanta.com/mcp
+●  ✓ tavily [90mconnected
+│      [90mnpx -y tavily-mcp
 │
-●  ○ vanta-eu [90mdisabled
-│      [90mhttps://mcp.eu.vanta.com/mcp
+●  ✓ time [90mconnected
+│      [90mnpx -y @theo.foobar/mcp-time
 │
-●  ○ vanta-aus [90mdisabled
-│      [90mhttps://mcp.aus.vanta.com/mcp
-│
-●  ○ windsor-ai [90mdisabled
-│      [90mhttps://mcp.windsor.ai
-│
-└  114 server(s)
+└  20 server(s)
 

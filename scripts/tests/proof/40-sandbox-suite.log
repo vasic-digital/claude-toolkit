@@ -3,19 +3,19 @@
 
   • claude-add-account --yes uses sensible defaults
     [32m[PASS][0m exit 0 (0)
-    [32m[PASS][0m config dir created: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-claude3
-    [32m[PASS][0m projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-claude3/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-shared/projects
-    [32m[PASS][0m settings linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-claude3/settings.json -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-shared/settings.json
-    [32m[PASS][0m CLAUDE.md linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-claude3/CLAUDE.md -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-shared/CLAUDE.md
+    [32m[PASS][0m config dir created: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-claude3
+    [32m[PASS][0m projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-claude3/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-shared/projects
+    [32m[PASS][0m settings linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-claude3/settings.json -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-shared/settings.json
+    [32m[PASS][0m CLAUDE.md linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-claude3/CLAUDE.md -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-shared/CLAUDE.md
     [32m[PASS][0m alias line written: 'alias claude3=' in aliases.sh
-    [32m[PASS][0m alias points at new dir: 'CLAUDE_CONFIG_DIR=/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-claude3' in aliases.sh
+    [32m[PASS][0m alias points at new dir: 'CLAUDE_CONFIG_DIR=/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-claude3' in aliases.sh
 
   • claude-add-account refuses to overwrite an existing dir
     [32m[PASS][0m exits non-zero when dir exists (0)
 
   • claude-add-account accepts a custom alias name and custom dir
-    [32m[PASS][0m custom dir created: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-mywork
-    [32m[PASS][0m projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-mywork/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.LySSyGK2qD/.claude-shared/projects
+    [32m[PASS][0m custom dir created: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-mywork
+    [32m[PASS][0m projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-mywork/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.qLhvUDerPY/.claude-shared/projects
     [32m[PASS][0m custom alias written: 'alias mywork=' in aliases.sh
 
   • claude-add-account validates alias names
@@ -40,8 +40,8 @@
 
   • MD_FILE env override is honored and HTML is generated
     [32m[PASS][0m export exits 0 (0)
-    [32m[PASS][0m html generated: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.moD5v0KANI/Documents/fixture.html
-    [32m[PASS][0m pdf generated: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.moD5v0KANI/Documents/fixture.pdf
+    [32m[PASS][0m html generated: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.le4G8P75ms/Documents/fixture.html
+    [32m[PASS][0m pdf generated: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.le4G8P75ms/Documents/fixture.pdf
 
   • <!-- INCLUDE: --> markers are expanded in output
     [32m[PASS][0m include expanded: 'SAMPLE_SCRIPT_BODY_MARKER' in fixture.html
@@ -51,8 +51,8 @@
     [32m[PASS][0m PDF magic header present (0)
 
   • regeneration is non-destructive (file timestamps move forward)
-    [32m[PASS][0m html still present after rerun: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.moD5v0KANI/Documents/fixture.html
-    [32m[PASS][0m pdf still present after rerun: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.moD5v0KANI/Documents/fixture.pdf
+    [32m[PASS][0m html still present after rerun: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.le4G8P75ms/Documents/fixture.html
+    [32m[PASS][0m pdf still present after rerun: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.le4G8P75ms/Documents/fixture.pdf
 
 [32m✓ 8 passed, 0 failed[0m
 
@@ -80,9 +80,9 @@
     [32m[PASS][0m claude5 removed: 'alias claude5=' absent from aliases.sh
 
   • cma_ensure_alias_file sources from the shell rc file
-[36m[cma][0m added source line to /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.7rShAZzczp/.zshrc
-    [32m[PASS][0m alias file created: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.7rShAZzczp/.local/share/claude-multi-account/aliases.sh
-    [32m[PASS][0m rc file gets source line: 'source "/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.7rShAZzczp/.local/share/claude-multi-account/aliases.sh"' in .zshrc
+[36m[cma][0m added source line to /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.sP6GscZFj3/.zshrc
+    [32m[PASS][0m alias file created: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.sP6GscZFj3/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m rc file gets source line: 'source "/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.sP6GscZFj3/.local/share/claude-multi-account/aliases.sh"' in .zshrc
 
   • cma_detect_accounts skips the shared store
     [32m[PASS][0m finds .claude-acct1 (0)
@@ -110,7 +110,7 @@
     [32m[PASS][0m claude3 alias resolved: 'claude3' in 63
 
   • reports the shared store path
-    [32m[PASS][0m shared store path printed: '/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.CjQOxN6lmu/.claude-shared' in 63
+    [32m[PASS][0m shared store path printed: '/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.hsPaq9AUtz/.claude-shared' in 63
 
   • flags accounts with missing credentials
     [32m[PASS][0m claude3 creds:no (0)
@@ -121,7 +121,7 @@
 [1m==> test_opencode.sh[0m
 
   • generates a valid OpenCode config
-    [32m[PASS][0m config written: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.hyiUy3e68C/.config/opencode/opencode.json
+    [32m[PASS][0m config written: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.XWPQgTTC1a/.config/opencode/opencode.json
     [32m[PASS][0m valid JSON
 
   • preserves pre-existing provider and mcp entries
@@ -149,7 +149,7 @@
     [32m[PASS][0m secret env retained (.mcp.secretsy.environment.API_KEY = ${API_KEY})
 
   • expands ${CLAUDE_PLUGIN_ROOT} to the real install path
-    [32m[PASS][0m plugin root expanded (.mcp.rooty.command[1] = /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.hyiUy3e68C/plugins/rooty/1.0.0/serve.py)
+    [32m[PASS][0m plugin root expanded (.mcp.rooty.command[1] = /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.XWPQgTTC1a/plugins/rooty/1.0.0/serve.py)
     [32m[PASS][0m no leftover placeholder (.mcp.rooty.command | map(select(contains("CLAUDE_PLUGIN_ROOT"))) | length = 0)
 
   • deduplicates identical servers across plugins
@@ -175,16 +175,165 @@
 
 [32m✓ 25 passed, 0 failed[0m
 
+[1m==> test_providers.sh[0m
+/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-acct1
+/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-acct2
+
+  • real accounts are still detected
+    [32m[PASS][0m acct1 detected (0)
+    [32m[PASS][0m acct2 detected (0)
+
+  • provider-alias dirs are excluded from detection
+    [32m[PASS][0m prov-deepseek excluded (1)
+    [32m[PASS][0m prov-groq excluded (1)
+
+  • detection count is exactly the real accounts (no provider leakage)
+    [32m[PASS][0m exactly 2 detected accounts (2)
+
+  • shared dir is never counted as an account
+    [32m[PASS][0m shared excluded (1)
+
+  • resolver runs and emits valid JSON
+    [32m[PASS][0m resolver exit 0 (0)
+    [32m[PASS][0m output is valid JSON (0)
+
+  • native transport detected from @ai-sdk/anthropic npm
+    [32m[PASS][0m acme native (native)
+    [32m[PASS][0m acme resolved (resolved)
+
+  • strong model = reasoning/newest; fast model = lowest input cost
+    [32m[PASS][0m strong=reasoning model (acme-big)
+    [32m[PASS][0m fast=cheapest model (acme-small)
+
+  • openai-compatible npm => router transport
+    [32m[PASS][0m beta router (router)
+    [32m[PASS][0m beta base_url from catalog (https://api.beta.ai/v1)
+
+  • key-aliases.json normalizes a differently-named key var
+    [32m[PASS][0m LEGACY_BETA_KEY -> beta (beta)
+
+  • zai-coding-plan resolves from env key match on ZAI_API_KEY
+    [32m[PASS][0m zai-coding-plan provider_id (zai-coding-plan)
+    [32m[PASS][0m zai-coding-plan resolved (resolved)
+
+  • zai-coding-plan uses coding paas endpoint and router transport
+    [32m[PASS][0m coding endpoint (https://api.z.ai/api/coding/paas/v4)
+    [32m[PASS][0m zai-coding-plan router (router)
+
+  • zai-coding-plan strong model = glm-5.2 (newest+reasoning), fast model = glm-4.7
+    [32m[PASS][0m strong=glm-5.2 (glm-5.2)
+    [32m[PASS][0m fast=glm-4.7 (glm-4.7)
+
+  • xiaomi resolves from the key-alias mapping on XIAOMI_MIMO_API_KEY
+    [32m[PASS][0m xiaomi provider_id (xiaomi)
+    [32m[PASS][0m xiaomi resolved (resolved)
+
+  • xiaomi override forces native transport (beats openai-compatible npm)
+    [32m[PASS][0m xiaomi native (native)
+
+  • xiaomi override sets the /anthropic base_url (beats catalog /v1)
+    [32m[PASS][0m xiaomi /anthropic base (https://api.xiaomimimo.com/anthropic)
+
+  • xiaomi strong=mimo-v2.5-pro, fast=mimo-v2-flash (override beats stale ultraspeed)
+    [32m[PASS][0m strong=mimo-v2.5-pro (mimo-v2.5-pro)
+    [32m[PASS][0m fast=mimo-v2-flash (mimo-v2-flash)
+
+  • the stale mimo-v2.5-pro-ultraspeed id is never selected
+    [32m[PASS][0m ultraspeed not strong (0)
+    [32m[PASS][0m ultraspeed not fast (0)
+
+  • VCS token is skipped, unknown llm key is unmapped
+    [32m[PASS][0m GITHUB_TOKEN skipped (skipped)
+    [32m[PASS][0m GITHUB_TOKEN vcs (vcs)
+    [32m[PASS][0m FOO_API_KEY unmapped (unmapped)
+
+  • sync exits cleanly
+    [32m[PASS][0m sync rc (0)
+
+  • env files created for each resolved provider
+    [32m[PASS][0m acme env: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.local/share/claude-multi-account/providers/acme.env
+    [32m[PASS][0m beta env: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.local/share/claude-multi-account/providers/beta.env
+    [32m[PASS][0m mistral env: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.local/share/claude-multi-account/providers/mistral.env
+
+  • provider aliases written via cma_run_provider
+    [32m[PASS][0m acme alias (0)
+    [32m[PASS][0m beta alias (0)
+
+  • CODESTRAL_API_KEY + MISTRAL_API_KEY dedupe to ONE mistral alias
+    [32m[PASS][0m exactly one mistral alias (1)
+
+  • native vs router transport recorded in env file
+    [32m[PASS][0m acme native (0)
+    [32m[PASS][0m beta router (0)
+
+  • zai-coding-plan env file created with coding endpoint and strong/fast overrides
+    [32m[PASS][0m zai-coding-plan env: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.local/share/claude-multi-account/providers/zai-coding-plan.env
+    [32m[PASS][0m coding endpoint (0)
+    [32m[PASS][0m strong model glm-5.2 (0)
+    [32m[PASS][0m fast model glm-4.7 (0)
+    [32m[PASS][0m zai-coding-plan router (0)
+
+  • zai-coding-plan alias written via cma_run_provider
+    [32m[PASS][0m zai-coding-plan alias (0)
+
+  • xiaomi env file created with native transport + /anthropic base + pinned models
+    [32m[PASS][0m xiaomi env: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.local/share/claude-multi-account/providers/xiaomi.env
+    [32m[PASS][0m xiaomi native transport (0)
+    [32m[PASS][0m xiaomi /anthropic base (0)
+    [32m[PASS][0m xiaomi strong model mimo-v2.5-pro (0)
+    [32m[PASS][0m xiaomi fast model mimo-v2-flash (0)
+    [32m[PASS][0m xiaomi keyvar pinned (0)
+
+  • xiaomi alias written via cma_run_provider
+    [32m[PASS][0m xiaomi alias (0)
+
+  • config dir created and shared items symlinked
+    [32m[PASS][0m acme config dir: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-prov-acme
+    [32m[PASS][0m plugins linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-prov-acme/plugins -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-shared/plugins
+
+  • xiaomi config dir created and shared items symlinked
+    [32m[PASS][0m xiaomi config dir: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-prov-xiaomi
+    [32m[PASS][0m xiaomi plugins linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-prov-xiaomi/plugins -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.yfKvyWOMNH/.claude-shared/plugins
+
+  • xiaomi provider dir excluded from account detection
+    [32m[PASS][0m prov-xiaomi excluded from detection (1)
+
+  • the existing claudeN alias is untouched
+    [32m[PASS][0m claude1 still present (0)
+
+  • provider dirs remain excluded from account detection after sync
+    [32m[PASS][0m prov-acme excluded (1)
+
+  • no secret values leaked into env files or alias file
+    [32m[PASS][0m no key values present (1)
+
+  • sync is idempotent — second run does not duplicate aliases
+    [32m[PASS][0m still one acme alias after re-sync (1)
+    [32m[PASS][0m still one xiaomi alias after re-sync (1)
+
+  • list reports installed providers
+    [32m[PASS][0m list shows acme (0)
+
+  • remove deletes alias + env, backs up config dir
+    [32m[PASS][0m beta env gone (1)
+    [32m[PASS][0m beta alias gone (1)
+
+  • cma_run_provider runs under zsh (native transport) without bad substitution
+    [32m[PASS][0m no zsh bad substitution (1)
+    [32m[PASS][0m wrapper exits 0 under zsh (0)
+
+[32m✓ 69 passed, 0 failed[0m
+
 [1m==> test_sessions.sh[0m
-/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct1
-/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct2
+/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct1
+/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct2
 
   • unify succeeds with the new .claude.json merge logic
     [32m[PASS][0m unify rc=0 (0)
     [32m[PASS][0m unify logged the .claude.json merge step (0)
 
   • acct1's .claude.json now contains the Android_15 project entry from acct2
-    [32m[PASS][0m acct1 .claude.json exists: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct1/.claude.json
+    [32m[PASS][0m acct1 .claude.json exists: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct1/.claude.json
     [32m[PASS][0m acct1 sees Android_15 lastSessionId (session-android-uuid)
     [32m[PASS][0m acct1 also sees iOS project entry (session-ios-uuid)
     [32m[PASS][0m deep-nested MCP server config crossed accounts (android-mcp)
@@ -205,12 +354,12 @@
     [32m[PASS][0m both accounts agree on numStartups after merge (42)
 
   • session JSONL written under acct2 is byte-identical when read via acct1's projects/ symlink
-    [32m[PASS][0m acct1 can resolve the session file via its symlinked projects/ dir: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct1/projects/-projects-Android_15/session-android-uuid.jsonl
+    [32m[PASS][0m acct1 can resolve the session file via its symlinked projects/ dir: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct1/projects/-projects-Android_15/session-android-uuid.jsonl
     [32m[PASS][0m session JSONL byte-identical across accounts (a8abbbaa2d804bfa04ac58e96638747dbcf2ba33bdc7fdbf01eda0e78407e290)
     [32m[PASS][0m session content readable from acct1 view (assistant)
 
   • project memory written under acct2 is visible from acct1
-    [32m[PASS][0m memory file resolves via acct1's symlinked projects/: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct1/projects/-projects-Android_15/memory/project_notes.md
+    [32m[PASS][0m memory file resolves via acct1's symlinked projects/: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct1/projects/-projects-Android_15/memory/project_notes.md
     [32m[PASS][0m memory content identical (project memory written from acct2)
 
   • re-running unify keeps every account's .claude.json byte-stable (idempotent)
@@ -224,8 +373,8 @@
     [32m[PASS][0m userID still acct1's after sync (user-acct1-hash)
 
   • an account with no .claude.json gets the shared projects map seeded by sync
-/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct3
-    [32m[PASS][0m acct3 got a seeded .claude.json: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.9SqHwVlgoC/.claude-acct3/.claude.json
+/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct3
+    [32m[PASS][0m acct3 got a seeded .claude.json: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.rZ9bQtKG6M/.claude-acct3/.claude.json
     [32m[PASS][0m acct3 seeded with the union of projects (2) (0)
 
   • corrupt .claude.json in one account is skipped without poisoning the merge
@@ -238,36 +387,36 @@
     [32m[PASS][0m claude-unify exits 0 (0)
 
   • every shared item becomes a symlink into the shared store
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/projects
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/projects
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 todos linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/todos -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/todos
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 todos linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/todos -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/todos
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 tasks linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/tasks -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/tasks
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 tasks linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/tasks -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/tasks
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 plans linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/plans -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/plans
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 plans linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/plans -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/plans
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 file-history linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/file-history -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/file-history
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 file-history linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/file-history -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/file-history
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 paste-cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/paste-cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/paste-cache
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 paste-cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/paste-cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/paste-cache
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 plugins linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/plugins -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/plugins
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 plugins linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/plugins -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/plugins
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 shell-snapshots linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/shell-snapshots -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/shell-snapshots
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 shell-snapshots linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/shell-snapshots -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/shell-snapshots
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 session-env linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/session-env -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/session-env
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 session-env linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/session-env -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/session-env
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 telemetry linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/telemetry -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/telemetry
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 telemetry linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/telemetry -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/telemetry
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 sessions linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/sessions -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/sessions
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 sessions linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/sessions -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/sessions
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 backups linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/backups -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/backups
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 backups linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/backups -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/backups
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/cache
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/cache
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 history.jsonl linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/history.jsonl -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/history.jsonl
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 history.jsonl linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/history.jsonl -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/history.jsonl
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1 settings.json linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/settings.json -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/settings.json
-    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2 settings.json linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/settings.json -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/settings.json
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/projects
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/projects
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 todos linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/todos -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/todos
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 todos linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/todos -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/todos
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 tasks linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/tasks -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/tasks
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 tasks linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/tasks -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/tasks
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 plans linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/plans -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/plans
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 plans linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/plans -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/plans
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 file-history linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/file-history -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/file-history
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 file-history linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/file-history -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/file-history
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 paste-cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/paste-cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/paste-cache
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 paste-cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/paste-cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/paste-cache
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 plugins linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/plugins -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/plugins
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 plugins linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/plugins -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/plugins
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 shell-snapshots linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/shell-snapshots -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/shell-snapshots
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 shell-snapshots linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/shell-snapshots -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/shell-snapshots
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 session-env linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/session-env -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/session-env
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 session-env linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/session-env -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/session-env
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 telemetry linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/telemetry -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/telemetry
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 telemetry linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/telemetry -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/telemetry
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 sessions linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/sessions -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/sessions
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 sessions linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/sessions -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/sessions
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 backups linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/backups -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/backups
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 backups linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/backups -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/backups
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/cache
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 cache linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/cache -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/cache
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 history.jsonl linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/history.jsonl -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/history.jsonl
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 history.jsonl linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/history.jsonl -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/history.jsonl
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1 settings.json linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/settings.json -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/settings.json
+    [32m[PASS][0m /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2 settings.json linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/settings.json -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/settings.json
 
   • settings.json enabledPlugins is the union {a,b,c}
     [32m[PASS][0m union (.enabledPlugins | keys | sort | join(",") = a,b,c)
@@ -281,35 +430,35 @@
 
   • memory: newest account's version wins on filename conflict
     [32m[PASS][0m acct2 wins: 'NEWER' in user_role.md
-    [32m[PASS][0m acct2-only memory survives: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/projects/-home-test/memory/project_notes.md
+    [32m[PASS][0m acct2-only memory survives: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/projects/-home-test/memory/project_notes.md
 
   • plugin manifest paths are rewritten to the shared store
-    [32m[PASS][0m installPath rewritten (.plugins["test-plugin@test-marketplace"][0].installPath = /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/plugins/cache/test-marketplace/test-plugin/1.0.0)
-    [32m[PASS][0m installLocation rewritten (.["test-marketplace"].installLocation = /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/plugins/marketplaces/test-marketplace)
+    [32m[PASS][0m installPath rewritten (.plugins["test-plugin@test-marketplace"][0].installPath = /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/plugins/cache/test-marketplace/test-plugin/1.0.0)
+    [32m[PASS][0m installLocation rewritten (.["test-marketplace"].installLocation = /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/plugins/marketplaces/test-marketplace)
 
   • credentials are NOT shared — each account keeps its own
-    [32m[PASS][0m acct1 creds local: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/.credentials.json
-    [32m[PASS][0m acct2 creds local: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct2/.credentials.json
+    [32m[PASS][0m acct1 creds local: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/.credentials.json
+    [32m[PASS][0m acct2 creds local: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct2/.credentials.json
     [32m[PASS][0m acct1 creds intact: 'acct1' in .credentials.json
     [32m[PASS][0m acct2 creds intact: 'acct2' in .credentials.json
 
   • re-running claude-unify is idempotent (settings.json byte-stable)
     [32m[PASS][0m settings.json unchanged (23af66dbecf13f7438b984441f61be372012ac12fde45e0fe3970a1bdecbba5d)
-    [32m[PASS][0m symlink target unchanged (/private/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/projects)
+    [32m[PASS][0m symlink target unchanged (/private/var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/projects)
 
   • N>2 accounts: adding a third and re-running unifies it too
-    [32m[PASS][0m acct3 projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct3/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-shared/projects
+    [32m[PASS][0m acct3 projects linked: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct3/projects -> /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-shared/projects
     [32m[PASS][0m acct3 plugin merged (.enabledPlugins.d = true)
     [32m[PASS][0m acct3 history merged: 'cmd5' in history.jsonl
 
   • --rollback restores backups and archives the shared store
-    [32m[PASS][0m acct1 projects restored as real dir: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/projects
-    [32m[PASS][0m no longer a symlink: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.cuv2qq1mQc/.claude-acct1/projects
+    [32m[PASS][0m acct1 projects restored as real dir: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/projects
+    [32m[PASS][0m no longer a symlink: /var/folders/t3/dmp1fb1d61xbl27trnjtr0_c0000gn/T/cma-test.XXXXXXXX.xLjYfGlZpi/.claude-acct1/projects
     [32m[PASS][0m shared store moved aside (0)
     [32m[PASS][0m archive sibling exists (0)
 
 [32m✓ 54 passed, 0 failed[0m
 
 ============================================
-Test files: 7   passed: 7   failed: 0
+Test files: 8   passed: 8   failed: 0
 ALL GREEN

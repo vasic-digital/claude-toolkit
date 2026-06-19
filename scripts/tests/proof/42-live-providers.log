@@ -1,0 +1,18 @@
+
+  • every provider env file has the required non-secret fields
+    [32m[PASS][0m all env files well-formed (1)
+
+  • NO secret values are present in env files (structural: only CMA_PROVIDER_* lines)
+    [32m[PASS][0m env files contain only CMA_PROVIDER_* assignments (0)
+
+  • each provider alias resolves to cma_run_provider in the alias file
+    [32m[PASS][0m every provider has an alias line (1)
+
+  • the cma_run_provider wrapper is defined in the alias file
+    [32m[PASS][0m wrapper present (0)
+
+  • provider config dirs are excluded from account detection
+    [32m[PASS][0m no provider dir detected as account (1)
+evidence: /Volumes/T7/Projects/claude_tookit/scripts/tests/proof/50-providers-live.txt
+
+[32m✓ 5 passed, 0 failed[0m
