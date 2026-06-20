@@ -75,7 +75,13 @@ ensure_catalog() {
   if [[ -s "$CACHE" ]] && _catalog_valid "$CACHE"; then
     local age now mtime
     now="$(date +%s)"
-    mtime="$(stat -f %m "$CACHE" 2>/dev/null || stat -c %Y "$CACHE" 2>/dev/null || echo 0)"
+    # Platform-specific stat: macOS uses -f %m, Linux uses -c %Y.
+    # The old `||` chain broke on Linux because `stat -f` succeeds there too
+    # (returning filesystem info, not mtime), so both outputs merged.
+    case "$(uname -s)" in
+      Darwin*) mtime="$(stat -f %m "$CACHE" 2>/dev/null || echo 0)" ;;
+      *)       mtime="$(stat -c %Y "$CACHE" 2>/dev/null || echo 0)" ;;
+    esac
     age=$(( now - mtime ))
     (( age < CMA_MODELS_DEV_TTL )) && fresh=1
   fi
