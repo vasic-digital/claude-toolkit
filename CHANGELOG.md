@@ -2,6 +2,24 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.5.1 — 2026-06-20 — Linux stat fix + nezha deployment
+
+### Fixed
+- **`stat -f %m` on Linux** — the mtime cache check in `claude-providers.sh` used
+  `stat -f %m || stat -c %Y` as an `||` chain. On Linux, `stat -f` succeeds
+  (returning filesystem info, not mtime), so both outputs merged into garbage
+  (`"File: ...1781634386"`), causing `File: unbound variable` under `set -u`.
+  Fixed with `case "$(uname -s)"` to pick the correct flag per platform.
+
+### Deployment
+- **nezha.local** (Linux x86_64) deployed and verified: 19 providers activated,
+  100/100 provider tests pass, 5/5 live verifier pass, cross-alias sync confirmed.
+  Evidence in `scripts/tests/proof/90-nezha-deployment.txt`.
+
+### Full test suite
+- macOS: 8/8 ALL GREEN
+- Linux (nezha): 7/8 pass (export fails: pandoc not installed — pre-existing)
+
 ## v1.5.0 — 2026-06-20 — Cross-alias session visibility
 
 ### Added
