@@ -4,5 +4,7 @@
   "HUGGINGFACE_API_KEY": "huggingface",
   "GITHUB_MODELS_API_KEY": "github-models",
   "TENCENT_CLOUD_API_KEY": "tencent-tokenhub",
-  "XIAOMI_MIMO_API_KEY": "xiaomi"
+  "XIAOMI_MIMO_API_KEY": "xiaomi",
+  "ZEN_API_KEY": "opencode",
+  "ApiKey_Opencode_Zen": "opencode"
 }

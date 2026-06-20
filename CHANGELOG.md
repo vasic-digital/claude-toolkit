@@ -2,6 +2,55 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.4.0 — 2026-06-20 — OpenCode Zen provider alias
+
+### Added
+- **`opencode` provider alias** — [OpenCode Zen](https://opencode.ai/zen) curated AI
+  gateway with **21 free models** (all $0 cost, all support tool calling + reasoning)
+  and 49 paid models. The alias uses **router transport** (ccr) targeting the
+  OpenAI-compatible endpoint `https://opencode.ai/zen/v1/chat/completions`.
+- **Model overrides**: strong = `big-pickle` (free stealth model, 200K context,
+  reasoning + tool_call), fast = `deepseek-v4-flash-free` (free, 200K context,
+  reasoning + tool_call). Pinning is deliberate — auto-selection would pick
+  `nemotron-3-ultra-free` (1M ctx) as strong and `trinity-large-preview-free` (131K,
+  no reasoning) as fast, both suboptimal for coding workloads.
+- **key-aliases.json mappings**: `ZEN_API_KEY` → `opencode` and
+  `ApiKey_Opencode_Zen` → `opencode` (both key vars present in the user's keys file).
+- **overrides.json pin**: `strong_model=big-pickle`, `fast_model=deepseek-v4-flash-free`
+  (no transport/base_url override needed — catalog values are correct).
+- **Sandbox test coverage**: resolver tests (key-alias mapping for both key vars, router
+  transport from `@ai-sdk/openai-compatible` npm, zen/v1 base_url from catalog, model
+  override beats auto-selection, stale-model-never-selected guards) + sync e2e tests
+  (env file, alias, config-dir + plugins symlink, account-detection exclusion,
+  idempotency, no-secret-leak). Providers test 69 → 90 assertions.
+- **Live endpoint verification**: `GET /v1/models` HTTP 200; `POST /v1/chat/completions`
+  round trip HTTP 200 with correct text for `big-pickle` (stealth, cost=$0,
+  reasoning_content present) and `deepseek-v4-flash-free` (cost=$0); additional free
+  models (`mimo-v2.5-free`, `nemotron-3-ultra-free`, `north-mini-code-free`) all HTTP 200
+  with cost=$0. Evidence in `scripts/tests/proof/70-zen-live.txt` (secret-free).
+- **Docs**: dedicated `opencode` section in `docs/Provider_Aliases_User_Guide.md`
+  (full free models table, setup, usage, live-verified notes, stealth model explanation).
+
+### Changed
+- `scripts/providers/key-aliases.json` and `scripts/providers/overrides.json` extended
+  with the `opencode` entries (config-only; no code changes — same dynamic pattern as
+  Xiaomi v1.3.0 / Z.AI v1.2.0 / DeepSeek).
+
+### Full test suite
+- 8/8 test files passed (ALL GREEN), 0 failures. Providers test includes 21 new
+  assertions for `opencode`.
+
+### Honest notes
+- The alias uses router transport (ccr) because Zen's free models use OpenAI-compatible
+  format (`/v1/chat/completions`), not Anthropic native format. This adds a ccr
+  dependency that native-transport aliases (deepseek, xiaomi) don't have.
+- Big Pickle is a stealth model — the actual model served may vary (observed as
+  deepseek-v4-flash). This is by design per OpenCode's documentation.
+- The same pre-existing `~/api_keys.sh` set -u issue affects the in-process verifier
+  for all providers; authoritative proof is the direct HTTP round trip.
+- The 2 pre-existing, environmental opencode-skill-discovery failures in `run-proof.sh`
+  remain unchanged (unrelated to this work).
+
 ## v1.3.0 — 2026-06-19 — Xiaomi MiMo provider alias
 
 ### Added

@@ -334,3 +334,107 @@ xiaomi                             # launch Claude Code on mimo-v2.5-pro
 xiaomi -p "explain this function"  # non-interactive print mode
 ```
 
+### OpenCode Zen (opencode)
+
+[OpenCode Zen](https://opencode.ai/zen) is OpenCode's curated AI gateway — a
+tested and verified list of models from multiple providers, accessed through a
+single API key. Zen includes **21 free models** (all $0 cost, all support tool
+calling and reasoning), plus 49 paid models from OpenAI, Anthropic, Google,
+DeepSeek, and others.
+
+The free models are available for a limited time while OpenCode collects
+feedback. One of them — **Big Pickle** — is a stealth model (its true identity
+is not disclosed; observed as deepseek-v4-flash behind the scenes).
+
+#### How the alias works
+
+The key variable `ZEN_API_KEY` (or `ApiKey_Opencode_Zen`) in your keys file is
+mapped to the `opencode` provider ID via `scripts/providers/key-aliases.json`.
+An override in `scripts/providers/overrides.json` pins:
+
+- **strong_model** `big-pickle` — free stealth model, 200K context, reasoning +
+  tool_call
+- **fast_model** `deepseek-v4-flash-free` — free, 200K context, reasoning +
+  tool_call
+
+Transport is **router** — the alias launches through `claude-code-router`
+(`ccr code`), which translates the Anthropic protocol to the OpenAI-compatible
+Zen API (`https://opencode.ai/zen/v1/chat/completions`).
+
+No transport or base_url override is needed — the models.dev catalog already
+has the correct values (`@ai-sdk/openai-compatible` → router,
+`https://opencode.ai/zen/v1`).
+
+#### Free models available on Zen
+
+All free models support tool calling and reasoning (verified live 2026-06-20):
+
+| Model | Context | Notes |
+|-------|---------|-------|
+| **big-pickle** | 200K | Stealth model — alias default (strong) |
+| **deepseek-v4-flash-free** | 200K | Alias fast model |
+| mimo-v2.5-free | 200K | Xiaomi MiMo |
+| mimo-v2-pro-free | 1M | Xiaomi MiMo Pro |
+| mimo-v2-flash-free | 262K | Xiaomi MiMo Flash |
+| mimo-v2-omni-free | 262K | Xiaomi MiMo Omni |
+| nemotron-3-ultra-free | 1M | NVIDIA Nemotron |
+| nemotron-3-super-free | 204K | NVIDIA Nemotron Super |
+| north-mini-code-free | 256K | North Mini Code |
+| glm-4.7-free | 204K | Zhipu GLM |
+| glm-5-free | 204K | Zhipu GLM 5 |
+| grok-code | 256K | xAI Grok Code |
+| kimi-k2.5-free | 262K | Moonshot Kimi |
+| minimax-m2.1-free | 204K | MiniMax |
+| minimax-m2.5-free | 204K | MiniMax |
+| minimax-m3-free | 200K | MiniMax |
+| qwen3.6-plus-free | 262K | Alibaba Qwen |
+| ring-2.6-1t-free | 262K | Ring |
+| hy3-preview-free | 256K | HY3 Preview |
+| ling-2.6-flash-free | 262K | Ling (no reasoning) |
+| trinity-large-preview-free | 131K | Trinity (no reasoning) |
+
+Paid models start at $0.05/1M tokens (GPT-5 Nano) and go up to $30/1M
+(GPT-5.5 Pro). Claude models are available from $1/1M (Haiku 4.5) to $15/1M
+(Opus 4.1).
+
+#### Verified live
+
+- `GET /v1/models` → HTTP 200 (model list returned).
+- `POST /v1/chat/completions` with `big-pickle` → HTTP 200, correct text
+  response, cost=$0, reasoning_content present. Stealth alias observed as
+  deepseek-v4-flash.
+- `POST /v1/chat/completions` with `deepseek-v4-flash-free` → HTTP 200,
+  correct text, cost=$0.
+- Additional free models (`mimo-v2.5-free`, `nemotron-3-ultra-free`,
+  `north-mini-code-free`) → all HTTP 200, all cost=$0.
+- Streaming (`stream:true`) → SSE `chat.completion.chunk` deltas.
+
+#### Setup
+
+Everything is already configured, but for a fresh install:
+
+1. Ensure `ZEN_API_KEY` (or `ApiKey_Opencode_Zen`) is exported in your keys
+   file (`~/api_keys.sh`).
+2. Run `claude-providers sync` to discover the key and create the alias.
+3. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new
+   shell).
+4. Run `opencode` to start a Claude Code session on `big-pickle` (via ccr).
+
+#### Usage example
+
+```bash
+opencode                            # launch Claude Code on big-pickle (via ccr)
+opencode -p "explain this function" # non-interactive print mode
+```
+
+#### Notes
+
+- The alias uses **router transport** (ccr) because Zen's free models use
+  OpenAI-compatible format, not Anthropic native format.
+- Big Pickle is a stealth model — the actual model served may vary. This is by
+  design per OpenCode's documentation.
+- To use paid Claude models on Zen instead of free models, override
+  `strong_model` and `fast_model` in `scripts/providers/overrides.json` (e.g.
+  `claude-haiku-4.5` and `claude-sonnet-4-6`), and set `transport` to `native`
+  with `base_url` to `https://opencode.ai/zen/v1/messages`.
+

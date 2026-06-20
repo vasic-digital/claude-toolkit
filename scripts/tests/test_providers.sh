@@ -101,12 +101,24 @@ cat > "$FIX/catalog.json" <<'JSON'
       "mimo-v2.5-pro":            {"id":"mimo-v2.5-pro","name":"MiMo V2.5 Pro","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":1000000},"cost":{"input":2,"output":8}},
       "mimo-v2-flash":            {"id":"mimo-v2-flash","name":"MiMo V2 Flash","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":256000},"cost":{"input":0.1,"output":0.4}}
     }
+  },
+  "opencode": {
+    "env": ["OPENCODE_API_KEY"],
+    "api": "https://opencode.ai/zen/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "big-pickle": {"id":"big-pickle","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":200000},"cost":{"input":0,"output":0}},
+      "deepseek-v4-flash-free": {"id":"deepseek-v4-flash-free","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":200000},"cost":{"input":0,"output":0}},
+      "nemotron-3-ultra-free": {"id":"nemotron-3-ultra-free","reasoning":true,"tool_call":true,"release_date":"2026-04-01","limit":{"context":1000000},"cost":{"input":0,"output":0}},
+      "ling-2.6-flash-free": {"id":"ling-2.6-flash-free","reasoning":false,"tool_call":true,"release_date":"2026-03-01","limit":{"context":262100},"cost":{"input":0,"output":0}},
+      "trinity-large-preview-free": {"id":"trinity-large-preview-free","reasoning":false,"tool_call":true,"release_date":"2026-02-01","limit":{"context":131072},"cost":{"input":0,"output":0}}
+    }
   }
 }
 JSON
 
 cat > "$FIX/key-aliases.json" <<'JSON'
-{ "LEGACY_BETA_KEY": "beta", "XIAOMI_MIMO_API_KEY": "xiaomi" }
+{ "LEGACY_BETA_KEY": "beta", "XIAOMI_MIMO_API_KEY": "xiaomi", "ZEN_API_KEY": "opencode", "ApiKey_Opencode_Zen": "opencode" }
 JSON
 
 # A fixture overrides file mirroring the real shipped providers/overrides.json for
@@ -121,6 +133,10 @@ cat > "$FIX/overrides.json" <<'JSON'
     "base_url": "https://api.xiaomimimo.com/anthropic",
     "strong_model": "mimo-v2.5-pro",
     "fast_model": "mimo-v2-flash"
+  },
+  "opencode": {
+    "strong_model": "big-pickle",
+    "fast_model": "deepseek-v4-flash-free"
   }
 }
 JSON
@@ -137,7 +153,7 @@ OUT="$HOME/resolved.json"
 python3 "$RESOLVE" --models-dev "$FIX/catalog.json" \
   --key-aliases "$FIX/key-aliases.json" \
   --overrides "$FIX/overrides.json" \
-  --keys "ACME_API_KEY,BETA_API_KEY,ZAI_API_KEY,LEGACY_BETA_KEY,XIAOMI_MIMO_API_KEY,GITHUB_TOKEN,FOO_API_KEY" > "$OUT"
+  --keys "ACME_API_KEY,BETA_API_KEY,ZAI_API_KEY,LEGACY_BETA_KEY,XIAOMI_MIMO_API_KEY,ZEN_API_KEY,ApiKey_Opencode_Zen,GITHUB_TOKEN,FOO_API_KEY" > "$OUT"
 rc=$?
 
 it "resolver runs and emits valid JSON"
@@ -190,6 +206,28 @@ it "the stale mimo-v2.5-pro-ultraspeed id is never selected"
 [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY strong_model)" != "mimo-v2.5-pro-ultraspeed" ]]; assert_eq 0 $? "ultraspeed not strong"
 [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY fast_model)"   != "mimo-v2.5-pro-ultraspeed" ]]; assert_eq 0 $? "ultraspeed not fast"
 
+it "opencode resolves from the key-alias mapping on ZEN_API_KEY"
+assert_eq "opencode" "$(rfield "$OUT" ZEN_API_KEY provider_id)" "opencode provider_id"
+assert_eq "resolved" "$(rfield "$OUT" ZEN_API_KEY status)" "opencode resolved"
+
+it "ApiKey_Opencode_Zen also resolves to opencode via secondary key-alias"
+assert_eq "opencode" "$(rfield "$OUT" ApiKey_Opencode_Zen provider_id)" "ApiKey_Opencode_Zen -> opencode"
+assert_eq "resolved" "$(rfield "$OUT" ApiKey_Opencode_Zen status)" "ApiKey_Opencode_Zen resolved"
+
+it "opencode uses router transport (openai-compatible npm)"
+assert_eq "router" "$(rfield "$OUT" ZEN_API_KEY transport)" "opencode router"
+
+it "opencode base_url from catalog (zen/v1 endpoint)"
+assert_eq "https://opencode.ai/zen/v1" "$(rfield "$OUT" ZEN_API_KEY base_url)" "opencode zen/v1 base"
+
+it "opencode override forces big-pickle as strong (beats nemotron-3-ultra-free auto-selection)"
+assert_eq "big-pickle" "$(rfield "$OUT" ZEN_API_KEY strong_model)" "strong=big-pickle"
+[[ "$(rfield "$OUT" ZEN_API_KEY strong_model)" != "nemotron-3-ultra-free" ]]; assert_eq 0 $? "nemotron not strong"
+
+it "opencode override forces deepseek-v4-flash-free as fast (beats trinity auto-selection)"
+assert_eq "deepseek-v4-flash-free" "$(rfield "$OUT" ZEN_API_KEY fast_model)" "fast=deepseek-v4-flash-free"
+[[ "$(rfield "$OUT" ZEN_API_KEY fast_model)" != "trinity-large-preview-free" ]]; assert_eq 0 $? "trinity not fast"
+
 it "VCS token is skipped, unknown llm key is unmapped"
 assert_eq "skipped" "$(rfield "$OUT" GITHUB_TOKEN status)" "GITHUB_TOKEN skipped"
 assert_eq "vcs" "$(rfield "$OUT" GITHUB_TOKEN classification)" "GITHUB_TOKEN vcs"
@@ -224,7 +262,11 @@ cat > "$PCACHE" <<'JSON'
   "xiaomi":{"env":["XIAOMI_API_KEY"],"api":"https://api.xiaomimimo.com/v1","npm":"@ai-sdk/openai-compatible",
              "models":{"u":{"id":"mimo-v2.5-pro-ultraspeed","reasoning":true,"tool_call":true,"release_date":"2026-07-01","limit":{"context":1000000},"cost":{"input":0,"output":0}},
                        "p":{"id":"mimo-v2.5-pro","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":1000000},"cost":{"input":2,"output":8}},
-                       "f":{"id":"mimo-v2-flash","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":256000},"cost":{"input":0.1,"output":0.4}}}}
+                       "f":{"id":"mimo-v2-flash","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":256000},"cost":{"input":0.1,"output":0.4}}}},
+  "opencode":{"env":["OPENCODE_API_KEY"],"api":"https://opencode.ai/zen/v1","npm":"@ai-sdk/openai-compatible",
+             "models":{"bp":{"id":"big-pickle","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":200000},"cost":{"input":0,"output":0}},
+                       "df":{"id":"deepseek-v4-flash-free","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":200000},"cost":{"input":0,"output":0}},
+                       "nu":{"id":"nemotron-3-ultra-free","reasoning":true,"tool_call":true,"release_date":"2026-04-01","limit":{"context":1000000},"cost":{"input":0,"output":0}}}}
 }
 JSON
 
@@ -237,6 +279,8 @@ export MISTRAL_API_KEY="dummy-mistral"
 export CODESTRAL_API_KEY="dummy-codestral"
 export ZAI_API_KEY="dummy-zai"
 export XIAOMI_MIMO_API_KEY="dummy-xiaomi"
+export ZEN_API_KEY="dummy-zen"
+export ApiKey_Opencode_Zen="dummy-zen-2"
 export GITHUB_TOKEN="dummy-gh"
 SH
 
@@ -300,6 +344,27 @@ it "xiaomi provider dir excluded from account detection"
 det="$(cma_detect_accounts)"
 echo "$det" | grep -q "prov-xiaomi" ; assert_eq 1 $? "prov-xiaomi excluded from detection"
 
+it "opencode env file created with router transport + zen/v1 base + pinned models"
+assert_file "$PDIR/opencode.env" "opencode env"
+grep -qE "^CMA_PROVIDER_TRANSPORT='?router'?" "$PDIR/opencode.env" ; assert_eq 0 $? "opencode router transport"
+grep -qE "^CMA_PROVIDER_BASE_URL='?https://opencode.ai/zen/v1'?" "$PDIR/opencode.env" ; assert_eq 0 $? "opencode zen/v1 base"
+grep -qE "^CMA_PROVIDER_MODEL='?big-pickle'?" "$PDIR/opencode.env" ; assert_eq 0 $? "opencode strong model big-pickle"
+grep -qE "^CMA_PROVIDER_FAST_MODEL='?deepseek-v4-flash-free'?" "$PDIR/opencode.env" ; assert_eq 0 $? "opencode fast model deepseek-v4-flash-free"
+# The resolver picks the first key that maps to 'opencode' after alphabetical sort
+# by present_key_vars: ApiKey_Opencode_Zen < ZEN_API_KEY, so it wins as keyvar.
+grep -qE "^CMA_PROVIDER_KEYVAR='?ApiKey_Opencode_Zen'?" "$PDIR/opencode.env" ; assert_eq 0 $? "opencode keyvar ApiKey_Opencode_Zen"
+
+it "opencode alias written via cma_run_provider"
+grep -q '^alias opencode="cma_run_provider opencode"' "$ALIAS_FILE" ; assert_eq 0 $? "opencode alias"
+
+it "opencode config dir created and shared items symlinked"
+assert_dir "$HOME/.claude-prov-opencode" "opencode config dir"
+assert_symlink_to "$HOME/.claude-prov-opencode/plugins" "$SHARED_DIR/plugins" "opencode plugins linked"
+
+it "opencode provider dir excluded from account detection"
+det="$(cma_detect_accounts)"
+echo "$det" | grep -q "prov-opencode" ; assert_eq 1 $? "prov-opencode excluded from detection"
+
 it "the existing claudeN alias is untouched"
 grep -q '^alias claude1=' "$ALIAS_FILE" ; assert_eq 0 $? "claude1 still present"
 
@@ -308,7 +373,7 @@ det="$(cma_detect_accounts)"
 echo "$det" | grep -q "prov-acme" ; assert_eq 1 $? "prov-acme excluded"
 
 it "no secret values leaked into env files or alias file"
-grep -rq "dummy-acme\|dummy-beta\|dummy-mistral\|dummy-xiaomi" "$PDIR" "$ALIAS_FILE" ; assert_eq 1 $? "no key values present"
+grep -rq "dummy-acme\|dummy-beta\|dummy-mistral\|dummy-xiaomi\|dummy-zen" "$PDIR" "$ALIAS_FILE" ; assert_eq 1 $? "no key values present"
 
 it "sync is idempotent — second run does not duplicate aliases"
 bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
@@ -316,6 +381,8 @@ c2="$(grep -c 'cma_run_provider acme"' "$ALIAS_FILE")"
 assert_eq "1" "$c2" "still one acme alias after re-sync"
 c2x="$(grep -c 'cma_run_provider xiaomi"' "$ALIAS_FILE")"
 assert_eq "1" "$c2x" "still one xiaomi alias after re-sync"
+c2z="$(grep -c 'cma_run_provider opencode"' "$ALIAS_FILE")"
+assert_eq "1" "$c2z" "still one opencode alias after re-sync"
 
 it "list reports installed providers"
 list_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"

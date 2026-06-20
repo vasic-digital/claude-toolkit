@@ -14,5 +14,9 @@
     "base_url": "https://api.xiaomimimo.com/anthropic",
     "strong_model": "mimo-v2.5-pro",
     "fast_model": "mimo-v2-flash"
+  },
+  "opencode": {
+    "strong_model": "big-pickle",
+    "fast_model": "deepseek-v4-flash-free"
   }
 }
