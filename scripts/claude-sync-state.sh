@@ -60,7 +60,14 @@ esac
 mode="$1"; shift
 
 # Discover every Claude account dir we should sync against.
-mapfile -t ALL_ACCOUNTS < <(cma_detect_accounts)
+# Include provider dirs so sessions created under any alias (claudeN, deepseek,
+# opencode, xiaomi, …) are visible from every other alias on next launch.
+mapfile -t ALL_ACCOUNTS < <(
+  cma_detect_accounts
+  for _d in "$HOME"/${ACCOUNT_PREFIX}prov-*/; do
+    [[ -d "$_d" ]] && echo "${_d%/}"
+  done 2>/dev/null
+)
 (( ${#ALL_ACCOUNTS[@]} >= 1 )) || { cma_warn "no account dirs detected; nothing to sync"; exit 0; }
 
 case "$mode" in

@@ -415,4 +415,64 @@ else
   _pass "zsh not present; bash path covered elsewhere"
 fi
 
+# ---------------------------------------------------------------------------
+# Section 5 — cross-alias session visibility. Sessions created under any
+# alias (claudeN or provider) must be visible from every other alias after
+# sync-state runs. This proves the .claude.json merge includes provider dirs.
+# ---------------------------------------------------------------------------
+SYNC_SH="$SCRIPTS_DIR/claude-sync-state.sh"
+
+# Create two accounts and one provider dir, each with a .claude.json that
+# contains a unique session entry.
+make_account xacct1
+make_account xacct2
+mkdir -p "$HOME/${ACCOUNT_PREFIX}prov-zen"
+# Provider dir needs the same marker files as a real provider dir.
+mkdir -p "$HOME/${ACCOUNT_PREFIX}prov-zen/projects"
+
+# Each .claude.json has a unique project/session entry to prove merge.
+cat > "$HOME/${ACCOUNT_PREFIX}xacct1/.claude.json" <<'JSON'
+{"projects":{"/tmp/projectA":{"sessionId":"sess-a1","lastActive":"2026-06-20T10:00:00Z"}}}
+JSON
+cat > "$HOME/${ACCOUNT_PREFIX}xacct2/.claude.json" <<'JSON'
+{"projects":{"/tmp/projectB":{"sessionId":"sess-b2","lastActive":"2026-06-20T11:00:00Z"}}}
+JSON
+cat > "$HOME/${ACCOUNT_PREFIX}prov-zen/.claude.json" <<'JSON'
+{"projects":{"/tmp/projectC":{"sessionId":"sess-cz","lastActive":"2026-06-20T12:00:00Z"}}}
+JSON
+
+it "sync-state merge includes provider dirs"
+# Run sync-state all to merge .claude.json across accounts + providers.
+bash "$SYNC_SH" all 2>/dev/null
+sync_rc=$?
+assert_eq 0 "$sync_rc" "sync-state all exit 0"
+
+it "session from account1 is visible in account2 after sync"
+acct2_has_a1="$(python3 -c "import json; d=json.load(open('$HOME/${ACCOUNT_PREFIX}xacct2/.claude.json')); print('sess-a1' in str(d))" 2>/dev/null)"
+assert_eq "True" "$acct2_has_a1" "acct2 sees sess-a1"
+
+it "session from provider dir is visible in account1 after sync"
+acct1_has_cz="$(python3 -c "import json; d=json.load(open('$HOME/${ACCOUNT_PREFIX}xacct1/.claude.json')); print('sess-cz' in str(d))" 2>/dev/null)"
+assert_eq "True" "$acct1_has_cz" "acct1 sees sess-cz"
+
+it "session from provider dir is visible in account2 after sync"
+acct2_has_cz="$(python3 -c "import json; d=json.load(open('$HOME/${ACCOUNT_PREFIX}xacct2/.claude.json')); print('sess-cz' in str(d))" 2>/dev/null)"
+assert_eq "True" "$acct2_has_cz" "acct2 sees sess-cz"
+
+it "session from account1 is visible in provider dir after sync"
+zen_has_a1="$(python3 -c "import json; d=json.load(open('$HOME/${ACCOUNT_PREFIX}prov-zen/.claude.json')); print('sess-a1' in str(d))" 2>/dev/null)"
+assert_eq "True" "$zen_has_a1" "prov-zen sees sess-a1"
+
+it "session from account2 is visible in provider dir after sync"
+zen_has_b2="$(python3 -c "import json; d=json.load(open('$HOME/${ACCOUNT_PREFIX}prov-zen/.claude.json')); print('sess-b2' in str(d))" 2>/dev/null)"
+assert_eq "True" "$zen_has_b2" "prov-zen sees sess-b2"
+
+it "cma_run_provider wrapper has sync-state pull+push in alias file"
+grep -q 'claude-sync-state.*pull' "$ALIAS_FILE" ; assert_eq 0 $? "pull present in wrapper"
+grep -q 'claude-sync-state.*push' "$ALIAS_FILE" ; assert_eq 0 $? "push present in wrapper"
+
+it "cma_run wrapper also has sync-state pull+push"
+grep -A20 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
+grep -A20 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
+
 summary

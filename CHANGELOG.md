@@ -2,6 +2,51 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.5.0 — 2026-06-20 — Cross-alias session visibility
+
+### Added
+- **Cross-alias session visibility** — sessions created under ANY alias (`claudeN`,
+  `deepseek`, `opencode`, `xiaomi`, etc.) are now visible from every other alias
+  via `/resume`. Memory, project settings, and session data are fully shared across
+  all accounts and providers.
+- **`claude-sync-state.sh` extended** — now discovers provider dirs
+  (`~/.claude-prov-*`) alongside account dirs for its `.claude.json` merge. Provider
+  sessions participate in the same lightweight jq merge that keeps account sessions
+  in sync.
+- **`cma_run_provider` sync-state hooks** — the provider wrapper now calls
+  `claude-sync-state pull` before launch and `claude-sync-state push` after exit,
+  matching the `cma_run` pattern. Previously provider sessions were intentionally
+  excluded from sync; now they participate fully.
+- **Sandbox test coverage**: 10 new assertions proving cross-alias merge (sessions
+  from account→provider, provider→account, account→account all visible after sync).
+  Providers test 90 → 100 assertions.
+- **Live verification**: `lastSessionId` for a real project confirmed identical across
+  all dirs (3 accounts + 1 provider). 61 projects merged in every `.claude.json`.
+  Evidence in `scripts/tests/proof/80-cross-alias-sessions.txt`.
+
+### Changed
+- `scripts/claude-sync-state.sh` — provider dirs included in merge targets
+- `scripts/lib.sh` — `cma_run_provider` wrapper updated with sync-state pull/push
+- Alias file `aliases.sh` — updated `cma_run_provider` function (re-installed)
+
+### Full test suite
+- 8/8 test files passed (ALL GREEN), 0 failures. Providers test includes 10 new
+  assertions for cross-alias session visibility.
+
+### How it works
+1. `claude-sync-state pull` merges every account's + provider's `.claude.json` into
+   the launching dir before Claude Code starts (including `lastSessionId`,
+   `allowedTools`, MCP config, etc.).
+2. Claude Code launches with the merged state — `/resume` sees all sessions.
+3. `claude-sync-state push` merges the post-session `.claude.json` back out after
+   exit, so the next alias to launch picks up the new session.
+4. The `sessions/` directory was already shared via symlink — this release ensures
+   `.claude.json` project settings are also merged.
+
+### Performance
+- Adds ~1-2 seconds overhead per provider launch (jq merge of `.claude.json` across
+  all dirs). Same overhead that `claudeN` aliases already have.
+
 ## v1.4.0 — 2026-06-20 — OpenCode Zen provider alias
 
 ### Added

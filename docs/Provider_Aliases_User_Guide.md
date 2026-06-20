@@ -85,6 +85,42 @@ never get merged into your real accounts' auth/identity and never interfere with
 `claude-unify` or `claude-add-account`. Your existing `claudeN` aliases keep
 working exactly as before, and you can still create new accounts the same way.
 
+### Cross-alias session visibility (v1.5.0+)
+
+Sessions created under **any** alias — `claude1`, `claude2`, `deepseek`,
+`opencode`, `xiaomi`, or any other — are visible from **every** other alias via
+`/resume`. This works automatically:
+
+1. **Before launch**: `claude-sync-state pull` merges every account's and
+   provider's `.claude.json` into the launching dir. This includes `lastSessionId`
+   (what `/resume` uses), `allowedTools`, MCP config, and all other project
+   settings.
+2. **After exit**: `claude-sync-state push` merges the post-session state back
+   out, so the next alias to launch picks up the new session.
+3. **Session files** are in `~/.claude-shared/sessions/`, which every alias
+   symlinks to — so the session data itself was always shared; the new work
+   ensures `.claude.json` project metadata is also merged.
+
+**Example workflow:**
+
+```bash
+# Start a project as deepseek
+cd /path/to/my-project
+deepseek
+# ... work for a while, then exit
+
+# Continue the same project as opencode
+opencode
+/resume   # shows the deepseek session (and all others)
+```
+
+**Performance:** adds ~1-2 seconds per launch (jq merge across all dirs). Same
+overhead that `claudeN` aliases already have.
+
+**Note:** provider dirs are still excluded from `cma_detect_accounts` (used by
+`claude-unify` and `claude-add-account`). Only `claude-sync-state` includes them,
+so the existing account management is unaffected.
+
 ## 6. Overrides — `scripts/providers/overrides.json`
 
 Per-provider pins. Empty by default. Any field you set wins over the
