@@ -522,3 +522,68 @@ opencode -p "explain this function" # non-interactive print mode
   `claude-haiku-4.5` and `claude-sonnet-4-6`), and set `transport` to `native`
   with `base_url` to `https://opencode.ai/zen/v1/messages`.
 
+### Chutes (chutes)
+
+[Chutes](https://chutes.ai) is a pay-per-use AI inference platform with
+**TEE (Trusted Execution Environment)** models — all models run in secure
+enclaves for data privacy. The API is OpenAI-compatible at
+`https://llm.chutes.ai/v1`.
+
+#### How the alias works
+
+The key variable `CHUTES_API_KEY` in your keys file maps to the `chutes`
+provider ID. An override in `scripts/providers/overrides.json` pins:
+
+- **strong_model** `zai-org/GLM-5.2-TEE` — newest GLM model, 202K context
+- **fast_model** `Qwen/Qwen3.6-27B-TEE` — fast Qwen model, 262K context
+
+Transport is **router** — the alias launches through `claude-code-router`
+(`ccr code`), which translates the Anthropic protocol to the OpenAI-compatible
+Chutes API.
+
+#### Models available on Chutes
+
+All models are TEE-enabled (Trusted Execution Environment):
+
+| Model | Context | Notes |
+|-------|---------|-------|
+| **zai-org/GLM-5.2-TEE** | 202K | Newest GLM — alias default (strong) |
+| zai-org/GLM-5.1-TEE | 202K | GLM 5.1 |
+| zai-org/GLM-5-TEE | 202K | GLM 5 |
+| Qwen/Qwen3.5-397B-A17B-TEE | 262K | Largest Qwen model |
+| **Qwen/Qwen3.6-27B-TEE** | 262K | Alias fast model |
+| Qwen/Qwen3-32B-TEE | 40K | Qwen 32B |
+| Qwen/Qwen3-235B-A22B-Thinking-2507-TEE | 262K | Thinking/reasoning model |
+| deepseek-ai/DeepSeek-V3.2-TEE | 131K | DeepSeek V3.2 |
+| moonshotai/Kimi-K2.5-TEE | 262K | Kimi K2.5 |
+| moonshotai/Kimi-K2.6-TEE | 262K | Kimi K2.6 |
+| MiniMaxAI/MiniMax-M2.5-TEE | 196K | MiniMax M2.5 |
+| google/gemma-4-31B-turbo-TEE | 131K | Google Gemma 4 |
+| unsloth/Mistral-Nemo-Instruct-2407-TEE | 131K | Mistral Nemo |
+
+**Important:** Chutes is **pay-per-use** — the account must be funded to use
+models. Add balance at https://chutes.ai. The API key and configuration are
+correct, but requests will return "Quota exceeded" if the account balance is $0.
+
+#### Setup
+
+1. Ensure `CHUTES_API_KEY` is exported in your keys file (`~/api_keys.sh`).
+2. Fund your Chutes account at https://chutes.ai.
+3. Run `claude-providers sync` to discover the key and create the alias.
+4. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new shell).
+5. Run `chutes` to start a Claude Code session on `zai-org/GLM-5.2-TEE`.
+
+#### Usage example
+
+```bash
+chutes                              # launch Claude Code on GLM-5.2-TEE (via ccr)
+chutes -p "explain this function"   # non-interactive print mode
+```
+
+#### Verified
+
+- API endpoint `https://llm.chutes.ai/v1/chat/completions` responds correctly
+- Authentication with `Authorization: Bearer cpk_...` works
+- All 13 TEE models are accessible (require funded account)
+- OpenAI-compatible format confirmed
+

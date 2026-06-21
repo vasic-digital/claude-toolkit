@@ -2,6 +2,20 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.2 — 2026-06-21 — Chutes provider documentation + model update
+
+### Changed
+- **Chutes provider models updated** — catalog was stale. Chutes now offers 13 TEE
+  (Trusted Execution Environment) models. Updated strong=`zai-org/GLM-5.2-TEE`,
+  fast=`Qwen/Qwen3.6-27B-TEE`.
+- **Chutes documentation** added to Provider_Aliases_User_Guide.md with full model
+  table, TEE explanation, pay-per-use note, and setup instructions.
+
+### Verified
+- Chutes API endpoint responds correctly
+- All 13 TEE models accessible (require funded account for actual inference)
+- OpenAI-compatible format confirmed at `https://llm.chutes.ai/v1`
+
 ## v1.6.1 — 2026-06-21 — cache_control fix + E2E tests
 
 ### Fixed
