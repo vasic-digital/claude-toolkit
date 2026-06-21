@@ -13,6 +13,7 @@ ccr config should point to this proxy instead of directly to Poe:
   api_base_url: http://localhost:3457/v1/chat/completions
 """
 import argparse
+import gzip
 import json
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -82,7 +83,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         headers = {
             "Content-Type": "application/json",
             "Authorization": self.headers.get("Authorization", ""),
-            "Accept-Encoding": "gzip, deflate",
+            # Do NOT send Accept-Encoding — let urllib handle decompression
         }
         data = json.dumps(body).encode("utf-8")
         req = Request(url, data=data, headers=headers, method="POST")
@@ -93,12 +94,23 @@ class ProxyHandler(BaseHTTPRequestHandler):
         try:
             with urlopen(req, timeout=120) as resp:
                 resp_body = resp.read()
+                # Decompress gzip if needed
+                encoding = resp.headers.get("Content-Encoding", "")
+                if encoding == "gzip":
+                    resp_body = gzip.decompress(resp_body)
                 self.send_response(resp.status)
                 self.send_header("Content-Type", resp.headers.get("Content-Type", "application/json"))
                 self.end_headers()
                 self.wfile.write(resp_body)
         except HTTPError as e:
             resp_body = e.read()
+            # Decompress gzip if needed
+            encoding = e.headers.get("Content-Encoding", "") if e.headers else ""
+            if encoding == "gzip":
+                try:
+                    resp_body = gzip.decompress(resp_body)
+                except Exception:
+                    pass
             self.send_response(e.code)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
