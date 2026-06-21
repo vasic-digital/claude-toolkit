@@ -2,6 +2,21 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.4 — 2026-06-21 — Poe proxy fix for tool compatibility
+
+### Fixed
+- **Poe tool format error** — Poe requires `parameters` in every tool function definition.
+  Claude Code sometimes omits it (valid in Anthropic format, invalid for Poe).
+  Added `poe_proxy.py` that auto-fixes tools before forwarding to Poe API.
+- **Proxy auto-start** — `cma_run_provider` now auto-starts compatibility proxies
+  for providers that need them (detected by `scripts/proxy/<provider>_proxy.py`).
+
+### Verified
+- All 3 Poe aliases work through proxy: `poe` ✅, `poe2` ✅, `poe3` ✅
+
+### Tests
+- 8/8 ALL GREEN
+
 ## v1.6.3 — 2026-06-21 — Poe provider (382 models, 3 aliases)
 
 ### Added
