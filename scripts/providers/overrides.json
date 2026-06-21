@@ -18,5 +18,9 @@
   "opencode": {
     "strong_model": "big-pickle",
     "fast_model": "deepseek-v4-flash-free"
+  },
+  "chutes": {
+    "strong_model": "zai-org/GLM-5.2-TEE",
+    "fast_model": "Qwen/Qwen3.6-27B-TEE"
   }
 }
