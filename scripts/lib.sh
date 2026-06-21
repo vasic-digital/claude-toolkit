@@ -278,7 +278,8 @@ cma_run_provider() {
       if CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
             --arg s "$CMA_PROVIDER_MODEL" --arg f "${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}" '
           .Providers = ([ .Providers[]? | select(.name != $n) ]
-            + [{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f]}])
+            + [{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f],
+                transformer:{use:["cleancache"]}}])
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
         ' "$cfg" > "$tmp" 2>/dev/null; then
