@@ -1,0 +1,26 @@
+{
+  "name": "claude_tookit",
+  "version": "1.0.0",
+  "description": "Bash toolkit for running **multiple Claude Code accounts on one host** while keeping conversation history, memory, todos, plans, plugins, and settings **unified** across them. Each account keeps only what must stay private (credentials and per-account state); everything else lives in a single shared store and is reachable from every account via symlinks.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vasic-digital/claude-toolkit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vasic-digital/claude-toolkit/issues"
+  },
+  "homepage": "https://github.com/vasic-digital/claude-toolkit#readme",
+  "dependencies": {
+    "@toon-format/toon": "^2.3.0"
+  }
+}
