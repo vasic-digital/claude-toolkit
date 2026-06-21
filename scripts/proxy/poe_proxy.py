@@ -24,8 +24,24 @@ POE_URL = "https://api.poe.com/v1"
 DEFAULT_PORT = 3457
 
 
+def resolve_refs(obj, defs):
+    """Recursively resolve $ref references in a JSON schema object."""
+    if isinstance(obj, dict):
+        if "$ref" in obj and isinstance(obj["$ref"], str):
+            ref = obj["$ref"]
+            if ref.startswith("#/$defs/"):
+                name = ref.split("/")[-1]
+                if name in defs:
+                    return resolve_refs(defs[name], defs)
+            return obj
+        return {k: resolve_refs(v, defs) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [resolve_refs(item, defs) for item in obj]
+    return obj
+
+
 def fix_tools(tools):
-    """Ensure every tool has a valid parameters field."""
+    """Ensure every tool has a valid parameters field and resolve $ref."""
     if not tools or not isinstance(tools, list):
         return tools
     fixed = []
@@ -38,6 +54,14 @@ def fix_tools(tools):
             f = dict(func)
             if "parameters" not in f or not f["parameters"]:
                 f["parameters"] = {"type": "object", "properties": {}}
+            # Resolve $ref references (Grok-4 and some providers don't support them)
+            params = f["parameters"]
+            if isinstance(params, dict) and "$defs" in params:
+                defs = params.pop("$defs")
+                f["parameters"] = resolve_refs(params, defs)
+            elif isinstance(params, dict) and "$ref" in params:
+                # Top-level $ref — resolve with empty defs (best effort)
+                f["parameters"] = resolve_refs(params, {})
             t["function"] = f
         fixed.append(t)
     return fixed
