@@ -6,5 +6,7 @@
   "TENCENT_CLOUD_API_KEY": "tencent-tokenhub",
   "XIAOMI_MIMO_API_KEY": "xiaomi",
   "ZEN_API_KEY": "opencode",
-  "ApiKey_Opencode_Zen": "opencode"
+  "ApiKey_Opencode_Zen": "opencode",
+  "POE_API_KEY": "poe",
+  "ApiKey_Poe": "poe"
 }

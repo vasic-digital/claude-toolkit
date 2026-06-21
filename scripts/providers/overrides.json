@@ -22,5 +22,9 @@
   "chutes": {
     "strong_model": "zai-org/GLM-5.2-TEE",
     "fast_model": "Qwen/Qwen3.6-27B-TEE"
+  },
+  "poe": {
+    "strong_model": "claude-sonnet-4.6",
+    "fast_model": "gpt-5.4-mini"
   }
 }
