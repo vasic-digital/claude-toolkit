@@ -110,7 +110,7 @@ done
 
 # 4b. Copy proxy scripts for provider compatibility (e.g. Poe tool format fix).
 PROXY_SRC="$LIB_DIR/proxy"
-PROXY_DST="$SHARE_DIR/proxy"
+PROXY_DST="$SHARED_DIR/proxy"
 if [[ -d "$PROXY_SRC" ]]; then
   mkdir -p "$PROXY_DST"
   cp "$PROXY_SRC"/*.py "$PROXY_DST/" 2>/dev/null && chmod +x "$PROXY_DST"/*.py 2>/dev/null
