@@ -437,3 +437,21 @@ See `docs/Provider_Aliases_User_Guide.md`.
 - Local: 8/8 ALL GREEN
 - nezha.local: 8/8 ALL GREEN
 
+
+## v1.6.9 — 2026-06-21 — Poe proxy $ref fix for Grok-4
+
+### Fixed
+- **Poe proxy $ref resolution** — Claude Code sends tool schemas with `$ref`
+  references to `$defs`. Grok-4 and some providers don't support `$ref` in
+  tool schemas. Added `resolve_refs()` function that extracts `$defs`,
+  resolves all `$ref` references to inline definitions, and removes `$defs`.
+
+### Verified
+- `poe` (claude-sonnet-4.6): ✅ YES
+- `poe2` (gpt-5.5): ✅ YES
+- `poe3` (grok-4): ✅ YES (was failing, now works)
+
+### Tests
+- Local: 8/8 ALL GREEN
+- nezha.local: 8/8 ALL GREEN
+
