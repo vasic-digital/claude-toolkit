@@ -2,6 +2,27 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.1 — 2026-06-21 — cache_control fix + E2E tests
+
+### Fixed
+- **`cache_control` parameter error** — Claude Code sends `cache_control` (Anthropic-specific)
+  in its API requests. ccr forwarded this to OpenAI-compatible endpoints which reject it with
+  HTTP 422. Fixed by adding ccr's built-in `cleancache` transformer to every provider config,
+  which strips `cache_control` before forwarding to the provider.
+
+### Added
+- **`alias_e2e_test.py`** — end-to-end alias verification script that tests each alias
+  by sending requests through ccr and verifying responses work without errors.
+
+### Verified working (all aliases tested with "Do you see our codebase?")
+- `opencode` (north-mini-code-free): ✅ YES
+- `opencode2` (big-pickle): ✅ YES
+- `opencode3` (nemotron-3-ultra-free): ✅ YES
+- `deepseek` (native transport): ✅ YES
+- `deepseek2` (router transport): ✅ YES
+- `xiaomi` (native transport): ✅ YES
+- `zai-coding-plan` (router transport): ✅ YES
+
 ## v1.6.0 — 2026-06-21 — Multi-alias provider system
 
 ### Added
