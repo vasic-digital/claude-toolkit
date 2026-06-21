@@ -2,6 +2,23 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.5 — 2026-06-21 — Poe proxy fix (alias file + install)
+
+### Fixed
+- **Poe proxy not starting from alias** — proxy logic was only in `lib.sh`, not in
+  the alias file's `cma_run_provider` function. The alias file is what actually runs
+  when a user invokes an alias. Added proxy detection + auto-start to the alias file.
+- **install.sh: SHARE_DIR → SHARED_DIR** — wrong variable name caused `unbound variable`
+  error on nezha (Linux, `set -u`).
+- **install.sh: auto-copy proxy scripts** to `~/.local/share/.../proxy/` during install.
+
+### Verified
+- All 3 Poe aliases work: `poe` ✅, `poe2` ✅, `poe3` ✅
+- Deployed to both local host and nezha.local
+
+### Tests
+- 8/8 ALL GREEN
+
 ## v1.6.4 — 2026-06-21 — Poe proxy fix for tool compatibility
 
 ### Fixed
