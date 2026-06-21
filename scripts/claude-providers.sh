@@ -289,11 +289,12 @@ cmd_sync_multi() {
     case "$seen" in *" $pid "*) continue ;; esac
     seen="$seen$pid "
 
-    # Get the API key for verification
+    # Get the API key for verification — source keys file in a subshell,
+    # then use indirect expansion to read the specific key variable.
     local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
     local token=""
     if [[ -f "$keysf" ]]; then
-      eval "token=\"\$(set -a; source '$keysf' 2>/dev/null; set +a; echo \${$keyvar:-})\"" 2>/dev/null || true
+      token="$(bash -c "set -a; source '$keysf' 2>/dev/null; set +a; eval \"echo \${$keyvar:-}\"" 2>/dev/null)" || true
     fi
 
     if [[ -z "$token" ]]; then
@@ -348,7 +349,7 @@ cmd_sync_multi() {
       --base-url "$base" \
       --account-prefix "$ACCOUNT_PREFIX" \
       --home "$HOME" \
-      > "$manifest_out" 2>&1 || { cma_warn "alias generation failed for '$pid'"; continue; }
+      2>/dev/null > "$manifest_out" || { cma_warn "alias generation failed for '$pid'"; continue; }
 
     local alias_count; alias_count="$(jq '.alias_count' "$manifest_out" 2>/dev/null || echo 0)"
     cma_log "  $pid: $alias_count aliases generated"
