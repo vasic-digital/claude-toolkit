@@ -455,3 +455,30 @@ See `docs/Provider_Aliases_User_Guide.md`.
 - Local: 8/8 ALL GREEN
 - nezha.local: 8/8 ALL GREEN
 
+
+## v1.7.0 — 2026-06-22 — Poe proxy complete fix (all aliases verified)
+
+### Fixed
+- **Poe proxy shared directory** — the proxy at `~/.local/share/.../proxy/poe_proxy.py`
+  was the OLD version without gzip and $ref fixes. install.sh copies from scripts/
+  but the shared dir still had the old version. Fixed by ensuring updated proxy is
+  copied to shared directory.
+- **install.sh** now copies proxy scripts during installation (already in place)
+
+### Verified (all three aliases through full Claude Code flow)
+- `poe` (claude-sonnet-4.6): ✅ YES
+- `poe2` (gpt-5.5): ✅ YES
+- `poe3` (grok-4): ✅ YES
+
+### Root Cause Analysis
+The proxy had three issues:
+1. **gzip** — Poe returns gzip-compressed responses, proxy didn't decompress
+2. **$ref** — Claude Code sends tool schemas with $ref, Grok-4 doesn't support them
+3. **shared dir** — Updated proxy wasn't copied to shared directory
+
+All three fixed and verified.
+
+### Tests
+- Local: 8/8 ALL GREEN
+- nezha.local: 8/8 ALL GREEN
+
