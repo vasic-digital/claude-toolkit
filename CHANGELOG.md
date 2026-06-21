@@ -2,6 +2,29 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.6 — 2026-06-21 — TOON integration for token-efficient prompts
+
+### Added
+- **TOON (Token-Oriented Object Notation)** integration — saves ~40% tokens vs JSON
+  for structured data in LLM prompts by declaring fields once in arrays.
+- **`scripts/toon.mjs`** — Node.js TOON utility (encode/decode/demo)
+- **`scripts/toon_encode.py`** — Python wrapper for TOON encoding
+- **`docs/TOON_Integration.md`** — comprehensive guide on using TOON with Claude Code
+- **`package.json`** — `@toon-format/toon` v2.3.0 dependency
+
+### Token Savings
+- File listings: ~39% fewer tokens
+- Tool definitions: ~40% fewer tokens
+- User records: ~42% fewer tokens
+- Accuracy: 76.4% (vs JSON's 75.0%)
+
+### Note
+TOON formats message CONTENT for token savings. API transport remains JSON
+(providers require it). HTTP/3 and compression require provider-side support.
+
+### Tests
+- 8/8 ALL GREEN
+
 ## v1.6.5 — 2026-06-21 — Poe proxy fix (alias file + install)
 
 ### Fixed
