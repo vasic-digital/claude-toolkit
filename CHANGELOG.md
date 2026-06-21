@@ -403,3 +403,20 @@ aliases (DeepSeek, Groq, GLM, …) from your keys file pointed at each provider'
 strongest model — fully dynamic via models.dev + the LLMsVerifier submodule,
 hybrid native/claude-code-router transport, full lifecycle + tests + docs.
 See `docs/Provider_Aliases_User_Guide.md`.
+
+## v1.6.7 — 2026-06-21 — Poe proxy fix for all aliases
+
+### Fixed
+- **Poe proxy not starting for poe2/poe3** — proxy detection used exact provider ID
+  (`poe2_proxy.py`) which doesn't exist. Fixed to check base name too (`poe_proxy.py`
+  for poe2, poe3 aliases).
+- **lib.sh**: base proxy detection with `${CMA_PROVIDER_ID%%[0-9]*}`
+- **alias file**: same fix applied
+
+### Verified
+- All 3 Poe aliases work: `poe` ✅, `poe2` ✅, `poe3` ✅
+- Deployed to both local host and nezha.local
+
+### Tests
+- Local: 8/8 ALL GREEN
+- nezha.local: 7/8 (pandoc missing — pre-existing)
