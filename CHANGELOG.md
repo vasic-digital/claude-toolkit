@@ -420,3 +420,20 @@ See `docs/Provider_Aliases_User_Guide.md`.
 ### Tests
 - Local: 8/8 ALL GREEN
 - nezha.local: 7/8 (pandoc missing — pre-existing)
+
+## v1.6.8 — 2026-06-21 — Poe proxy gzip fix
+
+### Fixed
+- **Poe proxy gzip decompression** — Poe API returns gzip-compressed responses
+  but the proxy tried to read them as UTF-8 without decompressing, causing
+  UnicodeDecodeError. Added gzip decompression for both success and error responses.
+
+### Verified
+- `poe` (claude-sonnet-4.6): ✅ YES
+- `poe2` (gpt-5.5): ✅ YES
+- `poe3` (grok-4): ❌ Different error (Grok-4 schema validation, not tools format)
+
+### Tests
+- Local: 8/8 ALL GREEN
+- nezha.local: 8/8 ALL GREEN
+
