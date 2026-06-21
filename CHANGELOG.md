@@ -2,6 +2,26 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.3 — 2026-06-21 — Poe provider (382 models, 3 aliases)
+
+### Added
+- **Poe provider** — universal AI platform with 382 models from all major providers.
+  OpenAI-compatible API at `https://api.poe.com/v1`. Chat, code, image gen, video gen,
+  TTS, STT, and more.
+- **3 aliases**: `poe` (claude-sonnet-4.6 + gpt-5.4-mini), `poe2` (gpt-5.5 + deepseek-v4-pro-e),
+  `poe3` (grok-4 + gemini-3.1-pro)
+- **key-aliases**: `POE_API_KEY` + `ApiKey_Poe` → `poe`
+- **Tool calling verified** on claude-sonnet-4.6, gpt-5.4-mini, deepseek-v4-pro-e, grok-4
+- **382 models categorized**: 130 chat/reasoning, 16 code, 40 image gen, 17 video gen,
+  12 TTS, 1 STT, 166 other
+- **Documentation**: full Poe section in Provider_Aliases_User_Guide.md
+
+### Verified
+- API endpoint responds correctly
+- Authentication works
+- Tool calling confirmed
+- All 3 aliases tested through ccr with "Do you see our codebase?" — all YES
+
 ## v1.6.2 — 2026-06-21 — Chutes provider documentation + model update
 
 ### Changed

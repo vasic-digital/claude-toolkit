@@ -587,3 +587,69 @@ chutes -p "explain this function"   # non-interactive print mode
 - All 13 TEE models are accessible (require funded account)
 - OpenAI-compatible format confirmed
 
+### Poe (poe)
+
+[Poe](https://poe.com) is a universal AI platform with **382 models** from all
+major providers — chat, code, image generation, video generation, TTS, and STT.
+The API is OpenAI-compatible at `https://api.poe.com/v1`.
+
+#### How the alias works
+
+The key variable `POE_API_KEY` (or `ApiKey_Poe`) in your keys file maps to the
+`poe` provider ID. Transport is **router** — the alias launches through
+`claude-code-router` (`ccr code`).
+
+#### Aliases
+
+| Alias | Strong Model | Fast Model | Focus |
+|-------|-------------|------------|-------|
+| **poe** | claude-sonnet-4.6 | gpt-5.4-mini | Primary — best Claude |
+| **poe2** | gpt-5.5 | deepseek-v4-pro-e | GPT-focused |
+| **poe3** | grok-4 | gemini-3.1-pro | Alternative providers |
+
+#### Model categories (382 total)
+
+| Category | Count | Examples |
+|----------|-------|---------|
+| **Chat/Reasoning** | 130 | claude-opus-4.8, gpt-5.5, grok-4, deepseek-v4-pro, gemini-3.1-pro, qwen3.7-max |
+| **Code** | 16 | claude-code, gpt-5.3-codex, qwen3-coder-next, kimi-k2.7-code, seed-2.0-code |
+| **Image Generation** | 40 | flux-2-pro, imagen-4, stable-diffusion3.5, qwen-image-2, grok-imagine-image |
+| **Video Generation** | 17 | sora-2-pro, veo-3.1, kling-3.0, runway-gen-4.5, pixverse-v5.6 |
+| **TTS/Voice** | 12 | elevenlabs-v3, gemini-3.1-flash-tts, cartesia-ink-whisper, orpheus-tts |
+| **STT/Speech** | 1 | whisper-v3-large-t |
+| **Other** | 166 | perplexity-search, exa-research, hailuo, minimax-m3, glm-5.2, and more |
+
+#### Supported capabilities
+
+- **Chat completions** — OpenAI-compatible `/v1/chat/completions`
+- **Tool calling** — verified on claude-sonnet-4.6, gpt-5.4-mini, deepseek-v4-pro-e, grok-4
+- **Streaming** — standard SSE streaming supported
+- **Reasoning** — reasoning_content field in responses
+- **Image input** — vision models support image URLs
+- **Video generation** — via separate video endpoint
+- **TTS/STT** — text-to-speech and speech-to-text models
+
+#### Setup
+
+1. Ensure `POE_API_KEY` is exported in your keys file (`~/api_keys.sh`).
+2. Run `claude-providers sync` to discover the key and create the alias.
+3. `source ~/.local/share/claude-multi-account/aliases.sh` (or open a new shell).
+4. Run `poe` to start a Claude Code session on `claude-sonnet-4.6` (via ccr).
+
+#### Usage example
+
+```bash
+poe                                 # launch Claude Code on claude-sonnet-4.6 (via ccr)
+poe2                                # launch on gpt-5.5 (via ccr)
+poe3                                # launch on grok-4 (via ccr)
+poe -p "explain this function"      # non-interactive print mode
+```
+
+#### Verified
+
+- API endpoint `https://api.poe.com/v1/chat/completions` responds correctly
+- Authentication with `Authorization: Bearer sk-poe-...` works
+- Tool calling verified on multiple models
+- 382 models accessible across all categories
+- OpenAI-compatible format confirmed
+
