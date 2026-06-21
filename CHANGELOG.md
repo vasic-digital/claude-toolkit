@@ -2,6 +2,51 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.6.0 — 2026-06-21 — Multi-alias provider system
+
+### Added
+- **Multi-alias provider system** — every provider can now have multiple aliases
+  (`provider`, `provider2`, `provider3`...) exposing ALL working models, not just
+  the top 2. Verified via live HTTP probes with anti-bluff detection.
+- **`model_verify.py`** — comprehensive model verification & scoring engine.
+  Tests every model for a provider via HTTP probes, scores on 7 dimensions
+  (existence 25pts, tool_call 20pts, reasoning 15pts, context_window 15pts,
+  streaming 10pts, latency 10pts, free_tier 5pts). Anti-bluff detection prevents
+  false positives (HTTP 200 with error body, empty responses, boilerplate errors).
+  24h verification cache to avoid re-testing.
+- **`providers_generate.py`** — multi-alias generation from verified models.
+  Pairs models into alias groups of 2 (strong + fast), handles odd count (last
+  model reused for both positions), single model (used for both positions).
+  Generates env files, shell aliases, and overrides.json entries.
+- **`claude-providers.sh --multi`** — new flag for `sync` that triggers the full
+  verification + multi-alias generation pipeline. Additional flags: `--max-aliases`
+  (default 5), `--min-score` (default 25), `--verify-concurrency` (default 5).
+- **Endpoint normalization** — `/anthropic` endpoints auto-converted to `/v1` for
+  OpenAI-compatible probing during verification.
+- **Submodules updated** to helix_translate-2.3.1: LLMsVerifier (ModelVerifier,
+  Seed, xiaomi provider), challenges (anti-bluff §11.4, chaos/stress tests),
+  containers (deploy-stack).
+
+### Changed
+- Probe `max_tokens` increased from 32 to 128 — reasoning models need more tokens
+  for chain-of-thought + response (was causing false anti-bluff rejections).
+- `User-Agent` header added to HTTP probes (some APIs require it).
+
+### Full test suite
+- 8/8 test files passed (ALL GREEN), 0 failures.
+
+### Usage
+```bash
+# Standard sync (2 models per provider, as before)
+claude-providers sync
+
+# Multi-alias sync (verify ALL models, create multiple aliases)
+claude-providers sync --multi
+
+# With options
+claude-providers sync --multi --max-aliases 10 --min-score 20
+```
+
 ## v1.5.1 — 2026-06-20 — Linux stat fix + nezha deployment
 
 ### Fixed

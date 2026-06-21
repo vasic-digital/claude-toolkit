@@ -121,6 +121,54 @@ overhead that `claudeN` aliases already have.
 `claude-unify` and `claude-add-account`). Only `claude-sync-state` includes them,
 so the existing account management is unaffected.
 
+### Multi-alias system (v1.6.0+)
+
+By default, `sync` creates **one alias per provider** using the 2 strongest
+models. With `--multi`, it verifies **ALL models** for each provider and creates
+**multiple aliases** — `provider`, `provider2`, `provider3`, etc. — each with
+a different pair of strong + fast models.
+
+```bash
+# Standard: 1 alias per provider (2 models)
+claude-providers sync
+
+# Multi: verify all models, create multiple aliases
+claude-providers sync --multi
+
+# Options
+claude-providers sync --multi --max-aliases 10 --min-score 20
+```
+
+**How verification works:**
+
+Each model is tested via a live HTTP probe (sends "Reply with exactly: VERIFY_OK"
+and checks the response). Models are scored on 7 dimensions (0-100):
+
+| Dimension | Weight | What it checks |
+|-----------|--------|----------------|
+| Existence + valid response | 25pts | Model exists, returns real content |
+| Tool calling | 20pts | Supports function/tool_calls |
+| Reasoning | 15pts | Has chain-of-thought / reasoning_content |
+| Context window | 15pts | ≥8K tokens (log scale) |
+| Streaming | 10pts | SSE streaming support |
+| Latency | 10pts | Response under 2s (full) or 5s (half) |
+| Free tier | 5pts | $0 input cost |
+
+**Anti-bluff detection** prevents false positives:
+- HTTP 200 with error body (JSON error wrapped in success)
+- Empty response content
+- Boilerplate "I'm unable to" responses
+- Models that claim capability but don't deliver
+
+**Alias pairing:**
+- Models sorted by score, paired 2 per alias (strong + fast)
+- Odd count: last model used for both positions in last alias
+- Single model: used for both positions
+- Default max: 5 aliases per provider (configurable)
+
+**Verification cache:** results cached for 24h to avoid re-testing on every sync.
+Cache stored in `scripts/providers/verification_cache.json`.
+
 ## 6. Overrides — `scripts/providers/overrides.json`
 
 Per-provider pins. Empty by default. Any field you set wins over the
