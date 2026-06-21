@@ -291,7 +291,7 @@ cma_run_provider() {
             --arg s "$CMA_PROVIDER_MODEL" --arg f "${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}" '
           .Providers = ([ .Providers[]? | select(.name != $n) ]
             + [{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f],
-                transformer:{use:["cleancache"]}}])
+                transformer:{use:["cleancache","streamoptions"]}}])
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
         ' "$cfg" > "$tmp" 2>/dev/null; then

@@ -82,9 +82,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
         headers = {
             "Content-Type": "application/json",
             "Authorization": self.headers.get("Authorization", ""),
+            "Accept-Encoding": "gzip, deflate",
         }
         data = json.dumps(body).encode("utf-8")
         req = Request(url, data=data, headers=headers, method="POST")
+
+        # Check if streaming is requested
+        is_stream = body.get("stream", False)
 
         try:
             with urlopen(req, timeout=120) as resp:
