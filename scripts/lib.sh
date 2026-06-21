@@ -274,8 +274,15 @@ cma_run_provider() {
     esac
     # Start compatibility proxy if the provider needs one (e.g. Poe requires
     # `parameters` in tool definitions; Claude Code sometimes omits it).
-    local _proxy_script="$LIB_DIR/proxy/${CMA_PROVIDER_ID}_proxy.py"
-    if [[ -x "$_proxy_script" ]]; then
+    # Check for provider-specific proxy or base proxy (poe2 -> poe_proxy).
+    local _base_id="${CMA_PROVIDER_ID%%[0-9]*}"
+    local _proxy_script=""
+    if [[ -x "$LIB_DIR/proxy/${CMA_PROVIDER_ID}_proxy.py" ]]; then
+      _proxy_script="$LIB_DIR/proxy/${CMA_PROVIDER_ID}_proxy.py"
+    elif [[ -x "$LIB_DIR/proxy/${_base_id}_proxy.py" ]]; then
+      _proxy_script="$LIB_DIR/proxy/${_base_id}_proxy.py"
+    fi
+    if [[ -n "$_proxy_script" ]]; then
       local _proxy_port=3457
       python3 "$_proxy_script" --port "$_proxy_port" &
       _proxy_pid=$!
