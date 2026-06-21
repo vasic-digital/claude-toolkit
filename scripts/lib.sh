@@ -252,6 +252,7 @@ cma_run_provider() {
     "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
   fi
   local rc
+  local _proxy_pid=""
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
     if ! command -v ccr >/dev/null 2>&1; then
       printf 'claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n' "$id" >&2
@@ -271,6 +272,17 @@ cma_run_provider() {
       */chat/completions|*/v1beta/models/|*/v1beta/models) ;;
       *) base="${base%/}/chat/completions" ;;
     esac
+    # Start compatibility proxy if the provider needs one (e.g. Poe requires
+    # `parameters` in tool definitions; Claude Code sometimes omits it).
+    local _proxy_script="$LIB_DIR/proxy/${CMA_PROVIDER_ID}_proxy.py"
+    if [[ -x "$_proxy_script" ]]; then
+      local _proxy_port=3457
+      python3 "$_proxy_script" --port "$_proxy_port" &
+      _proxy_pid=$!
+      sleep 1
+      base="http://127.0.0.1:${_proxy_port}/v1/chat/completions"
+      cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)"
+    fi
     if command -v jq >/dev/null 2>&1; then
       local tmp; tmp="$(mktemp)"; chmod 600 "$tmp" 2>/dev/null || true
       # Pass the secret through the environment ($ENV.tok), never as a jq argv
@@ -290,6 +302,11 @@ cma_run_provider() {
       fi
     fi
     ccr code "$@"; rc=$?
+    # Stop proxy if we started one
+    if [[ -n "$_proxy_pid" ]]; then
+      kill "$_proxy_pid" 2>/dev/null || true
+      cma_log "stopped proxy for $CMA_PROVIDER_ID (pid=$_proxy_pid)"
+    fi
   else
     export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
     export ANTHROPIC_AUTH_TOKEN="$token"
