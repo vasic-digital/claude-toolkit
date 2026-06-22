@@ -286,7 +286,11 @@ cma_run_provider() {
       local _proxy_port=3457
       python3 "$_proxy_script" --port "$_proxy_port" &
       _proxy_pid=$!
-      sleep 1
+      local _waited=0
+      while ! lsof -i :$_proxy_port >/dev/null 2>&1 && (( _waited < 25 )); do
+        sleep 0.2
+        _waited=$((_waited + 1))
+      done
       base="http://127.0.0.1:${_proxy_port}/v1/chat/completions"
       cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)"
     fi
