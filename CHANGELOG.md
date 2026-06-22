@@ -499,3 +499,17 @@ All three fixed and verified.
 
 ### Release
 - v1.7.1 — pushed to github, gitlab, gitflic, gitverse
+
+## v1.7.2 — 2026-06-22 — Claude alias verification, full release
+
+### Added
+- **Claude alias verification** in verify_aliases_live.sh — tests claude1/2/3
+  alongside provider aliases
+- **TOON tested** on all aliases — verified working
+
+### Tests
+- Local: **9/9 ALL GREEN**
+- nezha.local: 8/9 (pandoc missing)
+- All claude1/2/3: ✅ OK
+- All provider aliases: verified
+

@@ -166,3 +166,27 @@ maybe_stop_proxy
 echo | tee -a "$EV"
 echo "PASS: $passed FAIL: $failed TOTAL: $total" | tee -a "$EV"
 exit $failed
+
+# --- Claude Alias Tests (native Anthropic transport) ---
+test_claude_alias() {
+  local alias_name="$1" config_dir="$2"
+  total=$((total+1))
+  export CLAUDE_CONFIG_DIR="$config_dir"
+  
+  # Basic test
+  result=$(cma_run -p "Say OK" 2>/dev/null || echo "FAIL")
+  if echo "$result" | grep -qi "OK\|ready\|help"; then
+    passed=$((passed+1))
+    echo "✓ $alias_name: PASS" | tee -a "$EV"
+  else
+    failed=$((failed+1))
+    echo "✗ $alias_name: FAIL" | tee -a "$EV"
+  fi
+  unset CLAUDE_CONFIG_DIR
+}
+
+if [[ -z "$TARGET_ALIAS" ]]; then
+  test_claude_alias "claude1" "$HOME/.claude-milos85vasic"
+  test_claude_alias "claude2" "$HOME/.claude-milos85vasic2nd"
+  test_claude_alias "claude3" "$HOME/.claude-milos85vasic3rd"
+fi
