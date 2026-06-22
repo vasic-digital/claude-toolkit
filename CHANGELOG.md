@@ -482,3 +482,20 @@ All three fixed and verified.
 - Local: 8/8 ALL GREEN
 - nezha.local: 8/8 ALL GREEN
 
+
+## v1.7.1 — 2026-06-22 — Full validation + release
+
+### Fixed
+- **Port-ready check** for proxy startup — replaced `sleep 1` with polling
+  loop (`lsof -i`) ensuring proxy is listening before ccr config is written
+- **Claude alias regression test** — 11 assertions proving claudeN aliases
+  use `cma_run` (no proxy/transformer code), providers use `cma_run_provider`
+- **Command injection fix** in verify_aliases_live.sh — replaced `bash -c`
+  subshell with safe indirect expansion
+
+### Tests
+- Local: **9/9 ALL GREEN** (new: test_claude.sh — 11 assertions)
+- nezha.local: 8/9 (export fails — pandoc missing)
+
+### Release
+- v1.7.1 — pushed to github, gitlab, gitflic, gitverse
