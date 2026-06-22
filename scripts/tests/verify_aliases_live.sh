@@ -94,7 +94,10 @@ for alias_name in "${ALIASES[@]}"; do
   key=""
   if [[ -n "${!keyvar:-}" ]]; then key="${!keyvar}"
   elif [[ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then
-    key="$(bash -c "set +u; source '${CMA_KEYS_FILE:-$HOME/api_keys.sh}' 2>/dev/null; echo \"\${$keyvar:-}\"" 2>/dev/null || true)"
+    set +u
+    source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" 2>/dev/null || true
+    set -u 2>/dev/null || true
+    key="$(eval "echo \"\${$keyvar:-}\"" 2>/dev/null || true)"
   fi
   [[ -z "$key" ]] && { echo "SKIP $alias_name (no key)"; continue; }
 
