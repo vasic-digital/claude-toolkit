@@ -1,0 +1,77 @@
+Alias verification: Mon Jun 22 10:18:42 MSK 2026
+Testing 33 aliases
+--- chutes (zai-org/GLM-5.2-TEE) ---
+test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- deepseek (deepseek-reasoner) ---
+test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- deepseek2 (deepseek-v4-pro) ---
+test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- fireworks-ai (accounts/fireworks/models/glm-5p2) ---
+test1(basic)=PRECONDITION_FAILED test2(no_params)=Account milos85vasic-qmb1xfu is suspende test3(ref)=Account milos85vasic-qmb1xfu is suspende test4(cache)=Account milos85vasic-qmb1xfu is suspende test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- github-models (deepseek/deepseek-r1-0528) ---
+test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- huggingface (moonshotai/Kimi-K2.5) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'id': 'functions.c
+verdict=PASS
+--- huggingface2 (Qwen/Qwen3-Coder-Next) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- huggingface3 (moonshotai/Kimi-K2-Instruct) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- huggingface4 (Qwen/Qwen3-Next-80B-A3B-Instruct) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- inference (google/gemma-3) ---
+test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- kilo (x-ai/grok-build-0.1) ---
+test1(basic)=400 test2(no_params)=Add credits to continue, or switch to a  test3(ref)=Add credits to continue, or switch to a  test4(cache)=Add credits to continue, or switch to a  test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- kimi-for-coding (k2p7) ---
+test1(basic)=400 test2(no_params)=You've reached kimi monthly usage limit  test3(ref)=You've reached kimi monthly usage limit  test4(cache)=You've reached kimi monthly usage limit  test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- novita-ai (qwen/qwen3.7-max) ---
+test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- nvidia (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=5chunks test6(tool)=[]
+verdict=PASS
+--- nvidia2 (openai/gpt-oss-120b) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=[{'id': 'chatcmpl-to
+verdict=PASS
+--- nvidia3 (nvidia/nemotron-3-super-120b-a12b) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=[{'id': 'chatcmpl-to
+verdict=PASS
+--- nvidia4 (meta/llama-3.2-11b-vision-instruct) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'id': 'chatcmpl-to
+verdict=PASS
+--- nvidia5 (meta/llama-3.2-90b-vision-instruct) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'chatcmpl-to
+verdict=PASS
+--- opencode (north-mini-code-free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=no
+verdict=PASS
+--- opencode2 (big-pickle) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
+verdict=PASS
+--- opencode3 (nemotron-3-ultra-free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=2chunks test6(tool)=[{'type': 'function'
+verdict=PASS
+--- openrouter (google/gemini-3-pro-image) ---
+test1(basic)=402 test2(no_params)=Insufficient credits. Add more using htt test3(ref)=Insufficient credits. Add more using htt test4(cache)=Insufficient credits. Add more using htt test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- poe (claude-sonnet-4.6) ---
+test1(basic)=insufficient_quota test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- poe2 (gpt-5.5) ---
+test1(basic)=insufficient_quota test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
+--- poe3 (grok-4) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=37chunks test6(tool)=[{'id': 'call-ed2bab
+verdict=PASS
