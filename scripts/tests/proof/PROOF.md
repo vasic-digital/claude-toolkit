@@ -1,6 +1,6 @@
 # Toolkit proof of work
 
-- generated: `2026-06-26T14:56:12+0300`
+- generated: `2026-06-26T18:37:04+0300`
 - host: `Darwin 24.5.0 arm64`
 
 ## Sandbox suite (hermetic, no network)
@@ -12,18 +12,18 @@ exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 ## Live OpenCode verification (real binary + real config)
 ```
 # OpenCode live verification proof
-generated: 2026-06-26T14:56:45+0300
+generated: 2026-06-26T18:37:33+0300
 host:      Darwin 24.5.0 arm64
 opencode:  1.16.2
 config:    /Users/milosvasic/.config/opencode/opencode.json
-mcp_total=20 mcp_enabled=1 skill_paths=0
-skills_resolved=7 (threshold 200)
-mcp_connected=20 mcp_failed=0
-instructions=0
+mcp_total=136 mcp_enabled=8 skill_paths=145
+skills_resolved=1237 (threshold 200)
+mcp_connected=27 mcp_failed=0
+instructions=1
 
 result: see PASS/FAIL tally below
 ```
-result: `✗ 2 failed, 7 passed`  ·  exit code: `1`
+result: `✓ 9 passed, 0 failed`  ·  exit code: `0`
 
 ## Live provider-alias verification (real installed state)
 ```

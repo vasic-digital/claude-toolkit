@@ -79,7 +79,7 @@ cma_require python3
 # local entries use runtimes (npx/uvx) that this script confirms are present.
 # Everything else lands in the config disabled, ready to flip on after the
 # user supplies credentials / runs `opencode mcp auth <name>`.
-DEFAULT_ALLOWLIST=$'context7/context7\nmicrosoft-docs/microsoft-learn\ncloudflare/cloudflare-docs\nmintlify/Mintlify\nqt-development-skills/qt-docs\naws-dev-toolkit/awsknowledge\nappwrite/appwrite-docs\nmapbox/mapbox-docs\naws-dev-toolkit/awsiac\naws-dev-toolkit/awspricing\nshopify/shopify-mcp'
+DEFAULT_ALLOWLIST=$'context7/context7\nmicrosoft-docs/microsoft-learn\ncloudflare/cloudflare-docs\nmintlify/Mintlify\nqt-development-skills/qt-docs\naws-dev-toolkit/awsknowledge\nappwrite/appwrite-docs\nmapbox/mapbox-docs\naws-dev-toolkit/awspricing\nshopify/shopify-mcp'
 ALLOWLIST="${OPENCODE_ALLOWLIST:-$DEFAULT_ALLOWLIST}"
 
 # Which MCP runtimes are actually installed — used to decide whether a local

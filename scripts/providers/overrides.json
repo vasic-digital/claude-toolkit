@@ -29,7 +29,7 @@
   },
   "kimi-for-coding": {
     "transport": "native",
-    "base_url": "https://api.kimi.com/coding/v1",
+    "base_url": "https://api.kimi.com/coding/",
     "strong_model": "kimi-for-coding",
     "fast_model": "kimi-for-coding"
   }

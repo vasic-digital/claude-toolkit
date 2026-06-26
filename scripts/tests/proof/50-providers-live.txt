@@ -1,4 +1,4 @@
-# provider live verification — Fri Jun 26 14:58:02 MSK 2026
-providers installed: 25
+# provider live verification — Fri Jun 26 18:39:14 MSK 2026
+providers installed: 28
 ccr installed: yes
 LLMsVerifier binary: not-built

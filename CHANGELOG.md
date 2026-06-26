@@ -2,6 +2,24 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.4 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default
+
+### Fixed
+- **Kimi Code provider base URL** in `scripts/providers/overrides.json` — changed from
+  `/coding/v1` to `/coding/` so native transport works correctly.
+- **AWS IaC MCP timeout** — removed `aws-dev-toolkit/awsiac` from the default OpenCode
+  MCP allowlist in `scripts/claude-opencode-sync.sh`. The server consistently timed out
+  on connection and is now configured but disabled by default.
+
+### Changed
+- Regenerated `Claude_Multi_Account_Fine_Tuning.{html,pdf,docx}` from current markdown.
+- Refreshed proof artifacts in `scripts/tests/proof/`.
+
+### Tests
+- Local: **9/9 ALL GREEN**
+- Live OpenCode verification: **9 passed, 0 failed**, 27/27 enabled MCPs connected
+- Provider alias verification: **5 passed, 0 failed**
+
 ## v1.6.6 — 2026-06-21 — TOON integration for token-efficient prompts
 
 ### Added
