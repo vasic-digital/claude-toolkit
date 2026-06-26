@@ -1,18 +1,18 @@
 # Toolkit proof of work
 
-- generated: `2026-06-19T21:21:17+0300`
+- generated: `2026-06-26T14:56:12+0300`
 - host: `Darwin 24.5.0 arm64`
 
 ## Sandbox suite (hermetic, no network)
 ```
-Test files: 8   passed: 8   failed: 0 ALL GREEN 
+Test files: 9   passed: 9   failed: 0 ALL GREEN 
 ```
 exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 
 ## Live OpenCode verification (real binary + real config)
 ```
 # OpenCode live verification proof
-generated: 2026-06-19T21:21:32+0300
+generated: 2026-06-26T14:56:45+0300
 host:      Darwin 24.5.0 arm64
 opencode:  1.16.2
 config:    /Users/milosvasic/.config/opencode/opencode.json
