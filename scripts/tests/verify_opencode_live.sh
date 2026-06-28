@@ -32,6 +32,18 @@ if ! command -v opencode >/dev/null 2>&1; then
 fi
 
 mkdir -p "$PROOF_DIR"
+
+# Redact secrets from any text BEFORE it is written to the committed proof dir.
+# `opencode debug config` / `mcp list` echo the user's RESOLVED config, which can
+# contain literal API keys and connection-string passwords (placeholders like
+# ${VAR} are preserved). Never commit those. Filters: (1) sensitive JSON string
+# values that are not ${...} placeholders or empty; (2) user:password@ in URLs.
+cma_redact_secrets() {
+  sed -E \
+    -e 's/("(apiKey|api_key|password|secret|token|access_token)"[[:space:]]*:[[:space:]]*")([^"$][^"]*)(")/\1REDACTED\4/g' \
+    -e 's#://([^:/@ "]+):([^@/ "]{2,})@#://\1:REDACTED@#g'
+}
+
 STAMP="$(date '+%Y-%m-%dT%H:%M:%S%z')"
 {
   echo "# OpenCode live verification proof"
@@ -48,8 +60,10 @@ if [[ -n "$ver" ]]; then _pass "version: $ver"; else _fail "no version"; fi
 
 # --- 2. resolved config parses and has our keys -------------------------
 it "opencode resolves the generated config without error"
-opencode debug config >"$PROOF_DIR/10-debug-config.json" 2>"$PROOF_DIR/10-debug-config.err"
+opencode debug config >"$PROOF_DIR/10-debug-config.json.raw" 2>"$PROOF_DIR/10-debug-config.err"
 rc=$?
+cma_redact_secrets < "$PROOF_DIR/10-debug-config.json.raw" > "$PROOF_DIR/10-debug-config.json"
+rm -f "$PROOF_DIR/10-debug-config.json.raw"
 assert_eq 0 "$rc" "debug config exit"
 if jq -e . "$PROOF_DIR/10-debug-config.json" >/dev/null 2>&1; then _pass "resolved config is valid JSON"; else _fail "resolved config not JSON"; fi
 mcp_total="$(jq '.mcp | length' "$PROOF_DIR/10-debug-config.json" 2>/dev/null || true)"
@@ -76,8 +90,10 @@ else _fail "skills resolved" "got=$skills want>=$MIN_SKILLS"; fi
 
 # --- 4. enabled MCP servers connect -------------------------------------
 it "every enabled MCP server connects"
-timeout 300 opencode mcp list >"$PROOF_DIR/30-mcp-list.txt" 2>&1
-# Strip ANSI colour so parsing is robust.
+timeout 300 opencode mcp list >"$PROOF_DIR/30-mcp-list.txt.raw" 2>&1
+cma_redact_secrets < "$PROOF_DIR/30-mcp-list.txt.raw" > "$PROOF_DIR/30-mcp-list.txt"
+rm -f "$PROOF_DIR/30-mcp-list.txt.raw"
+# Strip ANSI colour so parsing is robust (30-mcp-list.txt is already redacted).
 sed -E 's/\x1b\[[0-9;]*m//g' "$PROOF_DIR/30-mcp-list.txt" > "$PROOF_DIR/31-mcp-list.clean.txt"
 connected="$(grep -c '✓' "$PROOF_DIR/31-mcp-list.clean.txt" 2>/dev/null || true)"
 failed="$(grep -c '✗' "$PROOF_DIR/31-mcp-list.clean.txt" 2>/dev/null || true)"

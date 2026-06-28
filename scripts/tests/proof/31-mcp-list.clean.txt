@@ -41,7 +41,7 @@
 │      npx -y @notionhq/notion-mcp-server
 │
 ●  ✓ postgres connected
-│      npx -y @modelcontextprotocol/server-postgres postgresql://helixagent:helixagent123@localhost:15432/helixagent_db
+│      npx -y @modelcontextprotocol/server-postgres postgresql://helixagent:REDACTED@localhost:15432/helixagent_db
 │
 ●  ✓ puppeteer connected
 │      npx -y @modelcontextprotocol/server-puppeteer

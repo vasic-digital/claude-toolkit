@@ -103,4 +103,22 @@ it "no runtime script INVOKES 'readlink -f' (absent on BSD/macOS)"
 hits="$(for f in "$SCRIPTS_DIR"/lib.sh "$SCRIPTS_DIR"/claude-*.sh; do sed 's/#.*//' "$f"; done 2>/dev/null | grep -c 'readlink -f')"
 assert_eq 0 "$hits" "zero 'readlink -f' invocations in runtime scripts"
 
+it "no committed proof artifact contains a literal secret"
+# Regression guard for the H2 incident: live proof files (opencode debug config /
+# mcp list) once committed a real API key + a DB connection-string password.
+# We count *suspect* lines rather than print them, so a failure never re-echoes a
+# secret into the test log. Provider-key prefixes + URL user:password@ are the
+# signatures; redacted placeholders carry the word REDACTED and are excluded.
+proof_dir="$SCRIPTS_DIR/tests/proof"
+if [[ -d "$proof_dir" ]]; then
+  leaks="$(grep -rIE \
+    -e '(sk-|gsk_|xai-|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{12,}' \
+    -e '://[^:/@ "]+:[^@/ "]{4,}@' \
+    "$proof_dir" 2>/dev/null | grep -vc 'REDACTED' || true)"
+  [[ -z "$leaks" ]] && leaks=0
+  assert_eq 0 "$leaks" "proof dir free of literal secrets (suspect-line count)"
+else
+  _pass "no proof dir on this host (nothing to scan)"
+fi
+
 summary

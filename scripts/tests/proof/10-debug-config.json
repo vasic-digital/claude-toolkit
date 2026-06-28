@@ -6,7 +6,7 @@
       "name": "Helix Agent",
       "options": {
         "baseURL": "http://localhost:8100/v1",
-        "apiKey": "sk-e890e68da3c98427dbf8e8fc5044a4054413110d9db0d17d50c20639bf55e78d"
+        "apiKey": "REDACTED"
       },
       "models": {
         "helix-debate": {
@@ -164,7 +164,7 @@
         "npx",
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://helixagent:helixagent123@localhost:15432/helixagent_db"
+        "postgresql://helixagent:REDACTED@localhost:15432/helixagent_db"
       ]
     },
     "puppeteer": {
