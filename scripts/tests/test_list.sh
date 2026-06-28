@@ -15,8 +15,8 @@ make_sandbox
 it "lists nothing when no accounts exist"
 out="$(run_list_accounts 2>&1)"
 [[ "$out" == *"ALIAS"* ]]; assert_eq 0 $? "header always printed"
-echo "$out" | grep -E '^\-' >/dev/null
-[[ $? -ne 0 ]]; assert_eq 0 $? "no account rows"
+echo "$out" | grep -E '^\-' >/dev/null; rc=$?
+[[ $rc -ne 0 ]]; assert_eq 0 $? "no account rows"
 
 acct1="$(make_account acct1)"
 acct2="$(make_account acct2)"

@@ -64,7 +64,7 @@ mode="$1"; shift
 # opencode, xiaomi, …) are visible from every other alias on next launch.
 mapfile -t ALL_ACCOUNTS < <(
   cma_detect_accounts
-  for _d in "$HOME"/${ACCOUNT_PREFIX}prov-*/; do
+  for _d in "$HOME/${ACCOUNT_PREFIX}"prov-*/; do
     [[ -d "$_d" ]] && echo "${_d%/}"
   done 2>/dev/null
 )

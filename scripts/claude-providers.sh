@@ -322,12 +322,12 @@ cmd_sync_multi() {
       continue
     fi
 
-    # Run model verification
+    # Run model verification — key is passed via env var (not argv) so it
+    # does not appear in /proc/<pid>/cmdline or `ps aux` on multi-user hosts.
     local verified_out="$pdir/${pid}_verified.json"
-    python3 "$MODEL_VERIFY" \
+    CMA_PROBE_KEY="$token" python3 "$MODEL_VERIFY" \
       --provider "$pid" \
       --endpoint "$verify_endpoint" \
-      --key "$token" \
       --catalog "$CACHE" \
       --concurrency "$VERIFY_CONCURRENCY" \
       --cache-file "$VERIFIED_CACHE" \

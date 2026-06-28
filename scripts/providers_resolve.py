@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""providers_resolve.py — the dynamic brain of claude-providers.
+r"""providers_resolve.py — the dynamic brain of claude-providers.
 
 Given the set of API-key variable NAMES the user has (never values), the
 cached models.dev catalog, and two small editable config files, resolve each

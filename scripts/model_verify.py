@@ -520,7 +520,6 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Verify and score all models for a provider")
     ap.add_argument("--provider", required=True, help="Provider ID")
     ap.add_argument("--endpoint", required=True, help="API base URL")
-    ap.add_argument("--key", required=True, help="API key")
     ap.add_argument("--models", default="", help="Comma-separated model IDs (empty = all from catalog)")
     ap.add_argument("--catalog", default="", help="Path to models.dev cache JSON")
     ap.add_argument("--concurrency", type=int, default=CONCURRENCY_DEFAULT)
@@ -530,6 +529,17 @@ def main(argv=None):
     ap.add_argument("--no-cache", action="store_true", help="Skip cache")
     ap.add_argument("--verbose", action="store_true", help="Verbose output")
     args = ap.parse_args(argv)
+
+    # Read API key from environment variable — never from argv (secrets must not
+    # appear in /proc/<pid>/cmdline or `ps aux` output).
+    api_key = os.environ.get("CMA_PROBE_KEY", "")
+    if not api_key:
+        print(
+            "Error: CMA_PROBE_KEY environment variable is not set. "
+            "Pass the API key via the environment, not via --key on argv.",
+            file=sys.stderr,
+        )
+        return 1
 
     # Load catalog for model metadata
     catalog_models = {}
@@ -578,7 +588,7 @@ def main(argv=None):
     results = []
     with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
         futures = {
-            pool.submit(verify_model, mid, args.provider, args.endpoint, args.key, args.timeout): mid
+            pool.submit(verify_model, mid, args.provider, args.endpoint, api_key, args.timeout): mid
             for mid in model_ids
         }
         for future in as_completed(futures):

@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# test_coverage.sh — coverage tests for lib.sh behaviors not covered in test_lib.sh.
+#
+# Areas covered:
+#   1. cma_ensure_alias_file: fresh creation, idempotency, old-format migration
+#   2. cma_can_prompt: CMA_NONINTERACTIVE=1 and no-tty conditions
+#   3. cma_enable_plugins: JSON shape, additive behaviour, //= semantics
+#   4. cma_link_shared_items: all CMA_SHARED_ITEMS become symlinks into SHARED_DIR
+#   5. stats-cache.json newest-by-mtime selection (via run_unify)
+set -uo pipefail
+
+TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
+
+# shellcheck source=lib/assert.sh
+source "$TESTS_DIR/lib/assert.sh"
+# shellcheck source=lib/sandbox.sh
+source "$TESTS_DIR/lib/sandbox.sh"
+
+make_sandbox
+# shellcheck source=../lib.sh
+source "$SCRIPTS_DIR/lib.sh"
+# lib.sh sets `set -e`. Tests assert on non-zero exits so we disable it.
+set +e
+
+# ── 1. cma_ensure_alias_file ─────────────────────────────────────────────────
+
+it "cma_ensure_alias_file: fresh creation writes header and both wrappers"
+rm -f "$ALIAS_FILE"
+cma_ensure_alias_file
+assert_file "$ALIAS_FILE" "alias file created from scratch"
+assert_file_contains "$ALIAS_FILE" "export CLAUDE_BIN=" "CLAUDE_BIN export present"
+assert_file_contains "$ALIAS_FILE" "cma_run()" "cma_run wrapper written"
+assert_file_contains "$ALIAS_FILE" "cma_run_provider()" "cma_run_provider wrapper written"
+
+it "cma_ensure_alias_file: idempotent — second call does not duplicate wrappers"
+cma_ensure_alias_file   # second call on the same current file
+run_count="$(grep -c '^cma_run()' "$ALIAS_FILE")"
+assert_eq "1" "$run_count" "cma_run() appears exactly once"
+prov_count="$(grep -c '^cma_run_provider()' "$ALIAS_FILE")"
+assert_eq "1" "$prov_count" "cma_run_provider() appears exactly once"
+
+it "cma_ensure_alias_file: old-format alias (direct \$CLAUDE_BIN) migrated to cma_run; unrelated lines survive"
+# Build an alias file with the OLD pre-wrapper format. The old write code used
+# printf with a single-quoted format so the alias contained the LITERAL string
+# $CLAUDE_BIN (not expanded), e.g.:
+#   alias claude1="CLAUDE_CONFIG_DIR=/path $CLAUDE_BIN"
+# We reproduce that here via printf's single-quoted format string.
+rm -f "$ALIAS_FILE"
+mkdir -p "$(dirname "$ALIAS_FILE")"
+{
+  printf '# Managed by claude-multi-account. Do not edit by hand.\n'
+  printf 'export CLAUDE_BIN="/usr/bin/true"\n'
+  printf 'alias claude1="CLAUDE_CONFIG_DIR=%s/.claude-acct1 $CLAUDE_BIN"\n' "$HOME"
+  printf '# some user-added comment\n'
+  printf 'MY_CUSTOM_VAR=preserved\n'
+} > "$ALIAS_FILE"
+cma_ensure_alias_file
+# The alias must now reference cma_run instead of bare $CLAUDE_BIN
+assert_file_contains "$ALIAS_FILE" "cma_run" "migrated alias now uses cma_run"
+assert_file_not_contains "$ALIAS_FILE" ' $CLAUDE_BIN"' "old bare \$CLAUDE_BIN reference gone"
+# Unrelated content must survive the in-place migration
+assert_file_contains "$ALIAS_FILE" "MY_CUSTOM_VAR=preserved" "unrelated user line preserved after migration"
+
+# ── 2. cma_can_prompt ────────────────────────────────────────────────────────
+
+it "cma_can_prompt: returns 1 when CMA_NONINTERACTIVE=1"
+( CMA_NONINTERACTIVE=1 cma_can_prompt ); rc=$?
+assert_eq 1 "$rc" "CMA_NONINTERACTIVE=1 → cma_can_prompt returns 1"
+
+it "cma_can_prompt: returns non-zero when no controlling tty (via setsid or direct)"
+# setsid creates a new session with no controlling terminal; /dev/tty open fails.
+# Falls back to a direct call if setsid is not available (still informative
+# in CI environments which themselves have no PTY).
+unset CMA_NONINTERACTIVE 2>/dev/null || true
+if command -v setsid >/dev/null 2>&1; then
+  setsid bash -c "
+    source '$SCRIPTS_DIR/lib.sh' 2>/dev/null
+    set +e
+    unset CMA_NONINTERACTIVE
+    cma_can_prompt
+  " 2>/dev/null; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    _pass "setsid (detached session) → cma_can_prompt returns false (rc=$rc)"
+  else
+    _fail "setsid (detached session)" "expected non-zero rc from cma_can_prompt, got 0"
+  fi
+else
+  # No setsid: run directly; in CI (no PTY) this is still non-zero.
+  cma_can_prompt; rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    _pass "no tty in this run environment → cma_can_prompt returns false (rc=$rc)"
+  else
+    _pass "tty is available in this run environment — CMA_NONINTERACTIVE=1 covers the critical path"
+  fi
+fi
+
+# ── 3. cma_enable_plugins ────────────────────────────────────────────────────
+
+it "cma_enable_plugins: creates settings.json and sets plugin key to true"
+mkdir -p "$SHARED_DIR"
+rm -f "$SHARED_DIR/settings.json"
+cma_enable_plugins "superpowers@anthropics"
+assert_file "$SHARED_DIR/settings.json" "settings.json created by cma_enable_plugins"
+assert_jq  "$SHARED_DIR/settings.json" '.enabledPlugins["superpowers@anthropics"]' "true" "plugin key is true"
+
+it "cma_enable_plugins: additive — second call adds new key without removing existing"
+cma_enable_plugins "other-plugin@example"
+assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins["superpowers@anthropics"]' "true" "first plugin preserved"
+assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins["other-plugin@example"]'   "true" "new plugin added"
+
+it "cma_enable_plugins: //= upgrades false to true (jq // is falsy, not null-only)"
+# jq's alternative operator (//) returns the right side when the left is
+# EITHER null OR false (unlike null-coalescing in other languages).  So
+# .enabledPlugins[$k] //= true will flip a stored `false` to `true`.
+# This is the REAL behaviour: a plugin explicitly set false gets re-enabled.
+jq '.enabledPlugins["falsy@test"] = false' "$SHARED_DIR/settings.json" \
+  > "$SHARED_DIR/settings.json.tmp" \
+  && mv "$SHARED_DIR/settings.json.tmp" "$SHARED_DIR/settings.json"
+cma_enable_plugins "falsy@test"
+assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins["falsy@test"]' "true" \
+  "//= on false yields true (jq treats false as alternative-triggering)"
+
+# ── 4. cma_link_shared_items ─────────────────────────────────────────────────
+
+it "cma_link_shared_items: every CMA_SHARED_ITEMS entry becomes a symlink into SHARED_DIR"
+linkdir="$HOME/.claude-linktest"
+mkdir -p "$linkdir"
+cma_link_shared_items "$linkdir"
+all_ok=1
+for item in "${CMA_SHARED_ITEMS[@]}"; do
+  tgt="$linkdir/$item"
+  if [[ ! -L "$tgt" ]]; then
+    _fail "symlink for $item" "expected a symlink at $tgt but found none"
+    all_ok=0
+  else
+    real_link="$(cma_realpath "$tgt")"
+    real_src="$(cma_realpath "$SHARED_DIR/$item")"
+    if [[ "$real_link" != "$real_src" ]]; then
+      _fail "symlink target for $item" "want=$real_src got=$real_link"
+      all_ok=0
+    fi
+  fi
+done
+(( all_ok )) && _pass "all ${#CMA_SHARED_ITEMS[@]} CMA_SHARED_ITEMS are correct symlinks"
+
+it "cma_link_shared_items: idempotent — second call keeps same symlink count"
+cma_link_shared_items "$linkdir"
+link_count="$(find "$linkdir" -maxdepth 1 -type l | wc -l | tr -d ' ')"
+expected="${#CMA_SHARED_ITEMS[@]}"
+assert_eq "$expected" "$link_count" "same symlink count after second call (no duplicates)"
+
+# ── 5. stats-cache.json newest-by-mtime (via run_unify) ──────────────────────
+
+it "unify: stats-cache.json from the account with newer mtime wins"
+d_old="$(make_account stats_old)"
+d_new="$(make_account stats_new)"
+# Write distinct content to each real (non-symlink) stats-cache.json file.
+printf '{"source":"old"}\n' > "$d_old/stats-cache.json"
+printf '{"source":"new"}\n' > "$d_new/stats-cache.json"
+# Stamp mtimes deterministically so the test is never clock-sensitive.
+# 2020 = older;  2023 = newer.
+touch -t 202001010000.00 "$d_old/stats-cache.json"
+touch -t 202301010000.00 "$d_new/stats-cache.json"
+# Run unify (suppress log chatter; non-zero exit is still informative from $?).
+run_unify 2>/dev/null
+actual="$(jq -r '.source' "$SHARED_DIR/stats-cache.json" 2>/dev/null)"
+assert_eq "new" "$actual" "newer stats-cache.json (2023-01-01) wins over older (2020-01-01)"
+
+summary

@@ -71,6 +71,9 @@ maybe_stop_proxy() {
   fi
 }
 
+cfg=""
+trap 'rm -f "${cfg:-}"' EXIT INT TERM
+
 for alias_name in "${ALIASES[@]}"; do
   env_file="$PDIR/$alias_name.env"
   [[ -f "$env_file" ]] || continue
@@ -101,6 +104,11 @@ for alias_name in "${ALIASES[@]}"; do
   fi
   [[ -z "$key" ]] && { echo "SKIP $alias_name (no key)"; continue; }
 
+  # Write API key to a temp config file so it never appears on argv (ps/proc visibility)
+  cfg=$(mktemp "${TMPDIR:-/tmp}/curl-cfg.XXXXXX")
+  chmod 600 "$cfg"
+  printf 'header = "Authorization: Bearer %s"\n' "$key" > "$cfg"
+
   # Build endpoint — use proxy if available
   test_url="${base_url:-}"
   maybe_start_proxy "$alias_name"
@@ -114,40 +122,40 @@ for alias_name in "${ALIASES[@]}"; do
 
   # Test 1: Basic chat completion
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 1 (basic)..." >&2
-  resp=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" -H "Authorization: Bearer $key" \
+  resp=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
     -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}]}" 2>/dev/null || echo "{}")
   code=$(echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(200 if d.get('choices') else d.get('error',{}).get('code',400))" 2>/dev/null || echo 000)
   [[ "$code" != "200" ]] && { ERRORS="${ERRORS}basic($code) "; VERDICT="FAIL"; }
 
   # Test 2: Tools missing parameters
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 2 (missing params)..." >&2
-  resp2=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" -H "Authorization: Bearer $key" \
+  resp2=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
     -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"test\",\"description\":\"test\"}}]}" 2>/dev/null || echo "{}")
   err2=$(echo "$resp2" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message',''))" 2>/dev/null || true)
   echo "$err2" | grep -qi "Field required\|parameters" && { ERRORS="${ERRORS}tools-params "; VERDICT="FAIL"; }
 
   # Test 3: Tools with $ref
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 3 (\$ref)..." >&2
-  resp3=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" -H "Authorization: Bearer $key" \
+  resp3=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
     -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"test\",\"description\":\"test\",\"parameters\":{\"type\":\"object\",\"properties\":{\"x\":{\"\$ref\":\"#/\$defs/T\"}},\"\$defs\":{\"T\":{\"type\":\"string\"}}}}}]}" 2>/dev/null || echo "{}")
   err3=$(echo "$resp3" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message',''))" 2>/dev/null || true)
   echo "$err3" | grep -qi "unresolvable\|\$ref\|\$defs" && { ERRORS="${ERRORS}dollar-ref "; VERDICT="FAIL"; }
 
   # Test 4: cache_control
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 4 (cache_control)..." >&2
-  resp4=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" -H "Authorization: Bearer $key" \
+  resp4=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
     -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\",\"cache_control\":{\"type\":\"ephemeral\"}}]}" 2>/dev/null || echo "{}")
   err4=$(echo "$resp4" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message',''))" 2>/dev/null || true)
   echo "$err4" | grep -qi "cache_control\|unknown field" && { ERRORS="${ERRORS}cache_control "; VERDICT="FAIL"; }
 
   # Test 5: Streaming
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 5 (stream)..." >&2
-  chunks=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" -H "Authorization: Bearer $key" \
+  chunks=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
     -d "{\"model\":\"$model\",\"max_tokens\":16,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"Hi\"}]}" 2>/dev/null | grep -c 'data: {"id"' || true)
 
   # Test 6: Tool calling
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 6 (tool call)..." >&2
-  resp6=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" -H "Authorization: Bearer $key" \
+  resp6=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
     -d "{\"model\":\"$model\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"Calculate 7*6\"}],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"calc\",\"description\":\"Calculate math\",\"parameters\":{\"type\":\"object\",\"properties\":{\"expr\":{\"type\":\"string\"}},\"required\":[\"expr\"]}}}]}" 2>/dev/null || echo "{}")
   has_tool=$(echo "$resp6" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('choices',[{}])[0].get('message',{}).get('tool_calls','no'))" 2>/dev/null || echo "no")
 
@@ -160,19 +168,16 @@ for alias_name in "${ALIASES[@]}"; do
   else failed=$((failed+1)); echo "✗ $alias_name: FAIL — $ERRORS"
   fi
   maybe_stop_proxy
+  rm -f "${cfg:-}"; cfg=""
 done
 maybe_stop_proxy
-
-echo | tee -a "$EV"
-echo "PASS: $passed FAIL: $failed TOTAL: $total" | tee -a "$EV"
-exit $failed
 
 # --- Claude Alias Tests (native Anthropic transport) ---
 test_claude_alias() {
   local alias_name="$1" config_dir="$2"
   total=$((total+1))
   export CLAUDE_CONFIG_DIR="$config_dir"
-  
+
   # Basic test
   result=$(cma_run -p "Say OK" 2>/dev/null || echo "FAIL")
   if echo "$result" | grep -qi "OK\|ready\|help"; then
@@ -190,3 +195,7 @@ if [[ -z "$TARGET_ALIAS" ]]; then
   test_claude_alias "claude2" "$HOME/.claude-milos85vasic2nd"
   test_claude_alias "claude3" "$HOME/.claude-milos85vasic3rd"
 fi
+
+echo | tee -a "$EV"
+echo "PASS: $passed FAIL: $failed TOTAL: $total" | tee -a "$EV"
+exit $failed

@@ -2,6 +2,72 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.8 — 2026-06-28 — Secret hygiene (argv + committed-proof leaks), dead-code fix, coverage tests
+
+Security + robustness follow-up found by a parallel multi-agent audit of v1.7.7.
+Four independent subagents fixed disjoint file sets; integration + the full
+suite + live multi-model verification were run centrally.
+
+### Security
+- **API key no longer passed on `argv`** (`model_verify.py` + `claude-providers.sh`).
+  `cmd_sync_multi` invoked `model_verify.py --key "$token"`, placing the secret
+  verbatim in `/proc/<pid>/cmdline` and `ps aux` output — readable by any user
+  on a multi-user host. The key now flows via the `CMA_PROBE_KEY` environment
+  variable (set per-command, not exported); `model_verify.py` reads it from the
+  environment and errors clearly if unset. The `--key` flag is removed entirely.
+- **API key no longer passed to `curl` on `argv`** (`verify_aliases_live.sh`).
+  Six live-probe calls used `-H "Authorization: Bearer $key"`. The header is now
+  written to a `mktemp`'d, `chmod 600` config file consumed via `curl --config`
+  (portable on GNU + BSD curl) and removed via an `EXIT/INT/TERM` trap.
+- **Leaked secrets purged from committed proof artifacts** (committed in 24bc379,
+  rolled into this release): the OpenCode live verifier wrote resolved
+  `opencode debug config` / `mcp list` output — which contained a real provider
+  key and a DB connection-string password — verbatim into the committed proof
+  dir. The three artifacts are redacted; the generator (`verify_opencode_live.sh`)
+  now redacts via `cma_redact_secrets()` before writing (raw dump → `.raw` temp →
+  redacted file → `.raw` removed). **Operator follow-up still required:** rotate
+  the leaked key and decide on a git-history scrub — the values remain in history
+  on all four remotes.
+
+### Fixed
+- **Unreachable code** in `verify_aliases_live.sh`: `exit $failed` sat *before*
+  the Claude-alias test function and its caller, making them dead (shellcheck
+  SC2317). `exit $failed` moved to the final statement.
+- **Fragile `$?` capture** in `test_list.sh`: `grep …; [[ $? -ne 0 ]]` then
+  `assert_eq 0 $?` read `$?` from the wrong command. Now captures `rc=$?`
+  immediately.
+- **Unquoted glob** in `claude-sync-state.sh:67`: `"$HOME"/${ACCOUNT_PREFIX}prov-*/`
+  → `"$HOME/${ACCOUNT_PREFIX}"prov-*/` so only the intended `*` globs.
+- **`SyntaxWarning: invalid escape sequence '\ '`** in `providers_resolve.py`:
+  the usage docstring's `\` line-continuations are now a raw string (`r"""`).
+
+### Added
+- **`test_coverage.sh`** — 11 new hermetic tests (19 assertions) covering
+  previously-untested `lib.sh` behavior: `cma_ensure_alias_file` (fresh /
+  idempotent / old-format migration preserving unrelated lines), `cma_can_prompt`
+  (`CMA_NONINTERACTIVE=1` and no-tty both non-interactive), `cma_enable_plugins`
+  (JSON shape + additive + the jq `//` falsy-vs-null upgrade), `cma_link_shared_items`
+  (every `CMA_SHARED_ITEMS` entry becomes a symlink into `$SHARED_DIR`, idempotent),
+  and `stats-cache.json` newest-by-mtime selection.
+- **Proof regression guard** (`test_lib.sh`): scans `scripts/tests/proof` for
+  provider-key prefixes and URL `user:password@` creds, counting suspect lines so
+  a failure never re-echoes a secret.
+
+### Verified
+- `scripts/tests/run-all.sh` — **10/10 ALL GREEN** locally (was 9; +`test_coverage.sh`).
+- Live multi-model verification (`claude-providers.sh sync --multi`, real HTTP
+  probes with the host's real keys): **137 models verified, 32 aliases generated**
+  across 8 providers (opencode 4, poe 33, chutes 7, huggingface 6, nvidia 30,
+  openrouter 14, siliconflow 38, xiaomi 5). Zero `CMA_PROBE_KEY`-unset and zero
+  `unbound variable` errors — the env-var key path works end-to-end. (Providers
+  with 0 verified are external: dead/paid keys, HTTP 401/402/403, WAF blocks —
+  not toolkit regressions.)
+- The new proof secret-scan guard immediately earned its keep: on first
+  cross-host run it flagged a **stale, pre-redaction proof dir on all three
+  remote hosts** (3 files with literal secrets), which were then re-synced with
+  the redacted artifacts.
+- `model_verify.py` / `providers_resolve.py` compile clean under `python3 -W error`.
+
 ## v1.7.7 — 2026-06-28 — Portable realpath (BSD portability hardening), set -u edge fix, regression tests
 
 Follow-up hardening release found by a parallel multi-agent audit of v1.7.6.
