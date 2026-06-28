@@ -419,9 +419,10 @@ cma_write_alias() {
   local alias_name="$1" config_dir="$2"
   cma_validate_alias "$alias_name"
   # config_dir is interpolated into the alias body and re-parsed by the shell
-  # when the alias is invoked. Reject shell metacharacters so a hostile path
-  # can't inject commands. Matched literally per-char (a quoted glob bracket
-  # with a space would mis-parse in `case`); spaces in paths stay allowed.
+  # when the alias is invoked. Reject shell metacharacters (injection) and
+  # whitespace (an unquoted space would word-split the alias into a bogus
+  # command — fail loud rather than write a silently-broken alias). Matched
+  # literally per-char to avoid glob-bracket pitfalls.
   local _cma_c
   for _cma_c in '"' '$' '`' \\ ';' '&' '|' '<' '>' '(' ')'; do
     case "$config_dir" in *"$_cma_c"*)
@@ -429,8 +430,8 @@ cma_write_alias() {
       return 1 ;;
     esac
   done
-  case "$config_dir" in *$'\n'*)
-    cma_warn "refusing to write alias '$alias_name': unsafe config dir"
+  case "$config_dir" in *[[:space:]]*)
+    cma_warn "refusing to write alias '$alias_name': config dir must not contain whitespace"
     return 1 ;;
   esac
   cma_ensure_alias_file
@@ -495,8 +496,12 @@ cma_enable_plugins() {
   mkdir -p "$SHARED_DIR"
   [[ -s "$settings" ]] || printf '{}\n' > "$settings"
   tmp="$(mktemp)"
-  local args=() p
-  for p in "$@"; do args+=(--arg "p$((${#args[@]}/2))" "$p"); done
+  local args=() p i=0
+  # Use a dedicated counter for the jq --arg names: each iteration appends THREE
+  # elements (--arg, "pN", value), so deriving the index from ${#args[@]} drifts
+  # (it produced p0,p1,p3,p4 for 4 plugins → $p2 undefined → jq failed silently
+  # → no plugins enabled). The counter matches the $pN refs in the prog below.
+  for p in "$@"; do args+=(--arg "p$i" "$p"); i=$((i+1)); done
   # Build a jq program that sets each provided key true if absent.
   local prog='.enabledPlugins //= {}'
   local i=0

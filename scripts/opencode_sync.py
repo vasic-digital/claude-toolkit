@@ -43,7 +43,18 @@ def sanitize(name):
 
 
 def expand_plugin_root(value, base):
-    return value.replace("${CLAUDE_PLUGIN_ROOT}", base)
+    if "${CLAUDE_PLUGIN_ROOT}" not in value:
+        return value
+    expanded = value.replace("${CLAUDE_PLUGIN_ROOT}", base)
+    # Containment: a plugin must not use ${CLAUDE_PLUGIN_ROOT}/../ to escape its
+    # own install dir — otherwise a malicious installed plugin could point
+    # OpenCode at an arbitrary path to exec. If the normalized result leaves
+    # `base`, leave the value unexpanded so it fails safe (OpenCode won't run it).
+    norm = os.path.normpath(expanded)
+    base_norm = os.path.normpath(base)
+    if norm == base_norm or norm.startswith(base_norm + os.sep):
+        return expanded
+    return value
 
 
 def has_unresolved_placeholder(env_map):

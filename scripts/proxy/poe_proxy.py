@@ -24,19 +24,24 @@ POE_URL = "https://api.poe.com/v1"
 DEFAULT_PORT = 3457
 
 
-def resolve_refs(obj, defs):
+def resolve_refs(obj, defs, _depth=0):
     """Recursively resolve $ref references in a JSON schema object."""
+    # Depth guard: a circular $ref (e.g. {"$defs":{"A":{"$ref":"#/$defs/A"}}})
+    # would otherwise recurse until Python's RecursionError. 64 is far deeper
+    # than any real tool schema; beyond it we stop resolving and return as-is.
+    if _depth > 64:
+        return obj
     if isinstance(obj, dict):
         if "$ref" in obj and isinstance(obj["$ref"], str):
             ref = obj["$ref"]
             if ref.startswith("#/$defs/"):
                 name = ref.split("/")[-1]
                 if name in defs:
-                    return resolve_refs(defs[name], defs)
+                    return resolve_refs(defs[name], defs, _depth + 1)
             return obj
-        return {k: resolve_refs(v, defs) for k, v in obj.items()}
+        return {k: resolve_refs(v, defs, _depth + 1) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [resolve_refs(item, defs) for item in obj]
+        return [resolve_refs(item, defs, _depth + 1) for item in obj]
     return obj
 
 
@@ -121,7 +126,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 # Decompress gzip if needed
                 encoding = resp.headers.get("Content-Encoding", "")
                 if encoding == "gzip":
-                    resp_body = gzip.decompress(resp_body)
+                    try:
+                        resp_body = gzip.decompress(resp_body)
+                    except Exception:
+                        pass  # corrupt/incomplete gzip — forward the raw body as-is
                 self.send_response(resp.status)
                 self.send_header("Content-Type", resp.headers.get("Content-Type", "application/json"))
                 self.end_headers()

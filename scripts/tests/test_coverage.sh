@@ -7,6 +7,8 @@
 #   3. cma_enable_plugins: JSON shape, additive behaviour, //= semantics
 #   4. cma_link_shared_items: all CMA_SHARED_ITEMS become symlinks into SHARED_DIR
 #   5. stats-cache.json newest-by-mtime selection (via run_unify)
+#   6. Security regressions: alias-injection rejection (M-1/M-2), .env quoting
+#      (M-3), broadened secret redaction (H-1)
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -169,5 +171,66 @@ touch -t 202301010000.00 "$d_new/stats-cache.json"
 run_unify 2>/dev/null
 actual="$(jq -r '.source' "$SHARED_DIR/stats-cache.json" 2>/dev/null)"
 assert_eq "new" "$actual" "newer stats-cache.json (2023-01-01) wins over older (2020-01-01)"
+
+# ── 6. Security regressions (v1.7.8 / v1.7.9 hardening) ───────────────────────
+# These lock in the injection / redaction fixes so they can never silently
+# regress. The alias body is re-parsed by the shell when the alias is invoked,
+# so a metacharacter in the provider id / config dir must be rejected at write.
+
+cma_ensure_alias_file   # make sure $ALIAS_FILE exists for the not-contains checks
+
+it "cma_provider_write_alias rejects a provider id with shell metacharacters (M-1)"
+( cma_provider_write_alias "evilp" 'poe"; touch PWN_m1; echo "' >/dev/null 2>&1 ); assert_eq 1 $? "hostile provider id rejected"
+assert_file_not_contains "$ALIAS_FILE" "PWN_m1" "hostile id never reaches the alias file"
+
+it "cma_provider_write_alias still accepts a normal provider id (no over-rejection)"
+( cma_provider_write_alias "poe2" "poe" >/dev/null 2>&1 ); assert_eq 0 $? "safe provider id accepted"
+assert_file_contains "$ALIAS_FILE" "cma_run_provider poe" "safe provider alias written"
+
+it "cma_write_alias rejects a config dir with shell metacharacters (M-2)"
+( cma_write_alias "evild" '/a"; touch PWN_m2; echo "' >/dev/null 2>&1 ); assert_eq 1 $? "hostile config dir rejected"
+assert_file_not_contains "$ALIAS_FILE" "PWN_m2" "hostile config dir never reaches the alias file"
+
+it "cma_write_alias still accepts a normal config dir (no over-rejection)"
+( cma_write_alias "wdok" "$HOME/.claude-wdok" >/dev/null 2>&1 ); assert_eq 0 $? "safe config dir accepted"
+assert_file_contains "$ALIAS_FILE" "alias wdok=" "safe config alias written"
+
+it "cma_enable_plugins enables ALL plugins when given 3+ (regression: jq --arg index)"
+# The default always-on set has 4 plugins; a prior /2-vs-/3 index bug produced
+# --arg names p0,p1,p3,p4 so $p2 was undefined and jq silently enabled NONE.
+_ep="$SHARED_DIR/settings.json"; rm -f "$_ep"
+cma_enable_plugins one two three four 2>/dev/null
+assert_eq "4" "$(jq '.enabledPlugins|length' "$_ep" 2>/dev/null)" "all 4 plugins enabled (not 0)"
+assert_eq "true" "$(jq -r '.enabledPlugins.three // "MISSING"' "$_ep" 2>/dev/null)" "the 3rd plugin (the broken index) is enabled"
+
+if command -v python3 >/dev/null 2>&1; then
+  it "providers_generate.py q() makes .env values injection-safe on source (M-3)"
+  rm -f "$HOME/PWN_m3"
+  line="$(python3 -c "
+import importlib.util
+s=importlib.util.spec_from_file_location('pg','$SCRIPTS_DIR/providers_generate.py')
+m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+ev=chr(39)+'; touch PWN_m3; echo '+chr(39)
+print([l for l in m.generate_env_content('p','','K','t','u',ev,'f','/c').splitlines() if l.startswith('CMA_PROVIDER_MODEL=')][0])
+" 2>/dev/null)"
+  ( cd "$HOME" && eval "$line" )    # sourcing the assignment must NOT run touch
+  inj=1; [[ ! -f "$HOME/PWN_m3" ]] && inj=0; assert_eq 0 "$inj" "quoted .env value does not execute on source"
+  rm -f "$HOME/PWN_m3"
+fi
+
+it "cma_redact_secrets redacts broadened secret shapes (H-1)"
+# Source just the function out of the live verifier and feed it fakes.
+eval "$(sed -n '/^cma_redact_secrets() {/,/^}/p' "$SCRIPTS_DIR/tests/verify_opencode_live.sh")"
+# shellcheck disable=SC2016  # ${...} is intentionally a literal placeholder (test input), not expanded
+red="$(printf '%s\n' \
+  '"GOOGLE": "AIzaSyFAKE0000000000000000000000000000aa"' \
+  '"HF": "hf_FAKE00000000000000000000000000000000"' \
+  '"JWT": "eyJhFAKEAAAAAAAAAA.eyJzFAKEBBBBBBBBBB.sigFAKECCCCCCCCCC"' \
+  '"keep": "${COCKROACHDB_PASSWORD}"' | cma_redact_secrets)"
+ok=1; [[ "$red" != *AIzaSy* && "$red" != *hf_FAKE* && "$red" != *eyJhFAKE* ]] && ok=0
+assert_eq 0 "$ok" "AIza / hf_ / JWT shapes all redacted"
+ph="\${COCKROACHDB_PASSWORD}"   # literal placeholder, built without a single-quoted $
+ok=1; [[ "$red" == *"$ph"* ]] && ok=0
+assert_eq 0 "$ok" "\${...} placeholder preserved (not redacted)"
 
 summary

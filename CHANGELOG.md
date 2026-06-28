@@ -2,6 +2,56 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.10 — 2026-06-28 — Round-3 audit: enable-plugins bug fix, path-traversal guards, proxy robustness
+
+Third audit round (deep dive on the less-covered surface: opencode_sync,
+claude-unify merge, the poe proxy, bootstrap). Fixes verified centrally.
+
+### Fixed
+- **`cma_enable_plugins` silently enabled NO plugins when given 3 or more**
+  (`lib.sh`). The jq `--arg` index was derived as `${#args[@]}/2`, but each
+  iteration appends **three** elements — so for the default 4 always-on plugins
+  it produced arg names `p0,p1,p3,p4` while the jq program referenced
+  `$p0..$p3`; `$p2` was undefined, jq failed, `2>/dev/null` swallowed the error,
+  and `enabledPlugins` was left empty. Replaced the derived index with a
+  dedicated counter. Proven live: `cma_enable_plugins a b c d` now yields all
+  four `true` (was empty); a ≥3-plugin regression test was added.
+
+### Security (defense-in-depth)
+- **Path traversal via unvalidated provider id** in `claude-providers.sh`
+  `cmd_show` / `cmd_remove`: `$id` was interpolated into `<dir>/$id.env` and then
+  `cat`/`rm -f`'d without validation. Now rejected unless it matches
+  `[A-Za-z0-9._-]` (blocks `../`), matching `cma_provider_write_alias`.
+- **`opencode_sync.py` `${CLAUDE_PLUGIN_ROOT}` path traversal**: a malicious
+  installed plugin could set an arg like `${CLAUDE_PLUGIN_ROOT}/../../../tmp/evil.js`
+  and `--enable-all-local` would have OpenCode exec the traversed path.
+  Expansion now lexically contains the result to the plugin dir; an escaping
+  value is left unexpanded (fails safe).
+- **`cma_write_alias` now rejects whitespace in the config dir** (`lib.sh`): an
+  unquoted space silently word-split the alias into a bogus command — now a
+  clear error instead of a broken alias.
+
+### Robustness
+- **`poe_proxy.py`**: `resolve_refs` gained a recursion-depth guard (a circular
+  `$ref` previously crashed the request handler with `RecursionError`); the
+  success-path `gzip.decompress` is now guarded like the error path, so a corrupt
+  gzip body no longer propagates.
+
+### Verified
+- `run-all.sh` **10/10 ALL GREEN** (coverage now 32 assertions incl. the
+  enable-plugins + injection regressions); **shellcheck 0**; all `.py` compile
+  under `python3 -W error`.
+- `cma_enable_plugins` fix proven live (4 plugins → all `true`); opencode
+  containment + id validation proven with PoCs. The model-verification / alias-
+  write path is unchanged from v1.7.9's live-proven 137 models / 32 aliases.
+
+### Audit (round 3) — verified clean
+`cma_merge_claude_json` private-key isolation, eval-token provenance,
+`cma_validate_alias`, proxy bind (localhost only) + no key logging, `_cma_q`
+escaping, `merge_settings_json` atomic write, history dedup, rollback NUL-safe
+traversal, bootstrap `--dir-of` injection filter. (`opencode_sync --enable-all`
+intentionally bypasses the needs-secret guard — operator opt-in, documented.)
+
 ## v1.7.9 — 2026-06-28 — Hardening round 2: injection-safe alias writes, broadened secret redaction, docs accuracy, shellcheck 0
 
 A second multi-agent audit + hardening pass on top of v1.7.8 (adversarial

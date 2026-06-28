@@ -228,6 +228,7 @@ cmd_list() {
 # --- subcommand: show -------------------------------------------------------
 cmd_show() {
   local id="${1:-}"; [[ -n "$id" ]] || cma_die "usage: claude-providers show <id>"
+  case "$id" in *[!A-Za-z0-9._-]*) cma_die "invalid provider id: $id" ;; esac
   local f; f="$(cma_providers_dir)/$id.env"
   [[ -f "$f" ]] || cma_die "no such provider: $id"
   echo "# $f"; cat "$f"
@@ -236,6 +237,7 @@ cmd_show() {
 # --- subcommand: remove -----------------------------------------------------
 cmd_remove() {
   local id="${1:-}"; [[ -n "$id" ]] || cma_die "usage: claude-providers remove <id>"
+  case "$id" in *[!A-Za-z0-9._-]*) cma_die "invalid provider id: $id" ;; esac
   local f; f="$(cma_providers_dir)/$id.env"
   [[ -f "$f" ]] || cma_die "no such provider: $id"
   local alias; alias="$(grep -E "cma_run_provider $id(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)"
