@@ -53,8 +53,13 @@ def encode_toon(data):
         return fallback_encode(data)
 
 
-def fallback_encode(data):
+def fallback_encode(data, _depth=0):
     """Simple YAML-like encoding when TOON library not available."""
+    # Depth guard: pathologically deep nesting would otherwise blow Python's
+    # recursion limit with an unhandled traceback. Beyond 64 levels emit compact
+    # JSON (a safe fallback-of-the-fallback) instead of crashing.
+    if _depth > 64:
+        return json.dumps(data)
     if isinstance(data, list):
         if all(isinstance(item, dict) for item in data) and data:
             # Tabular format
@@ -74,7 +79,7 @@ def fallback_encode(data):
         for k, v in data.items():
             if isinstance(v, (dict, list)):
                 lines.append(f"{k}:")
-                lines.append(f"  {fallback_encode(v)}")
+                lines.append(f"  {fallback_encode(v, _depth + 1)}")
             else:
                 lines.append(f"{k}: {json.dumps(v) if not isinstance(v, str) else v}")
         return "\n".join(lines)

@@ -106,6 +106,77 @@ assert_symlink_to "$acct3/projects" "$SHARED_DIR/projects" "acct3 projects linke
 assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins.d' "true" "acct3 plugin merged"
 assert_file_contains "$SHARED_DIR/history.jsonl" "cmd5" "acct3 history merged"
 
+# ── B1 / B2: absorb_default_plugins + link_default_plugin_subdirs ─────────────
+# Use an isolated SHARED_DIR/DEFAULT_DIR/ACCOUNT_PREFIX triple so these tests
+# don't interfere with the main sandbox state or the rollback assertions below.
+
+b1_sd="$SANDBOX_HOME/.claude-shared-b1"
+b1_dd="$SANDBOX_HOME/.claude-b1"
+b1_acct="$SANDBOX_HOME/.claude-b1-acct"
+mkdir -p "$b1_dd/plugins/cache/foo/1.0.0"
+printf 'hello-b1\n' > "$b1_dd/plugins/cache/foo/1.0.0/file.txt"
+mkdir -p "$b1_acct"
+printf '{"name":"b1"}\n' > "$b1_acct/.credentials.json"
+printf '{"name":"b1"}\n' > "$b1_acct/.claude.json"
+printf '{"enabledPlugins":{}}\n' > "$b1_acct/settings.json"
+SHARED_DIR="$b1_sd" DEFAULT_DIR="$b1_dd" ACCOUNT_PREFIX=".claude-b1-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+
+it "absorb_default_plugins (B1): files under DEFAULT_DIR/plugins/cache are absorbed into shared store"
+assert_file "$b1_sd/plugins/cache/foo/1.0.0/file.txt" \
+  "absorb_default_plugins: file.txt absorbed from DEFAULT_DIR/plugins/cache into SHARED_DIR"
+
+it "link_default_plugin_subdirs (B2): DEFAULT_DIR/plugins/cache becomes a symlink into shared store"
+b2_is_link=1; [[ -L "$b1_dd/plugins/cache" ]] && b2_is_link=0
+assert_eq 0 "$b2_is_link" "DEFAULT_DIR/plugins/cache is a symlink after unify"
+b2_real="$(readlink -f "$b1_dd/plugins/cache" 2>/dev/null || true)"
+assert_eq "$b1_sd/plugins/cache" "$b2_real" "symlink resolves to SHARED_DIR/plugins/cache"
+
+it "link_default_plugin_subdirs (B2 idempotent): second unify creates no additional .preunify.* backup"
+b2_pre="$(find "$b1_dd/plugins" -maxdepth 1 -name 'cache.preunify.*' 2>/dev/null | wc -l | tr -d ' ')"
+SHARED_DIR="$b1_sd" DEFAULT_DIR="$b1_dd" ACCOUNT_PREFIX=".claude-b1-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+b2_post="$(find "$b1_dd/plugins" -maxdepth 1 -name 'cache.preunify.*' 2>/dev/null | wc -l | tr -d ' ')"
+assert_eq "$b2_pre" "$b2_post" "no new .preunify.* backup created on second unify run (idempotent)"
+
+# ── B4: sync_claude_md seed branches ─────────────────────────────────────────
+# (b) DEFAULT_DIR has a real CLAUDE.md; no account CLAUDE.md.
+#     sync_claude_md should seed shared CLAUDE.md from DEFAULT_DIR.
+
+b4b_sd="$SANDBOX_HOME/.claude-shared-b4b"
+b4b_dd="$SANDBOX_HOME/.claude-b4b"
+b4b_acct="$SANDBOX_HOME/.claude-b4b-acct"
+mkdir -p "$b4b_dd" "$b4b_acct"
+printf 'default-memory\n' > "$b4b_dd/CLAUDE.md"
+printf '{"name":"b4b"}\n' > "$b4b_acct/.credentials.json"
+printf '{"name":"b4b"}\n' > "$b4b_acct/.claude.json"
+printf '{"enabledPlugins":{}}\n' > "$b4b_acct/settings.json"
+SHARED_DIR="$b4b_sd" DEFAULT_DIR="$b4b_dd" ACCOUNT_PREFIX=".claude-b4b-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+
+it "sync_claude_md (B4b): DEFAULT_DIR/CLAUDE.md seeds shared CLAUDE.md when no account has one"
+assert_file_contains "$b4b_sd/CLAUDE.md" "default-memory" \
+  "sync_claude_md: DEFAULT_DIR/CLAUDE.md content seeded into shared store"
+
+# (c) No DEFAULT_DIR CLAUDE.md; an account has a real CLAUDE.md.
+#     sync_claude_md should fall back and seed from the first account's CLAUDE.md.
+
+b4c_sd="$SANDBOX_HOME/.claude-shared-b4c"
+b4c_dd="$SANDBOX_HOME/.claude-b4c"
+b4c_acct="$SANDBOX_HOME/.claude-b4c-acct"
+mkdir -p "$b4c_dd" "$b4c_acct"
+# No CLAUDE.md in b4c_dd (the DEFAULT_DIR).
+printf 'acct2-memory\n' > "$b4c_acct/CLAUDE.md"
+printf '{"name":"b4c"}\n' > "$b4c_acct/.credentials.json"
+printf '{"name":"b4c"}\n' > "$b4c_acct/.claude.json"
+printf '{"enabledPlugins":{}}\n' > "$b4c_acct/settings.json"
+SHARED_DIR="$b4c_sd" DEFAULT_DIR="$b4c_dd" ACCOUNT_PREFIX=".claude-b4c-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+
+it "sync_claude_md (B4c): account CLAUDE.md seeds shared CLAUDE.md when DEFAULT_DIR has none"
+assert_file_contains "$b4c_sd/CLAUDE.md" "acct2-memory" \
+  "sync_claude_md: account CLAUDE.md seeded into shared store when DEFAULT_DIR lacks one"
+
 it "--rollback restores backups and archives the shared store"
 # shellcheck disable=SC2119  # test intentionally calls run_rollback with no args
 run_rollback >/dev/null 2>&1
