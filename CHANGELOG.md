@@ -2,6 +2,42 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.5 — 2026-06-28 — Cross-provider /resume session visibility fix
+
+### Fixed
+- **Cross-provider `/resume` session loss** — when switching between provider aliases
+  (e.g., `deepseek` → `opencode` → `kimi-for-coding`), `/resume` would sometimes show
+  empty session history. Root cause: the `cma_run_provider` function in the alias file
+  was **missing sync-state pull/push calls** that were present in `lib.sh`. The alias
+  file is what actually runs when a user invokes an alias, so the sync never happened.
+- **Migration for outdated alias files** — added automatic detection and regeneration
+  of outdated `cma_run_provider` functions in `lib.sh`. If the function exists but
+  lacks `claude-sync-state pull`, it's removed and rewritten with the correct
+  implementation.
+- **Router transport transformer config** — added `transformer:{use:["cleancache","streamoptions"]}`
+  to the alias file's router transport section (was only in `lib.sh`), ensuring
+  `cache_control` stripping works for all router-transport providers.
+
+### Root Cause Analysis
+The `cma_run_provider` function in `lib.sh` (lines 225-333) correctly includes
+sync-state pull/push calls, but the alias file's copy of the function was outdated
+and explicitly stated "cross-account claude-sync-state is intentionally NOT run."
+This meant:
+1. Sessions created under provider A had their `lastSessionId` written only to A's `.claude.json`
+2. When switching to provider B, B's `.claude.json` still had its own (different) `lastSessionId`
+3. `/resume` read B's `lastSessionId` and couldn't find A's session
+
+After fix: all providers/accounts share the same merged `lastSessionId` via sync-state.
+
+### Verified
+- **Local host**: all providers show identical `lastSessionId` after sync (confirmed)
+- **mistborn.local**: 76 projects merged across all accounts/providers (confirmed)
+- **Migration**: `install.sh` correctly detects and fixes outdated alias files on both hosts
+
+### Tests
+- Cross-alias session visibility (Section 5): **ALL PASS**
+- Existing test suite: session-related tests pass
+
 ## v1.7.4 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default
 
 ### Fixed

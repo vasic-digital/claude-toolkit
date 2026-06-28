@@ -219,6 +219,19 @@ EOF
   # persists secrets itself), then runs claude directly (native transport) or
   # via claude-code-router (router transport). Self-contained: the user's shell
   # sources only this alias file, not lib.sh.
+  #
+  # Migration: if cma_run_provider exists but is missing the sync-state pull
+  # call, it's an outdated version that breaks cross-provider /resume. Remove
+  # it so the correct version gets written below.
+  if grep -q '^cma_run_provider\(\)' "$ALIAS_FILE" && \
+     ! grep -q 'claude-sync-state pull' "$ALIAS_FILE"; then
+    local tmp_prov; tmp_prov="$(mktemp)"
+    # Remove everything from the cma_run_provider function definition to the
+    # end of file (it's the last function + aliases).
+    awk '/^cma_run_provider\(\)/{found=1} !found' "$ALIAS_FILE" > "$tmp_prov"
+    mv "$tmp_prov" "$ALIAS_FILE"
+    cma_log "migrated outdated cma_run_provider (added sync-state calls)"
+  fi
   if ! grep -q '^cma_run_provider\(\)' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
 
