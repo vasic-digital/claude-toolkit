@@ -70,6 +70,10 @@ fi
 cma_log "removing alias '$ALIAS_NAME' (config dir: $CONFIG_DIR)"
 
 if (( ! NONINTERACTIVE )); then
+  # Destructive op: when no terminal is available to confirm from (CI, SSH
+  # without a PTY), refuse rather than block or guess — pass --yes to proceed
+  # non-interactively.
+  cma_can_prompt || cma_die "no terminal to confirm removal; pass --yes to proceed non-interactively"
   read -r -p "Proceed? [y/N] " ans < /dev/tty
   [[ "$ans" =~ ^[Yy]$ ]] || cma_die "aborted"
 fi

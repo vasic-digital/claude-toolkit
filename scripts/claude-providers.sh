@@ -175,7 +175,13 @@ cmd_sync() {
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
       (( OFFLINE )) && vargs+=(--offline)
       # Source keys so the verifier/probe can read the secret (subshell only).
-      vstatus="$( ( [[ -f "$CMA_KEYS_FILE" ]] && set -a && . "$CMA_KEYS_FILE" && set +a; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
+      # Disable nounset while sourcing: the user-controlled keys file may
+      # contain dangling references (e.g. `export X=$UNSET`), which under the
+      # inherited `set -u` would abort the source mid-file — silently leaving
+      # every key defined after that point unexported, so those providers fail
+      # verification ("unverified") and a stream of "unbound variable" errors
+      # spams stderr. `+u` makes the source tolerant; it is subshell-local.
+      vstatus="$( ( [[ -f "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
 

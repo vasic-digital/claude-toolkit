@@ -10,6 +10,23 @@ SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 source "$TESTS_DIR/lib/sandbox.sh"
 
+# The doc-export pipeline hard-requires pandoc (cma_require pandoc) plus at
+# least one PDF engine. On hosts without that tooling (minimal servers, a
+# stock macOS), SKIP rather than fail — the feature is genuinely unavailable,
+# matching how test_opencode/verify_opencode_live SKIP when opencode is absent.
+# Engine list mirrors claude-export-docs.sh's own probe order.
+_have_pdf_engine() {
+  local e
+  for e in weasyprint wkhtmltopdf chromium chromium-browser google-chrome chrome; do
+    command -v "$e" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+if ! command -v pandoc >/dev/null 2>&1 || ! _have_pdf_engine; then
+  echo "SKIP: doc-export prerequisites (pandoc + a PDF engine) not installed"
+  exit 0
+fi
+
 make_sandbox
 mkdir -p "$HOME/Documents/scripts"
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Claude Multi-Account Fine Tuning</title>
+  <title>CHANGELOG</title>
   <style>
 
 html {
@@ -89,7 +89,6 @@ border-left: 2px solid #e6e6e6;
 color: #606060;
 }
 code {
-white-space: pre-wrap;
 font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
 font-size: 85%;
 margin: 0;
@@ -153,6 +152,7 @@ padding-left: 0;
 #TOC a:not(:hover) {
 text-decoration: none;
 }
+code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
 div.column{flex: auto; overflow-x: auto;}
@@ -166,41 +166,730 @@ margin: 0 0.8em 0.2em -1.6em;
 vertical-align: middle;
 }
 .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
 </style>
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">Claude Multi-Account Fine Tuning</h1>
-</header>
-<nav id="TOC" role="doc-toc">
-<ul>
-<li><a href="#changelog" id="toc-changelog">Changelog</a>
-<ul>
-<li><a href="#v110--2026-06-16--distributed-infrastructure--provider-verification" id="toc-v110--2026-06-16--distributed-infrastructure--provider-verification">v1.1.0
-— 2026-06-16 — Distributed infrastructure + provider verification</a>
-<ul>
-<li><a href="#added" id="toc-added">Added</a></li>
-<li><a href="#changed" id="toc-changed">Changed</a></li>
-<li><a href="#fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds" id="toc-fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds">Fixed
-(LLMsVerifier — shipped as PR #2, applied to deployed builds)</a></li>
-<li><a href="#verified-live-real-do-you-see-my-code-against-production-apis" id="toc-verified-live-real-do-you-see-my-code-against-production-apis">Verified
-live (real &quot;Do you see my code?&quot; against production APIs)</a></li>
-<li><a href="#safety" id="toc-safety">Safety</a></li>
-</ul></li>
-<li><a href="#v100--2026-06-16--dynamic-provider-alias-generator" id="toc-v100--2026-06-16--dynamic-provider-alias-generator">v1.0.0 —
-2026-06-16 — Dynamic provider-alias generator</a></li>
-</ul></li>
-</ul>
-</nav>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
-<h2 id="v110--2026-06-16--distributed-infrastructure--provider-verification">v1.1.0
+<h2 id="v1.7.6-2026-06-28-always-non-interactive-execution-alias-file-integrity-macosbash-3.2-portability-4-host-rollout">v1.7.6
+— 2026-06-28 — Always-non-interactive execution, alias-file integrity,
+macOS/bash-3.2 portability, 4-host rollout</h2>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong>Alias-file corruption from a mis-firing migration</strong> —
+<code>cma_ensure_alias_file</code>’s “outdated
+<code>cma_run_provider</code>” migration grepped for
+<code>claude-sync-state pull</code>, but the emitted on-disk text is
+<code>…/claude-sync-state&quot; pull</code> (a quote precedes the space), so
+the guard <strong>never matched</strong> and the migration fired on
+<em>every</em> alias write. Its <code>awk</code> then chopped everything
+from <code>cma_run_provider()</code> to EOF — destroying
+previously-written provider aliases and any <code>claudeN</code> aliases
+that follow the function block. This silently corrupted the alias file
+on multi-provider / multi-account hosts. Detection is now scoped to the
+function body and matches the bare command name (quote/space agnostic),
+and the migration removes <strong>only</strong> the function block,
+preserving alias lines. This was the single root cause of the failures
+across <code>test_providers.sh</code>, <code>test_claude.sh</code>, and
+<code>test_add_remove.sh</code>.</li>
+<li><strong><code>set -u</code> abort while sourcing the keys
+file</strong> — provider sync sourced <code>~/api_keys.sh</code> inside
+a <code>set -euo pipefail</code> subshell. A dangling reference in the
+user’s keys file
+(e.g. <code>export SARVAM_API_KEY=$ApiKey_Sarvam_AI_India</code>)
+aborted the source <strong>mid-file</strong> under <code>nounset</code>,
+leaving every key defined <em>after</em> it unexported — so those
+providers silently failed verification (“unverified”) and stderr was
+spammed with “unbound variable”. Keys are now sourced with
+<code>nounset</code> disabled (subshell-local in sync; save/restore
+around the alias-file <code>cma_run_provider</code>). Installed alias
+files are auto-migrated to the <code>nounset</code>-safe wrapper on next
+sync.</li>
+<li><strong>macOS / bash-3.2 portability of the test harness</strong> —
+<code>tests/run-all.sh</code> used <code>mapfile</code> (bash 4+), so
+the <strong>entire suite failed to run on stock macOS</strong>. Replaced
+with a portable <code>read</code> loop and guarded empty-array expansion
+under <code>set -u</code>. Same fix applied to <code>test_lib.sh</code>
+and <code>tests/lib/sandbox.sh</code> (empty <code>${arr[@]}</code>
+expansions are unbound on bash 3.2). The suite now runs green on macOS
+bash 3.2.</li>
+</ul>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong><code>CMA_NONINTERACTIVE</code> + automatic TTY
+detection</strong> — a new <code>cma_can_prompt</code> helper makes
+every prompt (<code>claude-add-account</code>,
+<code>claude-remove-account</code>, <code>claude-bootstrap</code>) fall
+back to its non-interactive default whenever no terminal is available
+(CI, SSH without a PTY, the test sandbox) or when
+<code>CMA_NONINTERACTIVE=1</code> is exported. Toolkit execution is now
+<strong>always non-interactive off a terminal</strong>. Destructive
+account removal still refuses (rather than guessing) without
+<code>--yes</code> when it cannot confirm.</li>
+<li><strong>Regression tests</strong> for non-interactive
+<code>claude-add-account</code> and for alias-line survival across
+repeated account adds.</li>
+<li><strong><code>test_export.sh</code> graceful SKIP</strong> when its
+prerequisites (pandoc + a PDF engine) are absent — matching the existing
+SKIP convention for optional-dependency features.</li>
+</ul>
+<h3 id="multi-host-rollout-nezha-mistborn.local-thinker.local-amber.local">Multi-host
+rollout (nezha · mistborn.local · thinker.local · amber.local)</h3>
+<ul>
+<li>Distributed <code>~/api_keys.sh</code> to every host via a
+<strong>no-loss merge</strong> (host-local keys preserved —
+e.g. mistborn kept its 2 Kimi-Platform keys; amber created fresh) and
+wired <strong>both</strong> <code>.bashrc</code> and <code>.zshrc</code>
+to source it on every host.</li>
+<li>Installed/updated the toolkit on all four hosts and configured
+<code>claude1/claude2/claude3</code> on each; installed Claude Code on
+amber.</li>
+<li>Ran live provider/model detection on every host — <strong>17–20
+active providers each</strong>, models verified via HTTP probes,
+<strong>0 unbound errors</strong>.</li>
+</ul>
+<h3 id="verified">Verified</h3>
+<ul>
+<li><code>scripts/tests/run-all.sh</code> — <strong>9/9 files, ALL GREEN
+on all four hosts</strong>: nezha (Linux), thinker (Linux), amber
+(Linux), mistborn (macOS / bash 3.2).</li>
+<li>Cross-host: both rc files source <code>api_keys.sh</code>;
+<code>claude1/2/3</code> +
+<code>poe</code>/<code>deepseek</code>/<code>xiaomi</code> aliases
+present on every host.</li>
+</ul>
+<h2 id="v1.7.5-2026-06-28-cross-provider-resume-session-visibility-fix">v1.7.5
+— 2026-06-28 — Cross-provider /resume session visibility fix</h2>
+<h3 id="fixed-1">Fixed</h3>
+<ul>
+<li><strong>Cross-provider <code>/resume</code> session loss</strong> —
+when switching between provider aliases (e.g., <code>deepseek</code> →
+<code>opencode</code> → <code>kimi-for-coding</code>),
+<code>/resume</code> would sometimes show empty session history. Root
+cause: the <code>cma_run_provider</code> function in the alias file was
+<strong>missing sync-state pull/push calls</strong> that were present in
+<code>lib.sh</code>. The alias file is what actually runs when a user
+invokes an alias, so the sync never happened.</li>
+<li><strong>Migration for outdated alias files</strong> — added
+automatic detection and regeneration of outdated
+<code>cma_run_provider</code> functions in <code>lib.sh</code>. If the
+function exists but lacks <code>claude-sync-state pull</code>, it’s
+removed and rewritten with the correct implementation.</li>
+<li><strong>Router transport transformer config</strong> — added
+<code>transformer:{use:[&quot;cleancache&quot;,&quot;streamoptions&quot;]}</code> to the
+alias file’s router transport section (was only in <code>lib.sh</code>),
+ensuring <code>cache_control</code> stripping works for all
+router-transport providers.</li>
+</ul>
+<h3 id="root-cause-analysis">Root Cause Analysis</h3>
+<p>The <code>cma_run_provider</code> function in <code>lib.sh</code>
+(lines 225-333) correctly includes sync-state pull/push calls, but the
+alias file’s copy of the function was outdated and explicitly stated
+“cross-account claude-sync-state is intentionally NOT run.” This meant:
+1. Sessions created under provider A had their
+<code>lastSessionId</code> written only to A’s <code>.claude.json</code>
+2. When switching to provider B, B’s <code>.claude.json</code> still had
+its own (different) <code>lastSessionId</code> 3. <code>/resume</code>
+read B’s <code>lastSessionId</code> and couldn’t find A’s session</p>
+<p>After fix: all providers/accounts share the same merged
+<code>lastSessionId</code> via sync-state.</p>
+<h3 id="verified-1">Verified</h3>
+<ul>
+<li><strong>Local host</strong>: all providers show identical
+<code>lastSessionId</code> after sync (confirmed)</li>
+<li><strong>mistborn.local</strong>: 76 projects merged across all
+accounts/providers (confirmed)</li>
+<li><strong>Migration</strong>: <code>install.sh</code> correctly
+detects and fixes outdated alias files on both hosts</li>
+</ul>
+<h3 id="tests">Tests</h3>
+<ul>
+<li>Cross-alias session visibility (Section 5): <strong>ALL
+PASS</strong></li>
+<li>Existing test suite: session-related tests pass</li>
+</ul>
+<h2 id="v1.7.4-2026-06-26-kimi-provider-fix-aws-iac-mcp-disabled-by-default">v1.7.4
+— 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default</h2>
+<h3 id="fixed-2">Fixed</h3>
+<ul>
+<li><strong>Kimi Code provider base URL</strong> in
+<code>scripts/providers/overrides.json</code> — changed from
+<code>/coding/v1</code> to <code>/coding/</code> so native transport
+works correctly.</li>
+<li><strong>AWS IaC MCP timeout</strong> — removed
+<code>aws-dev-toolkit/awsiac</code> from the default OpenCode MCP
+allowlist in <code>scripts/claude-opencode-sync.sh</code>. The server
+consistently timed out on connection and is now configured but disabled
+by default.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>Regenerated
+<code>Claude_Multi_Account_Fine_Tuning.{html,pdf,docx}</code> from
+current markdown.</li>
+<li>Refreshed proof artifacts in <code>scripts/tests/proof/</code>.</li>
+</ul>
+<h3 id="tests-1">Tests</h3>
+<ul>
+<li>Local: <strong>9/9 ALL GREEN</strong></li>
+<li>Live OpenCode verification: <strong>9 passed, 0 failed</strong>,
+27/27 enabled MCPs connected</li>
+<li>Provider alias verification: <strong>5 passed, 0
+failed</strong></li>
+</ul>
+<h2 id="v1.6.6-2026-06-21-toon-integration-for-token-efficient-prompts">v1.6.6
+— 2026-06-21 — TOON integration for token-efficient prompts</h2>
+<h3 id="added-1">Added</h3>
+<ul>
+<li><strong>TOON (Token-Oriented Object Notation)</strong> integration —
+saves ~40% tokens vs JSON for structured data in LLM prompts by
+declaring fields once in arrays.</li>
+<li><strong><code>scripts/toon.mjs</code></strong> — Node.js TOON
+utility (encode/decode/demo)</li>
+<li><strong><code>scripts/toon_encode.py</code></strong> — Python
+wrapper for TOON encoding</li>
+<li><strong><code>docs/TOON_Integration.md</code></strong> —
+comprehensive guide on using TOON with Claude Code</li>
+<li><strong><code>package.json</code></strong> —
+<code>@toon-format/toon</code> v2.3.0 dependency</li>
+</ul>
+<h3 id="token-savings">Token Savings</h3>
+<ul>
+<li>File listings: ~39% fewer tokens</li>
+<li>Tool definitions: ~40% fewer tokens</li>
+<li>User records: ~42% fewer tokens</li>
+<li>Accuracy: 76.4% (vs JSON’s 75.0%)</li>
+</ul>
+<h3 id="note">Note</h3>
+<p>TOON formats message CONTENT for token savings. API transport remains
+JSON (providers require it). HTTP/3 and compression require
+provider-side support.</p>
+<h3 id="tests-2">Tests</h3>
+<ul>
+<li>8/8 ALL GREEN</li>
+</ul>
+<h2 id="v1.6.5-2026-06-21-poe-proxy-fix-alias-file-install">v1.6.5 —
+2026-06-21 — Poe proxy fix (alias file + install)</h2>
+<h3 id="fixed-3">Fixed</h3>
+<ul>
+<li><strong>Poe proxy not starting from alias</strong> — proxy logic was
+only in <code>lib.sh</code>, not in the alias file’s
+<code>cma_run_provider</code> function. The alias file is what actually
+runs when a user invokes an alias. Added proxy detection + auto-start to
+the alias file.</li>
+<li><strong>install.sh: SHARE_DIR → SHARED_DIR</strong> — wrong variable
+name caused <code>unbound variable</code> error on nezha (Linux,
+<code>set -u</code>).</li>
+<li><strong>install.sh: auto-copy proxy scripts</strong> to
+<code>~/.local/share/.../proxy/</code> during install.</li>
+</ul>
+<h3 id="verified-2">Verified</h3>
+<ul>
+<li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
+<code>poe3</code> ✅</li>
+<li>Deployed to both local host and nezha.local</li>
+</ul>
+<h3 id="tests-3">Tests</h3>
+<ul>
+<li>8/8 ALL GREEN</li>
+</ul>
+<h2 id="v1.6.4-2026-06-21-poe-proxy-fix-for-tool-compatibility">v1.6.4 —
+2026-06-21 — Poe proxy fix for tool compatibility</h2>
+<h3 id="fixed-4">Fixed</h3>
+<ul>
+<li><strong>Poe tool format error</strong> — Poe requires
+<code>parameters</code> in every tool function definition. Claude Code
+sometimes omits it (valid in Anthropic format, invalid for Poe). Added
+<code>poe_proxy.py</code> that auto-fixes tools before forwarding to Poe
+API.</li>
+<li><strong>Proxy auto-start</strong> — <code>cma_run_provider</code>
+now auto-starts compatibility proxies for providers that need them
+(detected by <code>scripts/proxy/&lt;provider&gt;_proxy.py</code>).</li>
+</ul>
+<h3 id="verified-3">Verified</h3>
+<ul>
+<li>All 3 Poe aliases work through proxy: <code>poe</code> ✅,
+<code>poe2</code> ✅, <code>poe3</code> ✅</li>
+</ul>
+<h3 id="tests-4">Tests</h3>
+<ul>
+<li>8/8 ALL GREEN</li>
+</ul>
+<h2 id="v1.6.3-2026-06-21-poe-provider-382-models-3-aliases">v1.6.3 —
+2026-06-21 — Poe provider (382 models, 3 aliases)</h2>
+<h3 id="added-2">Added</h3>
+<ul>
+<li><strong>Poe provider</strong> — universal AI platform with 382
+models from all major providers. OpenAI-compatible API at
+<code>https://api.poe.com/v1</code>. Chat, code, image gen, video gen,
+TTS, STT, and more.</li>
+<li><strong>3 aliases</strong>: <code>poe</code> (claude-sonnet-4.6 +
+gpt-5.4-mini), <code>poe2</code> (gpt-5.5 + deepseek-v4-pro-e),
+<code>poe3</code> (grok-4 + gemini-3.1-pro)</li>
+<li><strong>key-aliases</strong>: <code>POE_API_KEY</code> +
+<code>ApiKey_Poe</code> → <code>poe</code></li>
+<li><strong>Tool calling verified</strong> on claude-sonnet-4.6,
+gpt-5.4-mini, deepseek-v4-pro-e, grok-4</li>
+<li><strong>382 models categorized</strong>: 130 chat/reasoning, 16
+code, 40 image gen, 17 video gen, 12 TTS, 1 STT, 166 other</li>
+<li><strong>Documentation</strong>: full Poe section in
+Provider_Aliases_User_Guide.md</li>
+</ul>
+<h3 id="verified-4">Verified</h3>
+<ul>
+<li>API endpoint responds correctly</li>
+<li>Authentication works</li>
+<li>Tool calling confirmed</li>
+<li>All 3 aliases tested through ccr with “Do you see our codebase?” —
+all YES</li>
+</ul>
+<h2 id="v1.6.2-2026-06-21-chutes-provider-documentation-model-update">v1.6.2
+— 2026-06-21 — Chutes provider documentation + model update</h2>
+<h3 id="changed-1">Changed</h3>
+<ul>
+<li><strong>Chutes provider models updated</strong> — catalog was stale.
+Chutes now offers 13 TEE (Trusted Execution Environment) models. Updated
+strong=<code>zai-org/GLM-5.2-TEE</code>,
+fast=<code>Qwen/Qwen3.6-27B-TEE</code>.</li>
+<li><strong>Chutes documentation</strong> added to
+Provider_Aliases_User_Guide.md with full model table, TEE explanation,
+pay-per-use note, and setup instructions.</li>
+</ul>
+<h3 id="verified-5">Verified</h3>
+<ul>
+<li>Chutes API endpoint responds correctly</li>
+<li>All 13 TEE models accessible (require funded account for actual
+inference)</li>
+<li>OpenAI-compatible format confirmed at
+<code>https://llm.chutes.ai/v1</code></li>
+</ul>
+<h2 id="v1.6.1-2026-06-21-cache_control-fix-e2e-tests">v1.6.1 —
+2026-06-21 — cache_control fix + E2E tests</h2>
+<h3 id="fixed-5">Fixed</h3>
+<ul>
+<li><strong><code>cache_control</code> parameter error</strong> — Claude
+Code sends <code>cache_control</code> (Anthropic-specific) in its API
+requests. ccr forwarded this to OpenAI-compatible endpoints which reject
+it with HTTP 422. Fixed by adding ccr’s built-in <code>cleancache</code>
+transformer to every provider config, which strips
+<code>cache_control</code> before forwarding to the provider.</li>
+</ul>
+<h3 id="added-3">Added</h3>
+<ul>
+<li><strong><code>alias_e2e_test.py</code></strong> — end-to-end alias
+verification script that tests each alias by sending requests through
+ccr and verifying responses work without errors.</li>
+</ul>
+<h3 id="verified-working-all-aliases-tested-with-do-you-see-our-codebase">Verified
+working (all aliases tested with “Do you see our codebase?”)</h3>
+<ul>
+<li><code>opencode</code> (north-mini-code-free): ✅ YES</li>
+<li><code>opencode2</code> (big-pickle): ✅ YES</li>
+<li><code>opencode3</code> (nemotron-3-ultra-free): ✅ YES</li>
+<li><code>deepseek</code> (native transport): ✅ YES</li>
+<li><code>deepseek2</code> (router transport): ✅ YES</li>
+<li><code>xiaomi</code> (native transport): ✅ YES</li>
+<li><code>zai-coding-plan</code> (router transport): ✅ YES</li>
+</ul>
+<h2 id="v1.6.0-2026-06-21-multi-alias-provider-system">v1.6.0 —
+2026-06-21 — Multi-alias provider system</h2>
+<h3 id="added-4">Added</h3>
+<ul>
+<li><strong>Multi-alias provider system</strong> — every provider can
+now have multiple aliases (<code>provider</code>,
+<code>provider2</code>, <code>provider3</code>…) exposing ALL working
+models, not just the top 2. Verified via live HTTP probes with
+anti-bluff detection.</li>
+<li><strong><code>model_verify.py</code></strong> — comprehensive model
+verification &amp; scoring engine. Tests every model for a provider via
+HTTP probes, scores on 7 dimensions (existence 25pts, tool_call 20pts,
+reasoning 15pts, context_window 15pts, streaming 10pts, latency 10pts,
+free_tier 5pts). Anti-bluff detection prevents false positives (HTTP 200
+with error body, empty responses, boilerplate errors). 24h verification
+cache to avoid re-testing.</li>
+<li><strong><code>providers_generate.py</code></strong> — multi-alias
+generation from verified models. Pairs models into alias groups of 2
+(strong + fast), handles odd count (last model reused for both
+positions), single model (used for both positions). Generates env files,
+shell aliases, and overrides.json entries.</li>
+<li><strong><code>claude-providers.sh --multi</code></strong> — new flag
+for <code>sync</code> that triggers the full verification + multi-alias
+generation pipeline. Additional flags: <code>--max-aliases</code>
+(default 5), <code>--min-score</code> (default 25),
+<code>--verify-concurrency</code> (default 5).</li>
+<li><strong>Endpoint normalization</strong> — <code>/anthropic</code>
+endpoints auto-converted to <code>/v1</code> for OpenAI-compatible
+probing during verification.</li>
+<li><strong>Submodules updated</strong> to helix_translate-2.3.1:
+LLMsVerifier (ModelVerifier, Seed, xiaomi provider), challenges
+(anti-bluff §11.4, chaos/stress tests), containers (deploy-stack).</li>
+</ul>
+<h3 id="changed-2">Changed</h3>
+<ul>
+<li>Probe <code>max_tokens</code> increased from 32 to 128 — reasoning
+models need more tokens for chain-of-thought + response (was causing
+false anti-bluff rejections).</li>
+<li><code>User-Agent</code> header added to HTTP probes (some APIs
+require it).</li>
+</ul>
+<h3 id="full-test-suite">Full test suite</h3>
+<ul>
+<li>8/8 test files passed (ALL GREEN), 0 failures.</li>
+</ul>
+<h3 id="usage">Usage</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard sync (2 models per provider, as before)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-alias sync (verify ALL models, create multiple aliases)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># With options</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
+<h2 id="v1.5.1-2026-06-20-linux-stat-fix-nezha-deployment">v1.5.1 —
+2026-06-20 — Linux stat fix + nezha deployment</h2>
+<h3 id="fixed-6">Fixed</h3>
+<ul>
+<li><strong><code>stat -f %m</code> on Linux</strong> — the mtime cache
+check in <code>claude-providers.sh</code> used
+<code>stat -f %m || stat -c %Y</code> as an <code>||</code> chain. On
+Linux, <code>stat -f</code> succeeds (returning filesystem info, not
+mtime), so both outputs merged into garbage
+(<code>&quot;File: ...1781634386&quot;</code>), causing
+<code>File: unbound variable</code> under <code>set -u</code>. Fixed
+with <code>case &quot;$(uname -s)&quot;</code> to pick the correct flag per
+platform.</li>
+</ul>
+<h3 id="deployment">Deployment</h3>
+<ul>
+<li><strong>nezha.local</strong> (Linux x86_64) deployed and verified:
+19 providers activated, 100/100 provider tests pass, 5/5 live verifier
+pass, cross-alias sync confirmed. Evidence in
+<code>scripts/tests/proof/90-nezha-deployment.txt</code>.</li>
+</ul>
+<h3 id="full-test-suite-1">Full test suite</h3>
+<ul>
+<li>macOS: 8/8 ALL GREEN</li>
+<li>Linux (nezha): 7/8 pass (export fails: pandoc not installed —
+pre-existing)</li>
+</ul>
+<h2 id="v1.5.0-2026-06-20-cross-alias-session-visibility">v1.5.0 —
+2026-06-20 — Cross-alias session visibility</h2>
+<h3 id="added-5">Added</h3>
+<ul>
+<li><strong>Cross-alias session visibility</strong> — sessions created
+under ANY alias (<code>claudeN</code>, <code>deepseek</code>,
+<code>opencode</code>, <code>xiaomi</code>, etc.) are now visible from
+every other alias via <code>/resume</code>. Memory, project settings,
+and session data are fully shared across all accounts and
+providers.</li>
+<li><strong><code>claude-sync-state.sh</code> extended</strong> — now
+discovers provider dirs (<code>~/.claude-prov-*</code>) alongside
+account dirs for its <code>.claude.json</code> merge. Provider sessions
+participate in the same lightweight jq merge that keeps account sessions
+in sync.</li>
+<li><strong><code>cma_run_provider</code> sync-state hooks</strong> —
+the provider wrapper now calls <code>claude-sync-state pull</code>
+before launch and <code>claude-sync-state push</code> after exit,
+matching the <code>cma_run</code> pattern. Previously provider sessions
+were intentionally excluded from sync; now they participate fully.</li>
+<li><strong>Sandbox test coverage</strong>: 10 new assertions proving
+cross-alias merge (sessions from account→provider, provider→account,
+account→account all visible after sync). Providers test 90 → 100
+assertions.</li>
+<li><strong>Live verification</strong>: <code>lastSessionId</code> for a
+real project confirmed identical across all dirs (3 accounts + 1
+provider). 61 projects merged in every <code>.claude.json</code>.
+Evidence in
+<code>scripts/tests/proof/80-cross-alias-sessions.txt</code>.</li>
+</ul>
+<h3 id="changed-3">Changed</h3>
+<ul>
+<li><code>scripts/claude-sync-state.sh</code> — provider dirs included
+in merge targets</li>
+<li><code>scripts/lib.sh</code> — <code>cma_run_provider</code> wrapper
+updated with sync-state pull/push</li>
+<li>Alias file <code>aliases.sh</code> — updated
+<code>cma_run_provider</code> function (re-installed)</li>
+</ul>
+<h3 id="full-test-suite-2">Full test suite</h3>
+<ul>
+<li>8/8 test files passed (ALL GREEN), 0 failures. Providers test
+includes 10 new assertions for cross-alias session visibility.</li>
+</ul>
+<h3 id="how-it-works">How it works</h3>
+<ol type="1">
+<li><code>claude-sync-state pull</code> merges every account’s +
+provider’s <code>.claude.json</code> into the launching dir before
+Claude Code starts (including <code>lastSessionId</code>,
+<code>allowedTools</code>, MCP config, etc.).</li>
+<li>Claude Code launches with the merged state — <code>/resume</code>
+sees all sessions.</li>
+<li><code>claude-sync-state push</code> merges the post-session
+<code>.claude.json</code> back out after exit, so the next alias to
+launch picks up the new session.</li>
+<li>The <code>sessions/</code> directory was already shared via symlink
+— this release ensures <code>.claude.json</code> project settings are
+also merged.</li>
+</ol>
+<h3 id="performance">Performance</h3>
+<ul>
+<li>Adds ~1-2 seconds overhead per provider launch (jq merge of
+<code>.claude.json</code> across all dirs). Same overhead that
+<code>claudeN</code> aliases already have.</li>
+</ul>
+<h2 id="v1.4.0-2026-06-20-opencode-zen-provider-alias">v1.4.0 —
+2026-06-20 — OpenCode Zen provider alias</h2>
+<h3 id="added-6">Added</h3>
+<ul>
+<li><strong><code>opencode</code> provider alias</strong> — <a href="https://opencode.ai/zen">OpenCode Zen</a> curated AI gateway with
+<strong>21 free models</strong> (all $0 cost, all support tool calling +
+reasoning) and 49 paid models. The alias uses <strong>router
+transport</strong> (ccr) targeting the OpenAI-compatible endpoint
+<code>https://opencode.ai/zen/v1/chat/completions</code>.</li>
+<li><strong>Model overrides</strong>: strong = <code>big-pickle</code>
+(free stealth model, 200K context, reasoning + tool_call), fast =
+<code>deepseek-v4-flash-free</code> (free, 200K context, reasoning +
+tool_call). Pinning is deliberate — auto-selection would pick
+<code>nemotron-3-ultra-free</code> (1M ctx) as strong and
+<code>trinity-large-preview-free</code> (131K, no reasoning) as fast,
+both suboptimal for coding workloads.</li>
+<li><strong>key-aliases.json mappings</strong>: <code>ZEN_API_KEY</code>
+→ <code>opencode</code> and <code>ApiKey_Opencode_Zen</code> →
+<code>opencode</code> (both key vars present in the user’s keys
+file).</li>
+<li><strong>overrides.json pin</strong>:
+<code>strong_model=big-pickle</code>,
+<code>fast_model=deepseek-v4-flash-free</code> (no transport/base_url
+override needed — catalog values are correct).</li>
+<li><strong>Sandbox test coverage</strong>: resolver tests (key-alias
+mapping for both key vars, router transport from
+<code>@ai-sdk/openai-compatible</code> npm, zen/v1 base_url from
+catalog, model override beats auto-selection, stale-model-never-selected
+guards) + sync e2e tests (env file, alias, config-dir + plugins symlink,
+account-detection exclusion, idempotency, no-secret-leak). Providers
+test 69 → 90 assertions.</li>
+<li><strong>Live endpoint verification</strong>:
+<code>GET /v1/models</code> HTTP 200;
+<code>POST /v1/chat/completions</code> round trip HTTP 200 with correct
+text for <code>big-pickle</code> (stealth, cost=$0, reasoning_content
+present) and <code>deepseek-v4-flash-free</code> (cost=$0); additional
+free models (<code>mimo-v2.5-free</code>,
+<code>nemotron-3-ultra-free</code>, <code>north-mini-code-free</code>)
+all HTTP 200 with cost=$0. Evidence in
+<code>scripts/tests/proof/70-zen-live.txt</code> (secret-free).</li>
+<li><strong>Docs</strong>: dedicated <code>opencode</code> section in
+<code>docs/Provider_Aliases_User_Guide.md</code> (full free models
+table, setup, usage, live-verified notes, stealth model
+explanation).</li>
+</ul>
+<h3 id="changed-4">Changed</h3>
+<ul>
+<li><code>scripts/providers/key-aliases.json</code> and
+<code>scripts/providers/overrides.json</code> extended with the
+<code>opencode</code> entries (config-only; no code changes — same
+dynamic pattern as Xiaomi v1.3.0 / Z.AI v1.2.0 / DeepSeek).</li>
+</ul>
+<h3 id="full-test-suite-3">Full test suite</h3>
+<ul>
+<li>8/8 test files passed (ALL GREEN), 0 failures. Providers test
+includes 21 new assertions for <code>opencode</code>.</li>
+</ul>
+<h3 id="honest-notes">Honest notes</h3>
+<ul>
+<li>The alias uses router transport (ccr) because Zen’s free models use
+OpenAI-compatible format (<code>/v1/chat/completions</code>), not
+Anthropic native format. This adds a ccr dependency that
+native-transport aliases (deepseek, xiaomi) don’t have.</li>
+<li>Big Pickle is a stealth model — the actual model served may vary
+(observed as deepseek-v4-flash). This is by design per OpenCode’s
+documentation.</li>
+<li>The same pre-existing <code>~/api_keys.sh</code> set -u issue
+affects the in-process verifier for all providers; authoritative proof
+is the direct HTTP round trip.</li>
+<li>The 2 pre-existing, environmental opencode-skill-discovery failures
+in <code>run-proof.sh</code> remain unchanged (unrelated to this
+work).</li>
+</ul>
+<h2 id="v1.3.0-2026-06-19-xiaomi-mimo-provider-alias">v1.3.0 —
+2026-06-19 — Xiaomi MiMo provider alias</h2>
+<h3 id="added-7">Added</h3>
+<ul>
+<li><strong><code>xiaomi</code> provider alias</strong> — Xiaomi MiMo
+via the <strong>Anthropic-native endpoint</strong>
+<code>https://api.xiaomimimo.com/anthropic</code>
+(<code>POST /anthropic/v1/messages</code>). Unlike most providers in
+this toolkit, MiMo exposes a genuine native Anthropic endpoint that
+accepts <code>Authorization: Bearer</code>, so the alias uses
+<strong>native transport</strong> with no
+<code>claude-code-router</code> (<code>ccr</code>) dependency — the same
+direct-launch model as <code>deepseek</code>.</li>
+<li><strong>Model overrides</strong>: strong =
+<code>mimo-v2.5-pro</code> (flagship, 1M context, reasoning, tool-call),
+fast = <code>mimo-v2-flash</code> (256K, cheapest tier). Pinning is
+deliberate — models.dev lists a <code>mimo-v2.5-pro-ultraspeed</code> id
+the <strong>live API does not serve</strong>, so the override guarantees
+only live-served ids are used.</li>
+<li><strong>key-aliases.json mapping</strong>:
+<code>XIAOMI_MIMO_API_KEY</code> → <code>xiaomi</code> (the user’s
+key-var name does not match the models.dev provider’s documented
+<code>XIAOMI_API_KEY</code> env).</li>
+<li><strong>overrides.json pin</strong>: native transport,
+<code>/anthropic</code> base_url, <code>mimo-v2.5-pro</code> /
+<code>mimo-v2-flash</code>.</li>
+<li><strong>Sandbox test coverage</strong>: resolver tests (key-alias
+mapping, override forces native transport, <code>/anthropic</code>
+base_url beats catalog <code>/v1</code>, model pinning beats the stale
+<code>ultraspeed</code> entry, stale-id-never-selected guard) + sync e2e
+tests (env file, alias, config-dir + plugins symlink, account-detection
+exclusion, idempotency, no-secret-leak). Providers test 60 → 69
+assertions.</li>
+<li><strong>Live endpoint verification</strong>:
+<code>GET /v1/models</code> HTTP 200 (10 models); native
+<code>/anthropic/v1/messages</code> round trip HTTP 200 with correct
+text for both <code>mimo-v2.5-pro</code> and <code>mimo-v2-flash</code>;
+tool calling proven (<code>finish_reason: tool_calls</code>
+<ul>
+<li><code>reasoning_content</code>); streaming confirmed. Evidence in
+<code>scripts/tests/proof/60-xiaomi-live.txt</code> (secret-free).</li>
+</ul></li>
+<li><strong>Docs</strong>: dedicated <code>xiaomi</code> section in
+<code>docs/Provider_Aliases_User_Guide.md</code> (model table, setup,
+usage, live-verified notes).</li>
+</ul>
+<h3 id="changed-5">Changed</h3>
+<ul>
+<li><code>scripts/providers/key-aliases.json</code> and
+<code>scripts/providers/overrides.json</code> extended with the
+<code>xiaomi</code> entries (config-only; no code changes — same dynamic
+pattern as Z.AI v1.2.0 / DeepSeek).</li>
+</ul>
+<h3 id="full-test-suite-4">Full test suite</h3>
+<ul>
+<li>8/8 test files passed (ALL GREEN), 0 failures. Providers test
+includes 9 new assertions for <code>xiaomi</code>. Live provider
+verifier 5/5 PASS.</li>
+</ul>
+<h3 id="honest-notes-1">Honest notes</h3>
+<ul>
+<li>The only failures in the repo’s <code>run-proof.sh</code> are 2
+<strong>pre-existing, environmental</strong> opencode-skill-discovery
+checks, unrelated to Xiaomi (zero opencode files changed by this
+release; they fail identically when run standalone).</li>
+<li>The in-process LLMsVerifier step reports <code>(unverified)</code>
+for every provider because <code>~/api_keys.sh</code> has a pre-existing
+unrelated <code>unbound variable</code> on a different provider’s key
+under <code>set -u</code>; authoritative proof is the direct
+native-endpoint round trip (HTTP 200), recorded in the evidence
+file.</li>
+</ul>
+<h2 id="v1.2.0-2026-06-19-z.ai-coding-plan-provider-alias">v1.2.0 —
+2026-06-19 — Z.AI Coding Plan provider alias</h2>
+<h3 id="added-8">Added</h3>
+<ul>
+<li><strong><code>zai-coding-plan</code> provider alias</strong> —
+OpenAI-compatible router transport via
+<code>https://api.z.ai/api/coding/paas/v4</code> (Coding Max-Yearly Plan
+endpoint).</li>
+<li><strong>Model overrides</strong>: strong = <code>glm-5.2</code>
+(flagship 1M context reasoning model, free on plan), fast =
+<code>glm-4.7</code> (204k context, tool_call, 0 cost).</li>
+<li><strong>key-aliases.json mapping</strong>: <code>ZAI_API_KEY</code>
+→ <code>zai-coding-plan</code> (targets the coding plan API endpoint
+instead of the general <code>z.ai</code> paas endpoint).</li>
+<li><strong>overrides.json pin</strong>: overrides auto-selected
+strong/fast models for the coding plan.</li>
+<li><strong>Sandbox test coverage</strong>: resolver tests (env-key
+matching, coding endpoint, router transport, glm-5.2/glm-4.7 model
+selection) + sync e2e tests (env file, alias, model overrides).</li>
+<li><strong>Live endpoint verification</strong>: HTTP 200 at
+<code>/models</code> (8 models discovered), curl test of
+<code>glm-4.7</code> chat completion confirmed operational.</li>
+<li><strong>ccr integration</strong>: provider auto-registered in
+<code>~/.claude-code-router/config.json</code> as the active default
+route.</li>
+</ul>
+<h3 id="changed-6">Changed</h3>
+<ul>
+<li><code>overrides.json</code> extended with
+<code>zai-coding-plan</code> section for model pinning.</li>
+</ul>
+<h3 id="full-test-suite-5">Full test suite</h3>
+<ul>
+<li>8/8 test files passed (ALL GREEN), 0 failures. Provider tests
+include 5 new assertions for <code>zai-coding-plan</code>.</li>
+</ul>
+<h2 id="v1.1.0-2026-06-16-distributed-infrastructure-provider-verification">v1.1.0
 — 2026-06-16 — Distributed infrastructure + provider verification</h2>
 <p>Headline: stand up the full LLMsVerifier System on a remote host for
 heavy testing against <strong>real production LLM services</strong>,
 plus end-to-end provider aliases proven on two hosts and two
 transports.</p>
-<h3 id="added">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li><strong><code>containers</code> + <code>challenges</code>
 submodules</strong> (<code>submodules/</code>) — the distributed-boot
@@ -235,7 +924,7 @@ included).</li>
 verification proofs, endpoint coverage, security posture, observability,
 per-provider sweeps, dual-host end-to-end alias proofs.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-7">Changed</h3>
 <ul>
 <li><strong>Provider session accent color: orange → purple</strong>
 across spec, guide, and the long-form doc. (Claude Code 2.1.178 cannot
@@ -247,7 +936,7 @@ persist a default <code>/color</code>, so this is the documented default
 <li><code>claude-export-docs</code> now also emits <strong>DOCX</strong>
 (HTML/PDF/DOCX).</li>
 </ul>
-<h3 id="fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds">Fixed
+<h3 id="fixed-llmsverifier-shipped-as-pr-2-applied-to-deployed-builds">Fixed
 (LLMsVerifier — shipped as PR #2, applied to deployed builds)</h3>
 <ul>
 <li><strong>Auth header missing</strong> — verification requests sent no
@@ -270,14 +959,14 @@ Prometheus).</li>
 isolated provider dirs.</li>
 </ul>
 <h3 id="verified-live-real-do-you-see-my-code-against-production-apis">Verified
-live (real &quot;Do you see my code?&quot; against production APIs)</h3>
+live (real “Do you see my code?” against production APIs)</h3>
 <ul>
 <li><strong>9 providers verified:</strong> DeepSeek, Groq, Mistral,
 Cerebras, Novita, NVIDIA, Cohere, Codestral, HuggingFace.</li>
 <li><strong>Both transports, both hosts:</strong> native (DeepSeek) +
 router (Novita via ccr) on macOS and on nezha.</li>
 <li>Account-side failures (402/401/429/403) and non-OpenAI providers
-documented honestly; excluded under &quot;valid users only&quot; but kept fully
+documented honestly; excluded under “valid users only” but kept fully
 supported.</li>
 </ul>
 <h3 id="safety">Safety</h3>
@@ -288,13 +977,147 @@ detection — existing <code>claudeN</code> accounts and
 <li>Secrets only in the keys file + on-host mode-600 <code>.env</code>;
 never in the repo. All published ports bound to loopback.</li>
 </ul>
-<h2 id="v100--2026-06-16--dynamic-provider-alias-generator">v1.0.0 —
+<h2 id="v1.0.0-2026-06-16-dynamic-provider-alias-generator">v1.0.0 —
 2026-06-16 — Dynamic provider-alias generator</h2>
 <p>First tagged release. <code>claude-providers</code> creates
 per-provider Claude Code aliases (DeepSeek, Groq, GLM, …) from your keys
-file pointed at each provider&#39;s strongest model — fully dynamic via
+file pointed at each provider’s strongest model — fully dynamic via
 models.dev + the LLMsVerifier submodule, hybrid
 native/claude-code-router transport, full lifecycle + tests + docs. See
 <code>docs/Provider_Aliases_User_Guide.md</code>.</p>
+<h2 id="v1.6.7-2026-06-21-poe-proxy-fix-for-all-aliases">v1.6.7 —
+2026-06-21 — Poe proxy fix for all aliases</h2>
+<h3 id="fixed-7">Fixed</h3>
+<ul>
+<li><strong>Poe proxy not starting for poe2/poe3</strong> — proxy
+detection used exact provider ID (<code>poe2_proxy.py</code>) which
+doesn’t exist. Fixed to check base name too (<code>poe_proxy.py</code>
+for poe2, poe3 aliases).</li>
+<li><strong>lib.sh</strong>: base proxy detection with
+<code>${CMA_PROVIDER_ID%%[0-9]*}</code></li>
+<li><strong>alias file</strong>: same fix applied</li>
+</ul>
+<h3 id="verified-6">Verified</h3>
+<ul>
+<li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
+<code>poe3</code> ✅</li>
+<li>Deployed to both local host and nezha.local</li>
+</ul>
+<h3 id="tests-5">Tests</h3>
+<ul>
+<li>Local: 8/8 ALL GREEN</li>
+<li>nezha.local: 7/8 (pandoc missing — pre-existing)</li>
+</ul>
+<h2 id="v1.6.8-2026-06-21-poe-proxy-gzip-fix">v1.6.8 — 2026-06-21 — Poe
+proxy gzip fix</h2>
+<h3 id="fixed-8">Fixed</h3>
+<ul>
+<li><strong>Poe proxy gzip decompression</strong> — Poe API returns
+gzip-compressed responses but the proxy tried to read them as UTF-8
+without decompressing, causing UnicodeDecodeError. Added gzip
+decompression for both success and error responses.</li>
+</ul>
+<h3 id="verified-7">Verified</h3>
+<ul>
+<li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
+<li><code>poe2</code> (gpt-5.5): ✅ YES</li>
+<li><code>poe3</code> (grok-4): ❌ Different error (Grok-4 schema
+validation, not tools format)</li>
+</ul>
+<h3 id="tests-6">Tests</h3>
+<ul>
+<li>Local: 8/8 ALL GREEN</li>
+<li>nezha.local: 8/8 ALL GREEN</li>
+</ul>
+<h2 id="v1.6.9-2026-06-21-poe-proxy-ref-fix-for-grok-4">v1.6.9 —
+2026-06-21 — Poe proxy $ref fix for Grok-4</h2>
+<h3 id="fixed-9">Fixed</h3>
+<ul>
+<li>**Poe proxy <span class="math inline">$ref resolution** — Claude
+Code sends tool schemas with `$</span>ref<code>references to</code><span class="math inline">$defs`. Grok-4 and some providers don&#39;t support
+`$</span>ref<code>in tool schemas. Added</code>resolve_refs()<code>function that extracts</code><span class="math inline">$defs`,
+resolves all
+`$</span>ref<code>references to inline definitions, and removes</code>$defs`.</li>
+</ul>
+<h3 id="verified-8">Verified</h3>
+<ul>
+<li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
+<li><code>poe2</code> (gpt-5.5): ✅ YES</li>
+<li><code>poe3</code> (grok-4): ✅ YES (was failing, now works)</li>
+</ul>
+<h3 id="tests-7">Tests</h3>
+<ul>
+<li>Local: 8/8 ALL GREEN</li>
+<li>nezha.local: 8/8 ALL GREEN</li>
+</ul>
+<h2 id="v1.7.0-2026-06-22-poe-proxy-complete-fix-all-aliases-verified">v1.7.0
+— 2026-06-22 — Poe proxy complete fix (all aliases verified)</h2>
+<h3 id="fixed-10">Fixed</h3>
+<ul>
+<li><strong>Poe proxy shared directory</strong> — the proxy at
+<code>~/.local/share/.../proxy/poe_proxy.py</code> was the OLD version
+without gzip and $ref fixes. install.sh copies from scripts/ but the
+shared dir still had the old version. Fixed by ensuring updated proxy is
+copied to shared directory.</li>
+<li><strong>install.sh</strong> now copies proxy scripts during
+installation (already in place)</li>
+</ul>
+<h3 id="verified-all-three-aliases-through-full-claude-code-flow">Verified
+(all three aliases through full Claude Code flow)</h3>
+<ul>
+<li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
+<li><code>poe2</code> (gpt-5.5): ✅ YES</li>
+<li><code>poe3</code> (grok-4): ✅ YES</li>
+</ul>
+<h3 id="root-cause-analysis-1">Root Cause Analysis</h3>
+<p>The proxy had three issues: 1. <strong>gzip</strong> — Poe returns
+gzip-compressed responses, proxy didn’t decompress 2.
+<strong>$ref</strong> — Claude Code sends tool schemas with $ref, Grok-4
+doesn’t support them 3. <strong>shared dir</strong> — Updated proxy
+wasn’t copied to shared directory</p>
+<p>All three fixed and verified.</p>
+<h3 id="tests-8">Tests</h3>
+<ul>
+<li>Local: 8/8 ALL GREEN</li>
+<li>nezha.local: 8/8 ALL GREEN</li>
+</ul>
+<h2 id="v1.7.1-2026-06-22-full-validation-release">v1.7.1 — 2026-06-22 —
+Full validation + release</h2>
+<h3 id="fixed-11">Fixed</h3>
+<ul>
+<li><strong>Port-ready check</strong> for proxy startup — replaced
+<code>sleep 1</code> with polling loop (<code>lsof -i</code>) ensuring
+proxy is listening before ccr config is written</li>
+<li><strong>Claude alias regression test</strong> — 11 assertions
+proving claudeN aliases use <code>cma_run</code> (no proxy/transformer
+code), providers use <code>cma_run_provider</code></li>
+<li><strong>Command injection fix</strong> in verify_aliases_live.sh —
+replaced <code>bash -c</code> subshell with safe indirect expansion</li>
+</ul>
+<h3 id="tests-9">Tests</h3>
+<ul>
+<li>Local: <strong>9/9 ALL GREEN</strong> (new: test_claude.sh — 11
+assertions)</li>
+<li>nezha.local: 8/9 (export fails — pandoc missing)</li>
+</ul>
+<h3 id="release">Release</h3>
+<ul>
+<li>v1.7.1 — pushed to github, gitlab, gitflic, gitverse</li>
+</ul>
+<h2 id="v1.7.2-2026-06-22-claude-alias-verification-full-release">v1.7.2
+— 2026-06-22 — Claude alias verification, full release</h2>
+<h3 id="added-10">Added</h3>
+<ul>
+<li><strong>Claude alias verification</strong> in verify_aliases_live.sh
+— tests claude1/2/3 alongside provider aliases</li>
+<li><strong>TOON tested</strong> on all aliases — verified working</li>
+</ul>
+<h3 id="tests-10">Tests</h3>
+<ul>
+<li>Local: <strong>9/9 ALL GREEN</strong></li>
+<li>nezha.local: 8/9 (pandoc missing)</li>
+<li>All claude1/2/3: ✅ OK</li>
+<li>All provider aliases: verified</li>
+</ul>
 </body>
 </html>

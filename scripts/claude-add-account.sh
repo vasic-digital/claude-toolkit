@@ -55,7 +55,9 @@ done
 # Prompt with a default value, return whatever the user types (or default).
 prompt() {
   local label="$1" default="$2" answer
-  if (( NONINTERACTIVE )); then echo "$default"; return; fi
+  # Use the default when --yes was passed OR no terminal is available to
+  # prompt from (CI, test sandbox, SSH without a PTY) — never block.
+  if (( NONINTERACTIVE )) || ! cma_can_prompt; then echo "$default"; return; fi
   read -r -p "$label [$default]: " answer < /dev/tty
   echo "${answer:-$default}"
 }

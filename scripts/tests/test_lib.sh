@@ -59,8 +59,8 @@ assert_file_contains "$RC_FILE" "source \"$ALIAS_FILE\"" "rc file gets source li
 
 it "cma_detect_accounts skips the shared store"
 mkdir -p "$HOME/.claude-shared" "$HOME/.claude-acct1"
-mapfile -t found < <(cma_detect_accounts)
-joined="${found[*]}"
+found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts)
+joined="${found[*]:-}"
 [[ "$joined" == *".claude-acct1"* ]]; assert_eq 0 $? "finds .claude-acct1"
 [[ "$joined" != *".claude-shared"* ]]; assert_eq 0 $? "excludes .claude-shared"
 
@@ -71,8 +71,8 @@ it "cma_detect_accounts excludes non-Claude .claude-* dirs (e.g. .claude-server-
 mkdir -p "$HOME/.claude-server-commander"
 printf '{}\n' > "$HOME/.claude-server-commander/config.json"
 printf '{}\n' > "$HOME/.claude-server-commander/feature-flags.json"
-mapfile -t found < <(cma_detect_accounts)
-joined="${found[*]}"
+found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts)
+joined="${found[*]:-}"
 [[ "$joined" != *".claude-server-commander"* ]]; assert_eq 0 $? "excludes .claude-server-commander"
 [[ "$joined" == *".claude-acct1"* ]]; assert_eq 0 $? "still finds the legit empty account"
 
@@ -81,8 +81,8 @@ it "cma_detect_accounts includes a populated account dir even if it has foreign 
 # falsely excluded just because some other file happens to be there.
 mkdir -p "$HOME/.claude-real/projects"
 printf '{}\n' > "$HOME/.claude-real/some-other-tool.json"
-mapfile -t found < <(cma_detect_accounts)
-joined="${found[*]}"
+found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts)
+joined="${found[*]:-}"
 [[ "$joined" == *".claude-real"* ]]; assert_eq 0 $? "finds .claude-real"
 
 summary

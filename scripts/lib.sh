@@ -220,17 +220,41 @@ EOF
   # via claude-code-router (router transport). Self-contained: the user's shell
   # sources only this alias file, not lib.sh.
   #
-  # Migration: if cma_run_provider exists but is missing the sync-state pull
-  # call, it's an outdated version that breaks cross-provider /resume. Remove
-  # it so the correct version gets written below.
-  if grep -q '^cma_run_provider\(\)' "$ALIAS_FILE" && \
-     ! grep -q 'claude-sync-state pull' "$ALIAS_FILE"; then
-    local tmp_prov; tmp_prov="$(mktemp)"
-    # Remove everything from the cma_run_provider function definition to the
-    # end of file (it's the last function + aliases).
-    awk '/^cma_run_provider\(\)/{found=1} !found' "$ALIAS_FILE" > "$tmp_prov"
-    mv "$tmp_prov" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run_provider (added sync-state calls)"
+  # Migration: if cma_run_provider exists but its body is missing the
+  # sync-state call, it's an outdated version that breaks cross-provider
+  # /resume. Remove ONLY the function block (keeping any alias lines that
+  # follow it) so the correct version gets re-appended below.
+  #
+  # The detection MUST be scoped to the function body and match the real
+  # on-disk text. Two prior bugs lived here:
+  #   1. cma_run also contains a sync-state call, so a whole-file grep can
+  #      never tell an outdated provider wrapper from a current one.
+  #   2. The emitted text is `…/claude-sync-state" pull` — a quote precedes
+  #      the space — so grepping for "claude-sync-state pull" (with a space)
+  #      never matched, making the migration mis-fire on EVERY alias write.
+  #      That chopped previously-written aliases (and claudeN aliases that
+  #      come after the functions), corrupting the alias file.
+  # We now extract the function body (cma_run_provider() .. its closing
+  # brace) and match the bare command name, which is quote/space agnostic.
+  # Regenerate when the installed function predates EITHER fix: the
+  # cross-provider sync-state calls ('claude-sync-state'), or the
+  # nounset-safe keys sourcing ('set -a +u'). Both markers live only in the
+  # current heredoc, so once regenerated the function stops re-triggering.
+  if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
+    local _prov_body
+    _prov_body="$(awk '/^cma_run_provider\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+    if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
+       ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u'; then
+      local tmp_prov; tmp_prov="$(mktemp)"
+      # Drop only the function block; preserve everything before and after it.
+      awk '
+        /^cma_run_provider\(\)/ { skip=1 }
+        skip && /^}/            { skip=0; next }
+        !skip                   { print }
+      ' "$ALIAS_FILE" > "$tmp_prov"
+      mv "$tmp_prov" "$ALIAS_FILE"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset-safe keys)"
+    fi
   fi
   if ! grep -q '^cma_run_provider\(\)' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
@@ -246,7 +270,15 @@ cma_run_provider() {
   # shellcheck disable=SC1090
   source "$envf"
   local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
-  [[ -f "$keysf" ]] && { set -a; source "$keysf"; set +a; }
+  # Disable nounset while sourcing the user-controlled keys file: it may have
+  # dangling refs (e.g. `export X=$UNSET`) that would abort the source under a
+  # caller's `set -u`, leaving the token empty. Save/restore so we never change
+  # the user's interactive shell options.
+  if [[ -f "$keysf" ]]; then
+    case $- in *u*) local _cma_had_u=1 ;; *) local _cma_had_u=0 ;; esac
+    set -a +u; source "$keysf"; set +a
+    (( _cma_had_u )) && set -u
+  fi
   # Indirect-expand the key var name. ${!var} is bash-only and a fatal error in
   # zsh (the default macOS interactive shell this alias file is sourced into),
   # so use eval, which works in both. CMA_PROVIDER_KEYVAR is a validated env
@@ -475,4 +507,18 @@ cma_provider_write_alias() {
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"
   mv "$tmp" "$ALIAS_FILE"
+}
+
+# True only when the toolkit may prompt the user interactively. Scripts read
+# confirmations from /dev/tty (so prompts survive `curl | bash`), so this
+# probes /dev/tty rather than stdin. It returns false when:
+#   * CMA_NONINTERACTIVE=1 is exported — a global "never prompt" switch for
+#     automation, CI, and the test suite (deterministic regardless of TTY); or
+#   * no terminal is available — CI, a test sandbox, an SSH command with no PTY.
+# When it returns false, callers MUST fall back to their non-interactive
+# default instead of blocking or erroring on a failed read. This is what makes
+# toolkit execution always non-interactive off a terminal.
+cma_can_prompt() {
+  [[ "${CMA_NONINTERACTIVE:-}" == 1 ]] && return 1
+  ( exec </dev/tty ) 2>/dev/null
 }

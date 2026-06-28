@@ -73,12 +73,12 @@ make_account() {
 
   # Memory + todo content if requested.
   local m
-  for m in "${memory_entries[@]}"; do
+  for m in ${memory_entries[@]+"${memory_entries[@]}"}; do
     local k="${m%%:*}" v="${m#*:}"
     printf -- '%s\n' "$v" > "$dir/projects/-home-test/memory/${k}.md"
   done
   local t
-  for t in "${todo_entries[@]}"; do
+  for t in ${todo_entries[@]+"${todo_entries[@]}"}; do
     printf '{"subject":"%s"}\n' "$t" > "$dir/todos/$(uuidgen 2>/dev/null || echo "todo-${name}-$t").json"
   done
 

@@ -136,7 +136,10 @@ if cma_existing_aliases | grep -qx -e "$(printf '%s\n' "${ALIASES[@]}")"; then
   done
 fi
 
-if (( ! NONINTERACTIVE )); then
+# Proceed when --yes was passed OR no terminal is available to prompt from
+# (CI, test sandbox, SSH without a PTY) — the prompt defaults to "yes", so a
+# non-interactive bootstrap is the expected, non-blocking behavior.
+if (( ! NONINTERACTIVE )) && cma_can_prompt; then
   read -r -p "Proceed? [Y/n] " ans < /dev/tty
   [[ -z "$ans" || "$ans" =~ ^[Yy] ]] || cma_die "aborted"
 fi

@@ -53,6 +53,19 @@ it "claude-add-account validates alias names"
 rc=$?
 [[ $rc -ne 0 ]]; assert_eq 0 $? "rejects bad alias"
 
+it "claude-add-account is non-interactive without --yes (CMA_NONINTERACTIVE=1)"
+export CMA_NONINTERACTIVE=1
+run_add_account --alias claude4 >/dev/null 2>&1
+rc=$?
+unset CMA_NONINTERACTIVE
+assert_eq 0 "$rc" "exit 0 without --yes"
+assert_dir "$HOME/.claude-claude4" "config dir created via defaults"
+assert_file_contains "$ALIAS_FILE" "alias claude4=" "alias written non-interactively"
+# Regression (cma_run_provider migration mis-fire): adding more accounts must
+# not chop previously-written alias lines. All earlier aliases must survive.
+assert_file_contains "$ALIAS_FILE" "alias claude3=" "earlier claude3 alias survives"
+assert_file_contains "$ALIAS_FILE" "alias mywork=" "earlier mywork alias survives"
+
 it "claude-remove-account --archive moves the dir aside"
 run_remove_account --alias claude3 --archive --yes >/dev/null 2>&1
 rc=$?

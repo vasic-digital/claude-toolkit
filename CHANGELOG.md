@@ -2,6 +2,61 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.6 — 2026-06-28 — Always-non-interactive execution, alias-file integrity, macOS/bash-3.2 portability, 4-host rollout
+
+### Fixed
+- **Alias-file corruption from a mis-firing migration** — `cma_ensure_alias_file`'s
+  "outdated `cma_run_provider`" migration grepped for `claude-sync-state pull`, but the
+  emitted on-disk text is `…/claude-sync-state" pull` (a quote precedes the space), so
+  the guard **never matched** and the migration fired on *every* alias write. Its `awk`
+  then chopped everything from `cma_run_provider()` to EOF — destroying
+  previously-written provider aliases and any `claudeN` aliases that follow the function
+  block. This silently corrupted the alias file on multi-provider / multi-account hosts.
+  Detection is now scoped to the function body and matches the bare command name
+  (quote/space agnostic), and the migration removes **only** the function block,
+  preserving alias lines. This was the single root cause of the failures across
+  `test_providers.sh`, `test_claude.sh`, and `test_add_remove.sh`.
+- **`set -u` abort while sourcing the keys file** — provider sync sourced `~/api_keys.sh`
+  inside a `set -euo pipefail` subshell. A dangling reference in the user's keys file
+  (e.g. `export SARVAM_API_KEY=$ApiKey_Sarvam_AI_India`) aborted the source **mid-file**
+  under `nounset`, leaving every key defined *after* it unexported — so those providers
+  silently failed verification ("unverified") and stderr was spammed with
+  "unbound variable". Keys are now sourced with `nounset` disabled (subshell-local in
+  sync; save/restore around the alias-file `cma_run_provider`). Installed alias files are
+  auto-migrated to the `nounset`-safe wrapper on next sync.
+- **macOS / bash-3.2 portability of the test harness** — `tests/run-all.sh` used
+  `mapfile` (bash 4+), so the **entire suite failed to run on stock macOS**. Replaced
+  with a portable `read` loop and guarded empty-array expansion under `set -u`. Same
+  fix applied to `test_lib.sh` and `tests/lib/sandbox.sh` (empty `${arr[@]}` expansions
+  are unbound on bash 3.2). The suite now runs green on macOS bash 3.2.
+
+### Added
+- **`CMA_NONINTERACTIVE` + automatic TTY detection** — a new `cma_can_prompt` helper
+  makes every prompt (`claude-add-account`, `claude-remove-account`, `claude-bootstrap`)
+  fall back to its non-interactive default whenever no terminal is available (CI, SSH
+  without a PTY, the test sandbox) or when `CMA_NONINTERACTIVE=1` is exported. Toolkit
+  execution is now **always non-interactive off a terminal**. Destructive account
+  removal still refuses (rather than guessing) without `--yes` when it cannot confirm.
+- **Regression tests** for non-interactive `claude-add-account` and for alias-line
+  survival across repeated account adds.
+- **`test_export.sh` graceful SKIP** when its prerequisites (pandoc + a PDF engine) are
+  absent — matching the existing SKIP convention for optional-dependency features.
+
+### Multi-host rollout (nezha · mistborn.local · thinker.local · amber.local)
+- Distributed `~/api_keys.sh` to every host via a **no-loss merge** (host-local keys
+  preserved — e.g. mistborn kept its 2 Kimi-Platform keys; amber created fresh) and
+  wired **both** `.bashrc` and `.zshrc` to source it on every host.
+- Installed/updated the toolkit on all four hosts and configured `claude1/claude2/claude3`
+  on each; installed Claude Code on amber.
+- Ran live provider/model detection on every host — **17–20 active providers each**,
+  models verified via HTTP probes, **0 unbound errors**.
+
+### Verified
+- `scripts/tests/run-all.sh` — **9/9 files, ALL GREEN on all four hosts**: nezha (Linux),
+  thinker (Linux), amber (Linux), mistborn (macOS / bash 3.2).
+- Cross-host: both rc files source `api_keys.sh`; `claude1/2/3` + `poe`/`deepseek`/`xiaomi`
+  aliases present on every host.
+
 ## v1.7.5 — 2026-06-28 — Cross-provider /resume session visibility fix
 
 ### Fixed
