@@ -129,8 +129,8 @@ assert_file "$b1_sd/plugins/cache/foo/1.0.0/file.txt" \
 it "link_default_plugin_subdirs (B2): DEFAULT_DIR/plugins/cache becomes a symlink into shared store"
 b2_is_link=1; [[ -L "$b1_dd/plugins/cache" ]] && b2_is_link=0
 assert_eq 0 "$b2_is_link" "DEFAULT_DIR/plugins/cache is a symlink after unify"
-b2_real="$(readlink -f "$b1_dd/plugins/cache" 2>/dev/null || true)"
-assert_eq "$b1_sd/plugins/cache" "$b2_real" "symlink resolves to SHARED_DIR/plugins/cache"
+b2_real="$(cma_realpath "$b1_dd/plugins/cache")"
+assert_eq "$(cma_realpath "$b1_sd/plugins/cache")" "$b2_real" "symlink resolves to SHARED_DIR/plugins/cache"
 
 it "link_default_plugin_subdirs (B2 idempotent): second unify creates no additional .preunify.* backup"
 b2_pre="$(find "$b1_dd/plugins" -maxdepth 1 -name 'cache.preunify.*' 2>/dev/null | wc -l | tr -d ' ')"
