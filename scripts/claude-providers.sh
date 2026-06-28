@@ -48,6 +48,7 @@ OVERRIDES="$LIB_DIR/providers/overrides.json"
 CACHE="$(cma_providers_dir)/models.dev.cache.json"
 VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 
+# shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
 MAX_ALIASES=5 MIN_SCORE=25 VERIFY_CONCURRENCY=5
 
@@ -95,6 +96,7 @@ ensure_catalog() {
     (( age < CMA_MODELS_DEV_TTL )) && fresh=1
   fi
   if (( OFFLINE )); then
+    # shellcheck disable=SC2015  # C (cma_die) is desired when A&&B fails: die if cache absent/invalid
     [[ -s "$CACHE" ]] && _catalog_valid "$CACHE" \
       || cma_die "offline and no valid models.dev cache at $CACHE — run once online first"
     cma_warn "offline: using cached catalog ($CACHE)"
@@ -181,6 +183,7 @@ cmd_sync() {
       # every key defined after that point unexported, so those providers fail
       # verification ("unverified") and a stream of "unbound variable" errors
       # spams stderr. `+u` makes the source tolerant; it is subshell-local.
+      # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
       vstatus="$( ( [[ -f "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
@@ -300,7 +303,12 @@ cmd_sync_multi() {
     local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
     local token=""
     if [[ -f "$keysf" ]]; then
-      token="$(bash -c "set -a; source '$keysf' 2>/dev/null; set +a; eval \"echo \${$keyvar:-}\"" 2>/dev/null)" || true
+      # Read the key in an isolated subshell (no `bash -c` string interpolation
+      # of $keysf, which a quote in the path could break out of). $keyvar is a
+      # validated env-var name, so the indirect eval is safe. set +e/+u so a
+      # dangling ref or failed source can't abort before the read.
+      # shellcheck source=/dev/null  # $keysf is the user's runtime keys file
+      token="$( set +e; set -a +u; . "$keysf" 2>/dev/null; set +a; eval "printf '%s' \"\${$keyvar:-}\"" )" || true
     fi
 
     if [[ -z "$token" ]]; then
@@ -396,6 +404,7 @@ case "${1:-}" in
 esac
 POSITIONAL=()
 while (( $# )); do
+  # shellcheck disable=SC2034  # ASSUME_YES (-y/--yes) accepted as a no-op; reserved
   case "$1" in
     --keys-file) CMA_KEYS_FILE="$2"; shift 2 ;;
     --no-verify) NO_VERIFY=1; shift ;;

@@ -41,7 +41,9 @@ mkdir -p "$PROOF_DIR"
 cma_redact_secrets() {
   sed -E \
     -e 's/("(apiKey|api_key|password|secret|token|access_token)"[[:space:]]*:[[:space:]]*")([^"$][^"]*)(")/\1REDACTED\4/g' \
-    -e 's#://([^:/@ "]+):([^@/ "]{2,})@#://\1:REDACTED@#g'
+    -e 's#://([^:/@ "]+):([^@/ "]{2,})@#://\1:REDACTED@#g' \
+    -e 's/(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{8,}/REDACTED/g' \
+    -e 's/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/REDACTED/g'
 }
 
 STAMP="$(date '+%Y-%m-%dT%H:%M:%S%z')"

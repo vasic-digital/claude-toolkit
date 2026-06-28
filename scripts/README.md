@@ -69,6 +69,6 @@ The scripts are POSIX-leaning bash and have been verified on Linux with
 `jq 1.8+`, `rsync 3.x`, GNU `awk`, and `pandoc 3.x`. On macOS, install the
 same toolchain via Homebrew (`brew install jq rsync gawk pandoc weasyprint`).
 Default config dirs and shared store paths use `$HOME`, which resolves
-correctly on both. The alias mechanism reads `~/.bashrc` and `~/.zshrc`
+correctly on both. The alias mechanism sources `~/.bashrc` and `~/.zshrc` on Linux, `~/.zshrc` only on macOS
 — if you use fish or another shell, add `source ~/.local/share/claude-multi-account/aliases.sh`
 to its equivalent rc by hand.

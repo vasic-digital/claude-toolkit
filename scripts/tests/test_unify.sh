@@ -36,6 +36,7 @@ acct2="$(make_account acct2 --plugins \
 # account wins on conflicts" rule applies to it.
 touch "$acct2/projects/-home-test/memory/user_role.md"
 
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify >/dev/null 2>&1
 rc=$?
 assert_eq 0 "$rc" "claude-unify exits 0"
@@ -88,6 +89,7 @@ assert_file_contains "$acct2/.credentials.json" "acct2" "acct2 creds intact"
 it "re-running claude-unify is idempotent (settings.json byte-stable)"
 checksum_before="$(sha256sum "$SHARED_DIR/settings.json" | cut -d' ' -f1)"
 target_before="$(readlink -f "$acct1/projects")"
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify >/dev/null 2>&1
 checksum_after="$(sha256sum "$SHARED_DIR/settings.json" | cut -d' ' -f1)"
 target_after="$(readlink -f "$acct1/projects")"
@@ -98,17 +100,19 @@ it "N>2 accounts: adding a third and re-running unifies it too"
 acct3="$(make_account acct3 \
   --settings '{"enabledPlugins":{"d":true}}' \
   --history 'cmd5|cmd1')"
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify >/dev/null 2>&1
 assert_symlink_to "$acct3/projects" "$SHARED_DIR/projects" "acct3 projects linked"
 assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins.d' "true" "acct3 plugin merged"
 assert_file_contains "$SHARED_DIR/history.jsonl" "cmd5" "acct3 history merged"
 
 it "--rollback restores backups and archives the shared store"
+# shellcheck disable=SC2119  # test intentionally calls run_rollback with no args
 run_rollback >/dev/null 2>&1
 assert_dir "$acct1/projects" "acct1 projects restored as real dir"
 assert_not_symlink "$acct1/projects" "no longer a symlink"
-[[ ! -d "$SHARED_DIR" ]]; assert_eq 0 $? "shared store moved aside"
+cond=1; [[ ! -d "$SHARED_DIR" ]] && cond=0; assert_eq 0 "$cond" "shared store moved aside"
 shared_archive="$(find "$HOME" -maxdepth 1 -name '.claude-shared.removed.*' -type d 2>/dev/null | head -1)"
-[[ -n "$shared_archive" ]]; assert_eq 0 $? "archive sibling exists"
+[[ -n "$shared_archive" ]]; cond=$?; assert_eq 0 "$cond" "archive sibling exists"
 
 summary

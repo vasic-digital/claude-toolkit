@@ -201,8 +201,10 @@ EOF
   # directly so they go through cma_run instead. Pre-existing installs need
   # this on the first re-run of install.sh after the runtime-sync feature
   # landed; idempotent (a line already using cma_run is left alone).
+  # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the regex/sed pattern, not a shell expansion
   if grep -qE '^alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=[^ ]+[[:space:]]+\\?\$CLAUDE_BIN"$' "$ALIAS_FILE"; then
     local tmp; tmp="$(mktemp)"
+    # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the sed pattern, matching alias file content
     sed -E 's|(^alias[[:space:]]+[^=]+=)"(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN"$|\1"\2 cma_run"|' "$ALIAS_FILE" > "$tmp"
     mv "$tmp" "$ALIAS_FILE"
     cma_log "migrated existing aliases in $ALIAS_FILE to use cma_run wrapper"
@@ -300,8 +302,12 @@ cma_run_provider() {
   # zsh (the default macOS interactive shell this alias file is sourced into),
   # so use eval, which works in both. CMA_PROVIDER_KEYVAR is a validated env
   # var name ([A-Za-z_][A-Za-z0-9_]*), so this eval is safe.
-  local token=""
+  local token="" _cma_xt=""
+  # Suppress xtrace around the indirect key read so an active `set -x` in the
+  # user's shell can't echo the secret to the terminal or a redirected log.
+  case $- in *x*) _cma_xt=1; set +x ;; esac
   eval "token=\"\${$CMA_PROVIDER_KEYVAR:-}\""
+  [[ -n "$_cma_xt" ]] && set -x
   if [[ -z "$token" ]]; then
     printf 'claude-providers: $%s is empty (set it in %s)\n' "$CMA_PROVIDER_KEYVAR" "$keysf" >&2
     return 1
@@ -412,6 +418,21 @@ EOF
 cma_write_alias() {
   local alias_name="$1" config_dir="$2"
   cma_validate_alias "$alias_name"
+  # config_dir is interpolated into the alias body and re-parsed by the shell
+  # when the alias is invoked. Reject shell metacharacters so a hostile path
+  # can't inject commands. Matched literally per-char (a quoted glob bracket
+  # with a space would mis-parse in `case`); spaces in paths stay allowed.
+  local _cma_c
+  for _cma_c in '"' '$' '`' \\ ';' '&' '|' '<' '>' '(' ')'; do
+    case "$config_dir" in *"$_cma_c"*)
+      cma_warn "refusing to write alias '$alias_name': unsafe config dir"
+      return 1 ;;
+    esac
+  done
+  case "$config_dir" in *$'\n'*)
+    cma_warn "refusing to write alias '$alias_name': unsafe config dir"
+    return 1 ;;
+  esac
   cma_ensure_alias_file
   # Strip any prior line for this alias, then append the new one.
   local tmp; tmp="$(mktemp)"
@@ -521,6 +542,14 @@ EOF
 cma_provider_write_alias() {
   local alias_name="$1" id="$2"
   cma_validate_alias "$alias_name"
+  # The provider id is interpolated into the alias body and re-parsed when the
+  # alias is invoked. Provider ids are always [A-Za-z0-9._-]; reject anything
+  # else so a hostile catalog/--id value can't inject shell commands.
+  case "$id" in
+    ''|*[!A-Za-z0-9._-]*)
+      cma_warn "refusing to write alias '$alias_name': unsafe provider id"
+      return 1 ;;
+  esac
   cma_ensure_alias_file
   local tmp; tmp="$(mktemp)"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true

@@ -61,8 +61,8 @@ it "cma_detect_accounts skips the shared store"
 mkdir -p "$HOME/.claude-shared" "$HOME/.claude-acct1"
 found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts)
 joined="${found[*]:-}"
-[[ "$joined" == *".claude-acct1"* ]]; assert_eq 0 $? "finds .claude-acct1"
-[[ "$joined" != *".claude-shared"* ]]; assert_eq 0 $? "excludes .claude-shared"
+cond=1; [[ "$joined" == *".claude-acct1"* ]] && cond=0; assert_eq 0 "$cond" "finds .claude-acct1"
+cond=1; [[ "$joined" != *".claude-shared"* ]] && cond=0; assert_eq 0 "$cond" "excludes .claude-shared"
 
 it "cma_detect_accounts excludes non-Claude .claude-* dirs (e.g. .claude-server-commander)"
 # Mimic the real-world false positive seen on mistborn.local: an MCP server
@@ -73,8 +73,8 @@ printf '{}\n' > "$HOME/.claude-server-commander/config.json"
 printf '{}\n' > "$HOME/.claude-server-commander/feature-flags.json"
 found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts)
 joined="${found[*]:-}"
-[[ "$joined" != *".claude-server-commander"* ]]; assert_eq 0 $? "excludes .claude-server-commander"
-[[ "$joined" == *".claude-acct1"* ]]; assert_eq 0 $? "still finds the legit empty account"
+cond=1; [[ "$joined" != *".claude-server-commander"* ]] && cond=0; assert_eq 0 "$cond" "excludes .claude-server-commander"
+cond=1; [[ "$joined" == *".claude-acct1"* ]] && cond=0; assert_eq 0 "$cond" "still finds the legit empty account"
 
 it "cma_detect_accounts includes a populated account dir even if it has foreign config too"
 # A real account dir with the Claude marker (projects/) shouldn't get
@@ -83,7 +83,7 @@ mkdir -p "$HOME/.claude-real/projects"
 printf '{}\n' > "$HOME/.claude-real/some-other-tool.json"
 found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts)
 joined="${found[*]:-}"
-[[ "$joined" == *".claude-real"* ]]; assert_eq 0 $? "finds .claude-real"
+cond=1; [[ "$joined" == *".claude-real"* ]] && cond=0; assert_eq 0 "$cond" "finds .claude-real"
 
 it "cma_realpath resolves a symlink chain to its canonical target (no readlink -f)"
 mkdir -p "$HOME/rp/real"
@@ -100,7 +100,7 @@ assert_eq "$want" "$got2" "cma_realpath is identity on a real path"
 it "no runtime script INVOKES 'readlink -f' (absent on BSD/macOS)"
 # Strip comments first so explanatory comments mentioning the flag don't count;
 # we only care about real invocations.
-hits="$(for f in "$SCRIPTS_DIR"/lib.sh "$SCRIPTS_DIR"/claude-*.sh; do sed 's/#.*//' "$f"; done 2>/dev/null | grep -c 'readlink -f')"
+hits="$(for f in "$SCRIPTS_DIR"/lib.sh "$SCRIPTS_DIR"/install.sh "$SCRIPTS_DIR"/claude-*.sh; do sed 's/#.*//' "$f"; done 2>/dev/null | grep -c 'readlink -f')"
 assert_eq 0 "$hits" "zero 'readlink -f' invocations in runtime scripts"
 
 it "no committed proof artifact contains a literal secret"
@@ -112,8 +112,9 @@ it "no committed proof artifact contains a literal secret"
 proof_dir="$SCRIPTS_DIR/tests/proof"
 if [[ -d "$proof_dir" ]]; then
   leaks="$(grep -rIE \
-    -e '(sk-|gsk_|xai-|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{12,}' \
+    -e '(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{12,}' \
     -e '://[^:/@ "]+:[^@/ "]{4,}@' \
+    -e 'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' \
     "$proof_dir" 2>/dev/null | grep -vc 'REDACTED' || true)"
   [[ -z "$leaks" ]] && leaks=0
   assert_eq 0 "$leaks" "proof dir free of literal secrets (suspect-line count)"

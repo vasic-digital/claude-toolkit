@@ -2,7 +2,7 @@
 title: Claude Multi-Account Fine Tuning
 subtitle: Running multiple Claude Code accounts on one host with shared history, memory, and settings
 author: milos85vasic
-date: 2026-05-26
+date: 2026-06-28
 toc: true
 toc-depth: 3
 ---
@@ -173,6 +173,33 @@ two (or more) Claude Code accounts already set up the conventional way
 `.credentials.json`. If you don't have a second account yet, run the
 first three steps and then use `claude-add-account.sh` to create one.
 
+### 4.0 Clean-slate host: `claude-bootstrap`
+
+If you are setting up a **brand-new machine** where Claude Code is installed
+but no accounts have been created or logged in yet, use `claude-bootstrap`
+instead of the §4.2–§4.3 flow. It provisions N fresh accounts in one shot:
+
+```bash
+git clone <this repo> claude-toolkit
+cd claude-toolkit
+bash scripts/claude-bootstrap.sh --count 2 --yes
+exec $SHELL -l
+claude1 /login
+claude2 /login
+```
+
+Key flags:
+
+| Flag | Effect |
+| ---- | ------ |
+| `--count N` | Create N accounts named `claude1`…`claudeN`. |
+| `--yes` | Non-interactive; skip confirmation prompts. |
+| `--aliases personal,work` | Use custom alias names instead of `--count`. |
+| `--dir-of NAME=PATH` | Override the config-dir path for a specific alias. |
+
+`claude-bootstrap` is **idempotent** — safe to re-run after pulling updates. It
+calls `install.sh` internally, so you do not need to run both.
+
 ### 4.1 Prerequisites
 
 ```bash
@@ -193,25 +220,20 @@ weasyprint isn't available.
 
 ### 4.2 Lay down the scripts directory
 
+Clone or copy the entire `scripts/` directory; all scripts listed in
+`scripts/README.md` are required:
+
 ```bash
-mkdir -p ~/Documents/scripts
-# Copy or git-clone the contents of this repo's scripts/ into ~/Documents/scripts.
-# At minimum you need:
-#   lib.sh
-#   install.sh
-#   claude-unify.sh
-#   claude-add-account.sh
-#   claude-remove-account.sh
-#   claude-list-accounts.sh
-#   claude-rollback.sh
-#   claude-export-docs.sh
-chmod +x ~/Documents/scripts/*.sh
+git clone <this repo> claude-toolkit
+cd claude-toolkit
 ```
+
+All scripts are set executable in the repository; no `chmod` step is needed.
 
 ### 4.3 Run the installer
 
 ```bash
-bash ~/Documents/scripts/install.sh
+bash scripts/install.sh
 ```
 
 What `install.sh` does, in order:
@@ -445,11 +467,11 @@ starts with `cma-test.`).
 
 ```bash
 # All tests:
-bash ~/Documents/scripts/tests/run-all.sh
+bash scripts/tests/run-all.sh
 
 # A single file (no test_ prefix, no .sh suffix):
-bash ~/Documents/scripts/tests/run-all.sh unify
-bash ~/Documents/scripts/tests/run-all.sh add_remove
+bash scripts/tests/run-all.sh unify
+bash scripts/tests/run-all.sh add_remove
 ```
 
 Output is line-based:
@@ -472,13 +494,20 @@ summary returned 0.
 
 ### 7.2 What each test covers
 
-| File                | What it asserts                                                                              |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| `test_lib.sh`       | `cma_validate_alias` accepts/rejects correctly; `cma_suggest_alias` returns the next free `claudeN` (skipping past existing aliases, not just counting); `cma_write_alias` is idempotent; `cma_remove_alias` deletes; `cma_ensure_alias_file` patches `.bashrc`; `cma_detect_accounts` excludes the shared store. |
-| `test_unify.sh`     | Every shared item becomes a symlink to `$SHARED_DIR`; `settings.json` `enabledPlugins` is a strict union of every account's set; non-`enabledPlugins` top-level keys are preserved with right-most file winning; `history.jsonl` is concatenated and de-duplicated; on memory-file conflicts, the most recently touched account wins; `plugins/installed_plugins.json` and `known_marketplaces.json` have absolute paths rewritten to `$SHARED_DIR/plugins/`; `.credentials.json` and `.claude.json` are NOT symlinked; re-running `claude-unify.sh` produces a byte-identical `settings.json` (idempotency); `N>2` accounts (adding `acct3` and re-unifying) works; `--rollback` restores every `.preunify.*` backup and moves the shared store aside. |
-| `test_add_remove.sh`| `claude-add-account.sh --yes` creates the dir with full symlink set and writes a shell-safe alias line; refuses to overwrite an existing dir; accepts a custom alias name + custom dir; validates alias names against the safe regex; `claude-remove-account.sh --archive` moves the dir aside and removes the alias; `--delete` actually deletes; unknown alias errors out. |
-| `test_list.sh`      | Empty host (no accounts) renders just the header; populated host renders one row per detected account dir; the shared store path is printed; accounts missing credentials show `CREDS: no`. |
-| `test_export.sh`    | `claude-export-docs.sh` (with `MD_FILE=` override) produces both a `.html` and a `.pdf`; `<!-- INCLUDE: path -->` markers are expanded in the output; output PDF starts with the `%PDF-` magic bytes; re-running is non-destructive. |
+The suite has 10 test files, all auto-discovered by `run-all.sh`:
+
+| File                  | What it asserts                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `test_lib.sh`         | `cma_validate_alias` accepts/rejects correctly; `cma_suggest_alias` returns the next free `claudeN` (skipping past existing aliases, not just counting); `cma_write_alias` is idempotent; `cma_remove_alias` deletes; `cma_ensure_alias_file` patches `.bashrc`; `cma_detect_accounts` excludes the shared store. |
+| `test_unify.sh`       | Every shared item becomes a symlink to `$SHARED_DIR`; `settings.json` `enabledPlugins` is a strict union of every account's set; non-`enabledPlugins` top-level keys are preserved with right-most file winning; `history.jsonl` is concatenated and de-duplicated; on memory-file conflicts, the most recently touched account wins; `plugins/installed_plugins.json` and `known_marketplaces.json` have absolute paths rewritten to `$SHARED_DIR/plugins/`; `.credentials.json` and `.claude.json` are NOT symlinked; re-running `claude-unify.sh` produces a byte-identical `settings.json` (idempotency); `N>2` accounts (adding `acct3` and re-unifying) works; `--rollback` restores every `.preunify.*` backup and moves the shared store aside. |
+| `test_add_remove.sh`  | `claude-add-account.sh --yes` creates the dir with full symlink set and writes a shell-safe alias line; refuses to overwrite an existing dir; accepts a custom alias name + custom dir; validates alias names against the safe regex; `claude-remove-account.sh --archive` moves the dir aside and removes the alias; `--delete` actually deletes; unknown alias errors out. |
+| `test_list.sh`        | Empty host (no accounts) renders just the header; populated host renders one row per detected account dir; the shared store path is printed; accounts missing credentials show `CREDS: no`. |
+| `test_export.sh`      | `claude-export-docs.sh` (with `MD_FILE=` override) produces both a `.html` and a `.pdf`; `<!-- INCLUDE: path -->` markers are expanded in the output; output PDF starts with the `%PDF-` magic bytes; re-running is non-destructive. |
+| `test_opencode.sh`    | Builds a fake Claude plugin cache in a throwaway `$HOME` and asserts the generated OpenCode config has the right shape: skills wired, MCP servers translated (wrapped + bare formats), dedup, collision-rename, secret/runtime enable gating, `${CLAUDE_PLUGIN_ROOT}` expansion, instruction inclusion, pre-existing config preserved, idempotency, and `--dry-run` safety. No network, no real `~/.claude`, no real opencode binary required. |
+| `test_sessions.sh`    | Verifies sessions, project memory, and todos created under one account become physically visible to every other account after unify. Covers: `.claude.json` `projects` subtree union; auth-private keys (`userID`, `oauthAccount`, etc.) preserved per-account; session JSONL byte-identical from every account's symlinked dir; project memory cross-account visibility; `cma_merge_claude_json` idempotency; `claude-sync-state.sh` push/pull round-trip. |
+| `test_coverage.sh`    | Coverage for `lib.sh` behaviors not exercised in `test_lib.sh` (new in v1.7.8): `cma_ensure_alias_file` fresh creation + idempotency + old-format migration; `cma_can_prompt` under `CMA_NONINTERACTIVE=1` and no-tty; `cma_enable_plugins` JSON shape and additive behaviour; `cma_link_shared_items` turning all `CMA_SHARED_ITEMS` into symlinks; `stats-cache.json` newest-by-mtime selection via `run_unify`. |
+| `test_providers.sh`   | Tests for the provider-alias feature (`claude-providers`). Primary focus: account-detection regression — provider dirs (`~/.claude-prov-*`) must be invisible to `cma_detect_accounts` so they never merge into real-account auth or disturb `claude-unify` / `claude-add-account`. |
+| `test_claude.sh`      | Proves `claudeN` aliases are untouched by provider code: `cma_run` includes `claude-sync-state` pull/push hooks, contains no proxy or transformer code; `cma_run_provider` has proxy detection. Reads the live alias file; SKIPs if no alias file is present. |
 
 ### 7.3 How the test harness works
 
@@ -720,6 +749,13 @@ merge into real-account auth and never disturb `claude-unify` /
 `claude-add-account`. Existing `claudeN` accounts keep working unchanged, and new
 accounts are still created the same way.
 
+During `claude-providers sync --multi`, the API key is passed to
+`model_verify.py` via the **`CMA_PROBE_KEY` environment variable** — never as a
+command-line argument. This means the key never appears in `ps aux` or
+`/proc/<pid>/cmdline`, preventing accidental secret exposure to other local
+users or process-monitoring tools. The key is injected per-invocation and is
+never written to the alias file, the env file, or any repository path.
+
 ### Commands
 
 ```bash
@@ -744,6 +780,8 @@ Full details, overrides, verification, and troubleshooting live in
 
 ---
 
-*Generated 2026-05-26 (OpenCode integration added 2026-06-06; provider aliases
-added 2026-06-16). Maintain by editing this markdown file and re-running
+*Generated 2026-06-28 (OpenCode integration added 2026-06-06; provider aliases
+added 2026-06-16; runtime sync via `cma_run`/`claude-sync-state`, `CMA_PROBE_KEY`
+secret-hygiene model, and `cma_realpath` BSD portability hardening added
+2026-06-28). Maintain by editing this markdown file and re-running
 `claude-export-docs.sh`.*

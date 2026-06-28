@@ -203,8 +203,8 @@ assert_eq "mimo-v2.5-pro" "$(rfield "$OUT" XIAOMI_MIMO_API_KEY strong_model)" "s
 assert_eq "mimo-v2-flash" "$(rfield "$OUT" XIAOMI_MIMO_API_KEY fast_model)" "fast=mimo-v2-flash"
 
 it "the stale mimo-v2.5-pro-ultraspeed id is never selected"
-[[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY strong_model)" != "mimo-v2.5-pro-ultraspeed" ]]; assert_eq 0 $? "ultraspeed not strong"
-[[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY fast_model)"   != "mimo-v2.5-pro-ultraspeed" ]]; assert_eq 0 $? "ultraspeed not fast"
+cond=1; [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY strong_model)" != "mimo-v2.5-pro-ultraspeed" ]] && cond=0; assert_eq 0 "$cond" "ultraspeed not strong"
+cond=1; [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY fast_model)" != "mimo-v2.5-pro-ultraspeed" ]] && cond=0; assert_eq 0 "$cond" "ultraspeed not fast"
 
 it "opencode resolves from the key-alias mapping on ZEN_API_KEY"
 assert_eq "opencode" "$(rfield "$OUT" ZEN_API_KEY provider_id)" "opencode provider_id"
@@ -222,11 +222,11 @@ assert_eq "https://opencode.ai/zen/v1" "$(rfield "$OUT" ZEN_API_KEY base_url)" "
 
 it "opencode override forces big-pickle as strong (beats nemotron-3-ultra-free auto-selection)"
 assert_eq "big-pickle" "$(rfield "$OUT" ZEN_API_KEY strong_model)" "strong=big-pickle"
-[[ "$(rfield "$OUT" ZEN_API_KEY strong_model)" != "nemotron-3-ultra-free" ]]; assert_eq 0 $? "nemotron not strong"
+cond=1; [[ "$(rfield "$OUT" ZEN_API_KEY strong_model)" != "nemotron-3-ultra-free" ]] && cond=0; assert_eq 0 "$cond" "nemotron not strong"
 
 it "opencode override forces deepseek-v4-flash-free as fast (beats trinity auto-selection)"
 assert_eq "deepseek-v4-flash-free" "$(rfield "$OUT" ZEN_API_KEY fast_model)" "fast=deepseek-v4-flash-free"
-[[ "$(rfield "$OUT" ZEN_API_KEY fast_model)" != "trinity-large-preview-free" ]]; assert_eq 0 $? "trinity not fast"
+cond=1; [[ "$(rfield "$OUT" ZEN_API_KEY fast_model)" != "trinity-large-preview-free" ]] && cond=0; assert_eq 0 "$cond" "trinity not fast"
 
 it "VCS token is skipped, unknown llm key is unmapped"
 assert_eq "skipped" "$(rfield "$OUT" GITHUB_TOKEN status)" "GITHUB_TOKEN skipped"
@@ -386,11 +386,12 @@ assert_eq "1" "$c2z" "still one opencode alias after re-sync"
 
 it "list reports installed providers"
 list_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
-echo "$list_out" | grep -q "acme" ; assert_eq 0 $? "list shows acme"
+# shellcheck disable=SC2319  # $? from grep -q pipeline; captures exit status for assertion
+echo "$list_out" | grep -q "acme"; rc=$?; assert_eq 0 "$rc" "list shows acme"
 
 it "remove deletes alias + env, backs up config dir"
 bash "$PROVIDERS_SH" remove beta >/dev/null 2>&1
-[[ -f "$PDIR/beta.env" ]] ; assert_eq 1 $? "beta env gone"
+cond=0; [[ -f "$PDIR/beta.env" ]] && cond=1; assert_eq 0 "$cond" "beta env gone"
 grep -q 'cma_run_provider beta"' "$ALIAS_FILE" ; assert_eq 1 $? "beta alias gone"
 
 # ---------------------------------------------------------------------------

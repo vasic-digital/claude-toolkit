@@ -31,14 +31,14 @@ bash scripts/claude-opencode-sync.sh                      # apply
 bash scripts/tests/run-proof.sh
 ```
 
-The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh`).
+The per-account user commands installed by `install.sh` (`claude-unify`, `claude-add-account`, `claude-remove-account`, `claude-list-accounts`, `claude-rollback`, `claude-export-docs`, `claude-opencode-sync`, `claude-providers`, `claude-sync-state`, `claude-bootstrap`) end up as symlinks in `~/.local/bin` (`install.sh` auto-links every `claude-*.sh`).
 
 ## Architecture
 
 All scripts source `scripts/lib.sh`, which defines the toolkit's vocabulary and the three env-var knobs every script honors:
 
 - `SHARED_DIR` (default `~/.claude-shared`) — the single source of truth for cross-account state.
-- `ALIAS_FILE` (default `~/.local/share/claude-multi-account/aliases.sh`) — managed alias file sourced from `~/.bashrc` and `~/.zshrc`.
+- `ALIAS_FILE` (default `~/.local/share/claude-multi-account/aliases.sh`) — managed alias file sourced from `~/.bashrc` and `~/.zshrc` on Linux, `~/.zshrc` only on macOS.
 - `ACCOUNT_PREFIX` (default `.claude-`) — naming convention for per-account dirs under `$HOME` (e.g. `~/.claude-acct1`). `~/.claude` itself is treated as the user-scope plugin root (`DEFAULT_DIR`), **not** an account dir, and is excluded from auto-detection.
 
 The unification model (`claude-unify.sh`) is:

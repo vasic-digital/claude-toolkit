@@ -21,7 +21,6 @@ source "$LIB_DIR/lib.sh"
 
 ALIAS_NAME=""
 DELETE_DIR=0
-ARCHIVE_DIR=1
 NONINTERACTIVE=0
 
 usage() {
@@ -40,8 +39,8 @@ while (( $# )); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --alias)   ALIAS_NAME="$2"; shift 2 ;;
-    --delete)  DELETE_DIR=1; ARCHIVE_DIR=0; shift ;;
-    --archive) ARCHIVE_DIR=1; DELETE_DIR=0; shift ;;
+    --delete)  DELETE_DIR=1; shift ;;
+    --archive) DELETE_DIR=0; shift ;;
     --yes|-y)  NONINTERACTIVE=1; shift ;;
     *)         cma_die "unknown arg: $1" ;;
   esac

@@ -52,6 +52,7 @@ it "each provider alias resolves to cma_run_provider in the alias file"
 ok=1
 for f in "$PDIR"/*.env; do
   # Source (values are shell-quoted) to read the id cleanly — never sed-parse.
+  # shellcheck source=/dev/null  # runtime provider env file, path only known at execution
   id="$( set -a; . "$f"; set +a; printf '%s' "$CMA_PROVIDER_ID" )"
   grep -qE "cma_run_provider $id(\"| )" "$ALIASES" || { ok=0; echo "no alias for $id" >>"$EV"; }
 done
@@ -62,12 +63,13 @@ grep -q '^cma_run_provider()' "$ALIASES"; assert_eq 0 $? "wrapper present"
 
 it "provider config dirs are excluded from account detection"
 # Source lib.sh and confirm no ~/.claude-prov-* leaks into detection.
+# shellcheck source=/dev/null  # lib.sh loaded dynamically via $SCRIPTS_DIR; path resolved at runtime
 ( source "$SCRIPTS_DIR/lib.sh" 2>/dev/null; cma_detect_accounts ) > "$PROOF_DIR/51-detected-accounts.txt" 2>/dev/null
 grep -q 'prov-' "$PROOF_DIR/51-detected-accounts.txt"; assert_eq 1 $? "no provider dir detected as account"
 
 {
   echo "# provider live verification — $(date)"
-  echo "providers installed: $(ls "$PDIR"/*.env 2>/dev/null | wc -l | tr -d ' ')"
+  echo "providers installed: $(find "$PDIR" -maxdepth 1 -name '*.env' 2>/dev/null | wc -l | tr -d ' ')"
   echo "ccr installed: $(command -v ccr >/dev/null 2>&1 && echo yes || echo no)"
   echo "LLMsVerifier binary: $([[ -x "$SCRIPTS_DIR/../submodules/LLMsVerifier/bin/model-verification" ]] && echo built || echo not-built)"
 } >> "$EV"

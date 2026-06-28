@@ -12,9 +12,12 @@ Anti-bluff detection prevents false positives:
 - Rate-limited responses misidentified as working
 
 Usage:
-  model_verify.py --provider <id> --endpoint <url> --key <api_key> \
+  CMA_PROBE_KEY=<api_key> model_verify.py --provider <id> --endpoint <url> \
     [--models model1,model2,...] [--concurrency 5] [--timeout 30] \
     [--cache-file PATH] [--output PATH] [--no-cache]
+
+  The API key is passed via the CMA_PROBE_KEY environment variable (not argv)
+  so it never appears in `ps aux` or /proc.
 
 Output: JSON with per-provider sorted list of {model_id, score, capabilities}.
 
@@ -23,7 +26,6 @@ efficiency, cost, capability, recency) but runs as a standalone Python script
 since the Go binary may not be built.
 """
 import argparse
-import hashlib
 import json
 import os
 import re

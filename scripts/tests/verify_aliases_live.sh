@@ -18,7 +18,6 @@
 
 set +e
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 source "$TESTS_DIR/lib/assert.sh"
 
 PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
@@ -34,14 +33,19 @@ mkdir -p "$PROOF_DIR"
 EV="$PROOF_DIR/alias-verify-evidence.txt"
 : > "$EV"
 
-set -a; [[ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]] && source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" 2>/dev/null || true; set +a
+set -a
+# shellcheck source=/dev/null  # runtime user file; path not known at analysis time
+if [[ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" 2>/dev/null; fi
+set +a
+# shellcheck disable=SC2015,SC1091  # C is `true` (benign); aliases.sh exists only on installed hosts
 [[ -f "$HOME/.local/share/claude-multi-account/aliases.sh" ]] && source "$HOME/.local/share/claude-multi-account/aliases.sh" 2>/dev/null || true
 
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 total=0 passed=0 failed=0
 
 if [[ -n "$TARGET_ALIAS" ]]; then
-  f="$PDIR/$TARGET_ALIAS.env"; [[ -f "$f" ]] && ALIASES=("$TARGET_ALIAS") || { echo "No env for $TARGET_ALIAS"; exit 1; }
+  f="$PDIR/$TARGET_ALIAS.env"
+  if [[ -f "$f" ]]; then ALIASES=("$TARGET_ALIAS"); else echo "No env for $TARGET_ALIAS"; exit 1; fi
 else
   ALIASES=(); for f in "$PDIR"/*.env; do ALIASES+=("$(basename "$f" .env)"); done
 fi
@@ -80,12 +84,12 @@ for alias_name in "${ALIASES[@]}"; do
   total=$((total+1))
 
   # Parse env
-  pid=""; keyvar=""; transport=""; base_url=""; model=""; fast_model=""
+  keyvar=""; base_url=""; model=""; fast_model=""
   while IFS='=' read -r key val; do
     key="$(echo "$key" | xargs)"
     val="$(echo "$val" | tr -d "'\"")"
-    case "$key" in CMA_PROVIDER_ID) pid="$val" ;; CMA_PROVIDER_KEYVAR) keyvar="$val" ;;
-      CMA_PROVIDER_TRANSPORT) transport="$val" ;; CMA_PROVIDER_BASE_URL) base_url="$val" ;;
+    case "$key" in CMA_PROVIDER_KEYVAR) keyvar="$val" ;;
+      CMA_PROVIDER_BASE_URL) base_url="$val" ;;
       CMA_PROVIDER_MODEL) model="$val" ;; CMA_PROVIDER_FAST_MODEL) fast_model="$val" ;;
     esac
   done < <(grep '^CMA_PROVIDER_' "$env_file")
@@ -98,6 +102,7 @@ for alias_name in "${ALIASES[@]}"; do
   if [[ -n "${!keyvar:-}" ]]; then key="${!keyvar}"
   elif [[ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then
     set +u
+    # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
     source "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" 2>/dev/null || true
     set -u 2>/dev/null || true
     key="$(eval "echo \"\${$keyvar:-}\"" 2>/dev/null || true)"
@@ -160,9 +165,11 @@ for alias_name in "${ALIASES[@]}"; do
   has_tool=$(echo "$resp6" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('choices',[{}])[0].get('message',{}).get('tool_calls','no'))" 2>/dev/null || echo "no")
 
   # Record
-  echo "--- $alias_name ($model) ---" >> "$EV"
-  echo "test1(basic)=$code test2(no_params)=${err2:0:40} test3(ref)=${err3:0:40} test4(cache)=${err4:0:40} test5(stream)=${chunks}chunks test6(tool)=${has_tool:0:20}" >> "$EV"
-  echo "verdict=$VERDICT" >> "$EV"
+  {
+    echo "--- $alias_name ($model) ---"
+    echo "test1(basic)=$code test2(no_params)=${err2:0:40} test3(ref)=${err3:0:40} test4(cache)=${err4:0:40} test5(stream)=${chunks}chunks test6(tool)=${has_tool:0:20}"
+    echo "verdict=$VERDICT"
+  } >> "$EV"
 
   if [[ "$VERDICT" == "PASS" ]]; then passed=$((passed+1)); [[ $VERBOSE -eq 1 ]] && echo "✓ $alias_name: PASS"
   else failed=$((failed+1)); echo "✗ $alias_name: FAIL — $ERRORS"
@@ -191,9 +198,12 @@ test_claude_alias() {
 }
 
 if [[ -z "$TARGET_ALIAS" ]]; then
-  test_claude_alias "claude1" "$HOME/.claude-milos85vasic"
-  test_claude_alias "claude2" "$HOME/.claude-milos85vasic2nd"
-  test_claude_alias "claude3" "$HOME/.claude-milos85vasic3rd"
+  # Dynamically test only the account dirs that actually exist on this host,
+  # so the script does not produce false FAILs on hosts with different account names.
+  for _cdir in "$HOME/.claude-milos85vasic" "$HOME/.claude-milos85vasic2nd" "$HOME/.claude-milos85vasic3rd"; do
+    [[ -d "$_cdir" ]] || continue
+    test_claude_alias "${_cdir##*/.claude-}" "$_cdir"
+  done
 fi
 
 echo | tee -a "$EV"

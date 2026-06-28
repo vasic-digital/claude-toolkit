@@ -72,11 +72,13 @@ add_mcp "$p" '{"toolsy":{"command":"python3","args":["-c","print(1)"]}}'
 
 # secretsy: local server requiring an unresolved secret env -> never auto-enabled.
 p="$(make_plugin secretsy 1.0.0)"
+# shellcheck disable=SC2016  # ${API_KEY} is a literal placeholder in JSON, not a shell variable
 add_mcp "$p" '{"mcpServers":{"secretsy":{"command":"python3","args":["x"],"env":{"API_KEY":"${API_KEY}"}}}}'
 
 # rooty: uses ${CLAUDE_PLUGIN_ROOT} which must be expanded to the install path.
 p="$(make_plugin rooty 1.0.0)"
 ROOTY_DIR="$p"
+# shellcheck disable=SC2016  # ${CLAUDE_PLUGIN_ROOT} is a literal placeholder in JSON expanded at runtime
 add_mcp "$p" '{"rooty":{"command":"python3","args":["${CLAUDE_PLUGIN_ROOT}/serve.py"]}}'
 
 # dup-a / dup-b: identical remote url -> must dedup to one entry.
@@ -118,6 +120,7 @@ assert_jq "$OC_CFG" '.mcp.toolsy.enabled' 'true' "local enabled"
 
 it "keeps a secret-requiring server DISABLED even when allowlisted"
 assert_jq "$OC_CFG" '.mcp.secretsy.enabled' 'false' "secret gated off"
+# shellcheck disable=SC2016  # ${API_KEY} is the literal JSON value to assert against, not a shell var
 assert_jq "$OC_CFG" '.mcp.secretsy.environment.API_KEY' '${API_KEY}' "secret env retained"
 
 it "expands \${CLAUDE_PLUGIN_ROOT} to the real install path"

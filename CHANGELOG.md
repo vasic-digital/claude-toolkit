@@ -2,6 +2,75 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.9 — 2026-06-28 — Hardening round 2: injection-safe alias writes, broadened secret redaction, docs accuracy, shellcheck 0
+
+A second multi-agent audit + hardening pass on top of v1.7.8 (adversarial
+security audit + doc-accuracy audit + lint sweep, fixes verified centrally).
+
+### Security
+- **Provider id / config dir can no longer inject shell via the alias file**
+  (`lib.sh` `cma_provider_write_alias` / `cma_write_alias`). Both interpolate
+  values into `alias name="…"` lines that the shell **re-parses on invocation**,
+  and jq `@tsv` does not escape `"`. They now reject shell metacharacters
+  (provider id restricted to `[A-Za-z0-9._-]`; config dir rejects
+  `" $ \` \ ; & | < > ( )` and newline). Proven: a `foo"; touch …` payload is
+  rejected, no command runs, the hostile alias is never written.
+- **Keys-file read no longer breakable by a quote in the path**
+  (`claude-providers.sh` `cmd_sync_multi`). The old
+  `bash -c "set -a; source '$keysf'; …"` let a single quote in the keys-file
+  path break out of the string. Replaced with an isolated subshell
+  `( set +e; set -a +u; . "$keysf"; set +a; eval … )` — the same safe pattern
+  `cmd_sync` already used. Proven with a `do n't/` path.
+- **`.env` value quoting** (`providers_generate.py`): `q()` now POSIX
+  single-quote-escapes embedded quotes (mirrors `lib.sh` `_cma_q`), so a
+  catalog value containing a quote can't inject when `cma_run_provider`
+  sources the `.env`. Proven: an injection payload is neutralized to a literal.
+- **xtrace secret leak** (`lib.sh` `cma_run_provider`): the indirect key read
+  is now wrapped in `set +x`/restore so an active `set -x` in the user's shell
+  can't echo the key to the terminal or a redirected log.
+- **Broadened secret redaction + guard**: `cma_redact_secrets()`
+  (`verify_opencode_live.sh`) and the committed-proof scan guard (`test_lib.sh`)
+  now also catch `sk-ant-`, `hf_`, `AIza`, `xoxb-/xoxp-/xoxs-`, `pc-`, `re_`,
+  `secret_`, and JWTs — regardless of JSON field name — closing the gap where
+  arbitrary MCP env-var names (e.g. `NOTION_API_KEY`) slipped through the
+  original six-name allowlist.
+
+### Fixed
+- **`install.sh` used `readlink -f`** (absent on BSD/macOS) for its symlink
+  up-to-date check — missed by the v1.7.7 sweep. Now uses `cma_realpath`; the
+  `test_lib.sh` guard scans `install.sh` too.
+- **`verify_aliases_live.sh` hardcoded one developer's account dirs**, producing
+  false FAILs on every other host. Now discovers accounts dynamically and skips
+  dirs that don't exist.
+- Dead code / cruft: `providers_generate.py` (unused import, dead vars,
+  lambda→def, a no-op `provider_id + ('' if … else '')`); `model_verify.py`
+  (unused `import hashlib`); `model_verify.py` docstring `--key` → `CMA_PROBE_KEY`.
+
+### Docs
+- Long-form doc + `README`s + `CLAUDE.md` corrected against the code: macOS
+  rc-file caveat (`~/.zshrc` only), the test table now lists all 10 suites, the
+  full installed-command list (+`claude-providers`/`claude-sync-state`/
+  `claude-bootstrap`), repo-relative paths (was `~/Documents/scripts/`), a new
+  `claude-bootstrap` section, the `CMA_PROBE_KEY` security model in §11, and a
+  refreshed date stamp.
+
+### Quality
+- **shellcheck: 93 → 0** across all scripts. Added `.shellcheckrc`
+  (`external-sources=true`) which resolves the sourced-file warnings properly;
+  fixed the `$?`-after-condition (SC2319) test idioms, SC2015/SC1090/SC1003;
+  the one remaining reserved no-op flag carries a justified inline disable.
+
+### Verified
+- `scripts/tests/run-all.sh` **10/10 ALL GREEN**; **shellcheck 0**; every `.py`
+  compiles under `python3 -W error`.
+- Injection PoCs (provider id, config dir, `.env` value, keys-file path) all
+  proven neutralized; broadened redaction proven against `AIza`/`hf_`/JWT/etc.
+- Live `sync --multi`: **137 models verified, 32 aliases** across 8 providers
+  (opencode 4, poe 33, chutes 7, huggingface 6, nvidia 30, openrouter 14,
+  siliconflow 38, xiaomi 5), zero `CMA_PROBE_KEY`/unbound errors — identical to
+  the v1.7.8 baseline, so the new key-read path is non-regressive end-to-end.
+- 4-host byte-parity + 10/10 suite re-verified after deploy.
+
 ## v1.7.8 — 2026-06-28 — Secret hygiene (argv + committed-proof leaks), dead-code fix, coverage tests
 
 Security + robustness follow-up found by a parallel multi-agent audit of v1.7.7.

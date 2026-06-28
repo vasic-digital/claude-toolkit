@@ -90,6 +90,7 @@ printf 'project memory written from acct2\n' \
   > "$HOME/.claude-acct2/projects/$ANDROID_HASH/memory/project_notes.md"
 
 # === Run unify ===
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify > /tmp/cma-test-unify.log 2>&1
 unify_rc=$?
 
@@ -120,8 +121,8 @@ it "acct2's auth keys remain its own — no cross-contamination from acct1"
 assert_eq "user-acct2-hash" "$(jq -r .userID "$HOME/.claude-acct2/.claude.json")" "acct2 userID intact"
 assert_eq "acct2@example.com" "$(jq -r .oauthAccount.emailAddress "$HOME/.claude-acct2/.claude.json")" "acct2 oauthAccount.email intact"
 acct1_email_in_acct2="$(jq -r '.oauthAccount.emailAddress' "$HOME/.claude-acct2/.claude.json")"
-[[ "$acct1_email_in_acct2" != "acct1@example.com" ]]
-assert_eq 0 $? "acct2 did NOT inherit acct1's email"
+cond=1; [[ "$acct1_email_in_acct2" != "acct1@example.com" ]] && cond=0
+assert_eq 0 "$cond" "acct2 did NOT inherit acct1's email"
 
 # === Proof 4: non-auth shareable keys (UX state) merged across accounts ===
 it "non-auth top-level keys merge across accounts (numStartups rightmost-wins)"
@@ -130,8 +131,8 @@ it "non-auth top-level keys merge across accounts (numStartups rightmost-wins)"
 # value is non-empty in both files (proves the merge happened) and the same.
 ns_acct1="$(jq -r .numStartups "$HOME/.claude-acct1/.claude.json")"
 ns_acct2="$(jq -r .numStartups "$HOME/.claude-acct2/.claude.json")"
-[[ -n "$ns_acct1" && "$ns_acct1" != "null" ]]
-assert_eq 0 $? "acct1 has numStartups set"
+cond=1; [[ -n "$ns_acct1" && "$ns_acct1" != "null" ]] && cond=0
+assert_eq 0 "$cond" "acct1 has numStartups set"
 assert_eq "$ns_acct1" "$ns_acct2" "both accounts agree on numStartups after merge"
 
 # === Proof 5: the actual session JSONL is byte-identical between accounts ===
@@ -155,6 +156,7 @@ assert_eq "project memory written from acct2" "$content" "memory content identic
 it "re-running unify keeps every account's .claude.json byte-stable (idempotent)"
 HASH_ACCT1_BEFORE="$(sha256sum "$HOME/.claude-acct1/.claude.json" | awk '{print $1}')"
 HASH_ACCT2_BEFORE="$(sha256sum "$HOME/.claude-acct2/.claude.json" | awk '{print $1}')"
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify > /dev/null 2>&1
 HASH_ACCT1_AFTER="$(sha256sum "$HOME/.claude-acct1/.claude.json" | awk '{print $1}')"
 HASH_ACCT2_AFTER="$(sha256sum "$HOME/.claude-acct2/.claude.json" | awk '{print $1}')"
@@ -180,8 +182,8 @@ assert_eq "0" "$before_count" "acct1 starts with 0 projects pre-sync"
 sync_rc=$?
 assert_eq 0 "$sync_rc" "claude-sync-state pull rc=0"
 after_count="$(jq '.projects | length' "$HOME/.claude-acct1/.claude.json")"
-[[ "$after_count" == "2" ]]
-assert_eq 0 $? "acct1 has both Android_15 and iOS projects after pull ($after_count)"
+cond=1; [[ "$after_count" == "2" ]] && cond=0
+assert_eq 0 "$cond" "acct1 has both Android_15 and iOS projects after pull ($after_count)"
 # Auth preserved:
 assert_eq "user-acct1-hash" "$(jq -r .userID "$HOME/.claude-acct1/.claude.json")" "userID still acct1's after sync"
 
@@ -192,8 +194,8 @@ rm -f "$HOME/.claude-acct3/.claude.json"
 "$SCRIPTS_DIR/claude-sync-state.sh" pull "$HOME/.claude-acct3" > /dev/null 2>&1
 assert_file "$HOME/.claude-acct3/.claude.json" "acct3 got a seeded .claude.json"
 acct3_projects="$(jq '.projects | length' "$HOME/.claude-acct3/.claude.json")"
-[[ "$acct3_projects" == "2" ]]
-assert_eq 0 $? "acct3 seeded with the union of projects ($acct3_projects)"
+cond=1; [[ "$acct3_projects" == "2" ]] && cond=0
+assert_eq 0 "$cond" "acct3 seeded with the union of projects ($acct3_projects)"
 
 # === Proof 10: a corrupt .claude.json doesn't destroy the others' state ===
 it "corrupt .claude.json in one account is skipped without poisoning the merge"

@@ -159,6 +159,7 @@ for f in "$LIB_DIR"/claude-*.sh; do
 done
 
 # --- 2. PATH and alias-file sourcing in rc files. ---
+# shellcheck disable=SC2016  # $HOME/$PATH are intentionally unexpanded literals written into rc files
 PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
 for rc in "${CMA_RC_FILES[@]}"; do
   [[ -f "$rc" ]] || continue

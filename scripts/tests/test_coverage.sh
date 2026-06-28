@@ -51,6 +51,7 @@ mkdir -p "$(dirname "$ALIAS_FILE")"
 {
   printf '# Managed by claude-multi-account. Do not edit by hand.\n'
   printf 'export CLAUDE_BIN="/usr/bin/true"\n'
+  # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the alias text, not a shell expansion
   printf 'alias claude1="CLAUDE_CONFIG_DIR=%s/.claude-acct1 $CLAUDE_BIN"\n' "$HOME"
   printf '# some user-added comment\n'
   printf 'MY_CUSTOM_VAR=preserved\n'
@@ -58,6 +59,7 @@ mkdir -p "$(dirname "$ALIAS_FILE")"
 cma_ensure_alias_file
 # The alias must now reference cma_run instead of bare $CLAUDE_BIN
 assert_file_contains "$ALIAS_FILE" "cma_run" "migrated alias now uses cma_run"
+# shellcheck disable=SC2016  # $CLAUDE_BIN is a literal string to search for in the alias file
 assert_file_not_contains "$ALIAS_FILE" ' $CLAUDE_BIN"' "old bare \$CLAUDE_BIN reference gone"
 # Unrelated content must survive the in-place migration
 assert_file_contains "$ALIAS_FILE" "MY_CUSTOM_VAR=preserved" "unrelated user line preserved after migration"
@@ -163,6 +165,7 @@ printf '{"source":"new"}\n' > "$d_new/stats-cache.json"
 touch -t 202001010000.00 "$d_old/stats-cache.json"
 touch -t 202301010000.00 "$d_new/stats-cache.json"
 # Run unify (suppress log chatter; non-zero exit is still informative from $?).
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify 2>/dev/null
 actual="$(jq -r '.source' "$SHARED_DIR/stats-cache.json" 2>/dev/null)"
 assert_eq "new" "$actual" "newer stats-cache.json (2023-01-01) wins over older (2020-01-01)"

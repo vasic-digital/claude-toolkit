@@ -51,7 +51,7 @@ for f in "$LIB_DIR"/claude-*.sh; do
   name="$(basename "$f" .sh)"
   link="$BIN_DIR/$name"
   if [[ -L "$link" || -e "$link" ]]; then
-    if [[ "$(readlink -f "$link" 2>/dev/null)" != "$(readlink -f "$f")" ]]; then
+    if [[ "$(cma_realpath "$link")" != "$(cma_realpath "$f")" ]]; then
       mv "$link" "${link}.preunify.$(date +%Y%m%d%H%M%S)"
       ln -s "$f" "$link"
       cma_log "linked $link -> $f"
@@ -64,6 +64,7 @@ done
 
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc
 # and .zshrc once; existing shells need a manual reload.
+# shellcheck disable=SC2016  # $HOME/$PATH are intentionally unexpanded literals written into rc files
 PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
 for rc in "${CMA_RC_FILES[@]}"; do
   [[ -f "$rc" ]] || continue

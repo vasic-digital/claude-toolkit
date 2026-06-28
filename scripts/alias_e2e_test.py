@@ -95,7 +95,7 @@ def test_provider_direct(base_url, api_key, model, timeout=30):
             try:
                 result = json.loads(raw)
             except json.JSONDecodeError:
-                return False, "", f"Invalid JSON response", elapsed
+                return False, "", "Invalid JSON response", elapsed
 
             # Extract content
             content = ""
