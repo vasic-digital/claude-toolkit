@@ -2,6 +2,48 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.11 — 2026-06-28 — Round-4: coverage-gap regression tests, toon recursion guard, arg validation
+
+Fourth audit round: found the codebase is converging (export-docs, test harness,
+add/list/remove/rollback all verified clean); shipped 10 targeted coverage tests
+closing the same shallow-coverage class that let the v1.7.10 enable-plugins bug
+ship; plus 2 LOW code findings.
+
+### Fixed
+- **`toon_encode.py` `fallback_encode`**: unbounded recursion on deeply nested
+  JSON. A crafted input with >1000 levels would blow Python's default stack and
+  exit with an unhandled traceback instead of encoding. Added a `_depth` guard;
+  beyond 64 levels emits compact JSON as a safe fallback.
+- **`toon.mjs` encode-file / decode-file**: running `toon.mjs encode-file` with
+  no argument produced a confusing `TypeError` from Node's `fs.readFileSync`.
+  Now prints `Error: encode-file requires a filename argument` + exit 1.
+
+### Added — coverage-gap regression tests (the same class that let enable-plugins
+ship)
+- **B9 (HIGH) — `cma_ensure_alias_file` migration path** (`test_coverage.sh`):
+  builds a realistic old `cma_run_provider()` body lacking `claude-sync-state`,
+  calls `cma_ensure_alias_file`, asserts the body is migrated, the following
+  `alias claude1=` survives, and `cma_run_provider()` appears exactly once.
+- **B3 (HIGH) — `_cma_q` bash quoting in `cma_provider_write_env`**
+  (`test_coverage.sh`): sources a `.env` with a model name containing a literal
+  single quote and asserts it round-trips intact; also asserts an injection
+  payload does NOT execute on source (mirrors the already-tested Python `q()`).
+- **B1 (HIGH) — `absorb_default_plugins`** (`test_unify.sh`): creates a real
+  plugin file under `$HOME/.claude/plugins/cache/` before unify; asserts it
+  lands in `$SHARED_DIR/plugins/cache/`.
+- **B2 (HIGH) — `link_default_plugin_subdirs`** (`test_unify.sh`): asserts
+  `$DEFAULT_DIR/plugins/cache` becomes a symlink into `$SHARED_DIR/plugins/cache`
+  after unify, and that re-running unify doesn't create a second backup.
+- **B4 (MEDIUM-HIGH) — `sync_claude_md` seed branches** (`test_unify.sh`):
+  branch (b) seeds `$DEFAULT_DIR/CLAUDE.md` and asserts it wins; branch (c)
+  removes it and gives an account a `CLAUDE.md`, asserts that one wins.
+
+### Verified
+- `run-all.sh` **10/10 ALL GREEN** (coverage now 39+10=49 assertions; unify
+  now 43+7=50); **shellcheck 0**; all `.py` compile under `python3 -W error`;
+  `node --check toon.mjs` clean; toon_encode 500-level-nest no longer crashes;
+  toon.mjs missing-arg gives clean error + exit 1.
+
 ## v1.7.10 — 2026-06-28 — Round-3 audit: enable-plugins bug fix, path-traversal guards, proxy robustness
 
 Third audit round (deep dive on the less-covered surface: opencode_sync,

@@ -66,6 +66,57 @@ assert_file_not_contains "$ALIAS_FILE" ' $CLAUDE_BIN"' "old bare \$CLAUDE_BIN re
 # Unrelated content must survive the in-place migration
 assert_file_contains "$ALIAS_FILE" "MY_CUSTOM_VAR=preserved" "unrelated user line preserved after migration"
 
+it "cma_ensure_alias_file (B9): migrates old cma_run_provider body; claude-sync-state added, alias lines after function preserved"
+# Build an alias file with an OLD cma_run_provider() body that lacks both
+# 'claude-sync-state' and 'set -a +u' — the two markers of the current
+# version — followed by a real claudeN alias.  The old grep searched for
+# 'claude-sync-state pull' (with a space after the command name) but the
+# actual text has '"claude-sync-state" pull' (quote-then-space), so the
+# match always failed and migration fired on EVERY write, chopping all
+# alias lines that followed the function.  This test locks in the fix.
+rm -f "$ALIAS_FILE"
+mkdir -p "$(dirname "$ALIAS_FILE")"
+cat > "$ALIAS_FILE" <<'B9_OLD_BODY'
+# Managed by claude-multi-account. Do not edit by hand.
+export CLAUDE_BIN="/usr/bin/true"
+
+cma_run_provider() {
+  local id="$1"; shift 2>/dev/null || true
+  local pdir="$HOME/.local/share/claude-multi-account/providers"
+  local envf="$pdir/$id.env"
+  if [[ ! -f "$envf" ]]; then
+    printf 'claude-providers: unknown provider %s\n' "$id" >&2
+    return 1
+  fi
+  source "$envf"
+  local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
+  if [[ -f "$keysf" ]]; then source "$keysf"; fi
+  local token=""
+  eval "token=\"\${$CMA_PROVIDER_KEYVAR:-}\""
+  if [[ -z "$token" ]]; then
+    printf 'claude-providers: $%s is empty\n' "$CMA_PROVIDER_KEYVAR" >&2
+    return 1
+  fi
+  export CLAUDE_CONFIG_DIR="$CMA_PROVIDER_CONFIG_DIR"
+  export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
+  export ANTHROPIC_AUTH_TOKEN="$token"
+  "$CLAUDE_BIN" "$@"
+}
+B9_OLD_BODY
+# Append a real alias AFTER the function — this is what the old bug silently
+# dropped on every subsequent install.sh re-run.
+printf 'alias claude1="CLAUDE_CONFIG_DIR=%s/.claude-acct1 cma_run"\n' "$HOME" >> "$ALIAS_FILE"
+cma_ensure_alias_file
+# (a) The new cma_run_provider() body must contain claude-sync-state.
+_b9_body="$(awk '/^cma_run_provider\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+b9_has_sync=1; printf '%s\n' "$_b9_body" | grep -q 'claude-sync-state' && b9_has_sync=0
+assert_eq 0 "$b9_has_sync" "migrated cma_run_provider body contains claude-sync-state"
+# (b) alias claude1= must survive — this is the line the old bug chopped.
+assert_file_contains "$ALIAS_FILE" "alias claude1=" "alias claude1 line preserved after cma_run_provider migration"
+# (c) exactly one cma_run_provider() definition (no duplication).
+b9_prov_count="$(grep -c '^cma_run_provider()' "$ALIAS_FILE" || true)"
+assert_eq "1" "$b9_prov_count" "cma_run_provider() appears exactly once after migration"
+
 # ── 2. cma_can_prompt ────────────────────────────────────────────────────────
 
 it "cma_can_prompt: returns 1 when CMA_NONINTERACTIVE=1"
@@ -232,5 +283,30 @@ assert_eq 0 "$ok" "AIza / hf_ / JWT shapes all redacted"
 ph="\${COCKROACHDB_PASSWORD}"   # literal placeholder, built without a single-quoted $
 ok=1; [[ "$red" == *"$ph"* ]] && ok=0
 assert_eq 0 "$ok" "\${...} placeholder preserved (not redacted)"
+
+# ── B3. cma_provider_write_env _cma_q quoting ────────────────────────────────
+# _cma_q wraps each value in single quotes and escapes embedded single quotes
+# via the '\'' idiom.  Test both that a literal ' in a model name survives a
+# source round-trip and that an injection payload does NOT execute on source.
+
+it "cma_provider_write_env (B3): model name with literal single quote round-trips through source"
+# Args: id keyvar transport base_url model fast_model config_dir
+_b3_env="$HOME/.local/share/claude-multi-account/providers/b3quote.env"
+cma_provider_write_env "b3quote" "TESTKEY" "native" "https://api.test/v1" "model-with-'quote'" "" "$HOME/.claude-b3"
+b3_actual="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MODEL"' _ "$_b3_env" 2>/dev/null)"
+assert_eq "model-with-'quote'" "$b3_actual" "_cma_q: single-quote in model name survives source round-trip"
+
+it "cma_provider_write_env (B3): injection payload in model name does not execute on source"
+_b3_pwn="$HOME/PWN_b3"
+rm -f "$_b3_pwn"
+# Build the injection string without a heredoc so single/double quotes stay readable.
+# The payload would close the single-quoted value and inject a shell command.
+_b3_inject="x'; touch ${_b3_pwn}; echo '"
+cma_provider_write_env "b3inject" "TESTKEY" "native" "https://api.test/v1" "$_b3_inject" "" "$HOME/.claude-b3i"
+_b3_env2="$HOME/.local/share/claude-multi-account/providers/b3inject.env"
+( bash -c '. "$1"' _ "$_b3_env2" ) 2>/dev/null
+b3_inj=1; [[ ! -f "$_b3_pwn" ]] && b3_inj=0
+assert_eq 0 "$b3_inj" "_cma_q injection payload does not execute on source"
+rm -f "$_b3_pwn"
 
 summary

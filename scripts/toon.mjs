@@ -81,12 +81,14 @@ async function main() {
         break;
       }
       case 'encode-file': {
+        if (!args[0]) { console.error('Error: encode-file requires a filename argument'); process.exit(1); }
         const fs = await import('fs');
         const data = JSON.parse(fs.readFileSync(args[0], 'utf-8'));
         console.log(encode(data));
         break;
       }
       case 'decode-file': {
+        if (!args[0]) { console.error('Error: decode-file requires a filename argument'); process.exit(1); }
         const fs = await import('fs');
         const data = decode(fs.readFileSync(args[0], 'utf-8'));
         console.log(JSON.stringify(data, null, 2));
