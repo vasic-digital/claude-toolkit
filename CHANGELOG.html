@@ -239,6 +239,34 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 </header>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v1712--2026-06-28--one-line-curl-installer">v1.7.12 — 2026-06-28
+— One-line curl installer</h2>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong><code>curl-install.sh</code></strong> — one-line bootstrap
+installer:
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-fsSL</span> https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh <span class="kw">|</span> <span class="fu">bash</span></span></code></pre></div>
+Detects platform (Linux/macOS) and shell, auto-installs missing hard
+dependencies (jq, rsync, awk) via the system package manager
+(apt/dnf/apk/pacman/brew), clones (or pulls if already present) the repo
+with all submodules recursively to <code>~/claude-toolkit</code>, runs
+<code>install.sh</code>, and prints next-steps. Idempotent; re-runnable.
+Install dir overridable via <code>CLAUDE_TOOLKIT_DIR</code> env
+var.</li>
+<li><strong>README.md</strong> — curl one-liner added at the top of the
+Install section.</li>
+<li><strong><code>test_curl_install.sh</code></strong> — 22 hermetic
+tests covering syntax, permissions, URL correctness, submodule cloning,
+idempotency, platform detection, dependency checks, error handling, and
+next-steps output.</li>
+</ul>
+<h3 id="verified">Verified</h3>
+<ul>
+<li><code>bash -n</code> + <code>shellcheck 0</code> on
+<code>curl-install.sh</code> and <code>test_curl_install.sh</code>.</li>
+<li><code>run-all.sh</code> <strong>11/11 ALL GREEN</strong> (was 10;
++<code>test_curl_install.sh</code>).</li>
+</ul>
 <h2 id="v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation">v1.7.11
 — 2026-06-28 — Round-4: coverage-gap regression tests, toon recursion
 guard, arg validation</h2>
@@ -295,7 +323,7 @@ branches</strong> (<code>test_unify.sh</code>): branch (b) seeds
 removes it and gives an account a <code>CLAUDE.md</code>, asserts that
 one wins.</li>
 </ul>
-<h3 id="verified">Verified</h3>
+<h3 id="verified-1">Verified</h3>
 <ul>
 <li><code>run-all.sh</code> <strong>10/10 ALL GREEN</strong> (coverage
 now 39+10=49 assertions; unify now 43+7=50); <strong>shellcheck
@@ -356,7 +384,7 @@ a broken alias.</li>
 <code>gzip.decompress</code> is now guarded like the error path, so a
 corrupt gzip body no longer propagates.</li>
 </ul>
-<h3 id="verified-1">Verified</h3>
+<h3 id="verified-2">Verified</h3>
 <ul>
 <li><code>run-all.sh</code> <strong>10/10 ALL GREEN</strong> (coverage
 now 32 assertions incl. the enable-plugins + injection regressions);
@@ -462,7 +490,7 @@ resolves the sourced-file warnings properly; fixed the
 SC2015/SC1090/SC1003; the one remaining reserved no-op flag carries a
 justified inline disable.</li>
 </ul>
-<h3 id="verified-2">Verified</h3>
+<h3 id="verified-3">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> <strong>10/10 ALL
 GREEN</strong>; <strong>shellcheck 0</strong>; every <code>.py</code>
@@ -536,7 +564,7 @@ in <code>providers_resolve.py</code>: the usage docstring&#39;s
 <code>\</code> line-continuations are now a raw string
 (<code>r&quot;&quot;&quot;</code>).</li>
 </ul>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code></strong> — 11 new hermetic
 tests (19 assertions) covering previously-untested <code>lib.sh</code>
@@ -553,7 +581,7 @@ scans <code>scripts/tests/proof</code> for provider-key prefixes and URL
 <code>user:password@</code> creds, counting suspect lines so a failure
 never re-echoes a secret.</li>
 </ul>
-<h3 id="verified-3">Verified</h3>
+<h3 id="verified-4">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>10/10 ALL
 GREEN</strong> locally (was 9; +<code>test_coverage.sh</code>).</li>
@@ -604,7 +632,7 @@ with an empty <code>args</code> is an &quot;unbound variable&quot; error on bash
 non-re-exec&#39;d <code>claude-providers.sh</code>). Guarded with
 <code>${args[@]+&quot;${args[@]}&quot;}</code>.</li>
 </ul>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li><strong><code>cma_realpath</code></strong> portable canonicalizer in
 <code>lib.sh</code>.</li>
@@ -613,7 +641,7 @@ non-re-exec&#39;d <code>claude-providers.sh</code>). Guarded with
 real path; plus a guard asserting NO runtime script <em>invokes</em>
 <code>readlink -f</code>.</li>
 </ul>
-<h3 id="verified-4">Verified</h3>
+<h3 id="verified-5">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>9/9 ALL GREEN on all
 four hosts</strong>: nezha, thinker, amber (Linux), mistborn (macOS,
@@ -680,7 +708,7 @@ and <code>tests/lib/sandbox.sh</code> (empty <code>${arr[@]}</code>
 expansions are unbound on bash 3.2). The suite now runs green on macOS
 bash 3.2.</li>
 </ul>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li><strong><code>CMA_NONINTERACTIVE</code> + automatic TTY
 detection</strong> — a new <code>cma_can_prompt</code> helper makes
@@ -714,7 +742,7 @@ amber.</li>
 active providers each</strong>, models verified via HTTP probes,
 <strong>0 unbound errors</strong>.</li>
 </ul>
-<h3 id="verified-5">Verified</h3>
+<h3 id="verified-6">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>9/9 files, ALL GREEN
 on all four hosts</strong>: nezha (Linux), thinker (Linux), amber
@@ -764,7 +792,7 @@ couldn&#39;t find A&#39;s session</li>
 </ol>
 <p>After fix: all providers/accounts share the same merged
 <code>lastSessionId</code> via sync-state.</p>
-<h3 id="verified-6">Verified</h3>
+<h3 id="verified-7">Verified</h3>
 <ul>
 <li><strong>Local host</strong>: all providers show identical
 <code>lastSessionId</code> after sync (confirmed)</li>
@@ -810,7 +838,7 @@ failed</strong></li>
 </ul>
 <h2 id="v166--2026-06-21--toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</h2>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li><strong>TOON (Token-Oriented Object Notation)</strong> integration —
 saves ~40% tokens vs JSON for structured data in LLM prompts by
@@ -854,7 +882,7 @@ name caused <code>unbound variable</code> error on nezha (Linux,
 <li><strong>install.sh: auto-copy proxy scripts</strong> to
 <code>~/.local/share/.../proxy/</code> during install.</li>
 </ul>
-<h3 id="verified-7">Verified</h3>
+<h3 id="verified-8">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
 <code>poe3</code> ✅</li>
@@ -877,7 +905,7 @@ API.</li>
 now auto-starts compatibility proxies for providers that need them
 (detected by <code>scripts/proxy/&lt;provider&gt;_proxy.py</code>).</li>
 </ul>
-<h3 id="verified-8">Verified</h3>
+<h3 id="verified-9">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work through proxy: <code>poe</code> ✅,
 <code>poe2</code> ✅, <code>poe3</code> ✅</li>
@@ -888,7 +916,7 @@ now auto-starts compatibility proxies for providers that need them
 </ul>
 <h2 id="v163--2026-06-21--poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</h2>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li><strong>Poe provider</strong> — universal AI platform with 382
 models from all major providers. OpenAI-compatible API at
@@ -906,7 +934,7 @@ code, 40 image gen, 17 video gen, 12 TTS, 1 STT, 166 other</li>
 <li><strong>Documentation</strong>: full Poe section in
 Provider_Aliases_User_Guide.md</li>
 </ul>
-<h3 id="verified-9">Verified</h3>
+<h3 id="verified-10">Verified</h3>
 <ul>
 <li>API endpoint responds correctly</li>
 <li>Authentication works</li>
@@ -926,7 +954,7 @@ fast=<code>Qwen/Qwen3.6-27B-TEE</code>.</li>
 Provider_Aliases_User_Guide.md with full model table, TEE explanation,
 pay-per-use note, and setup instructions.</li>
 </ul>
-<h3 id="verified-10">Verified</h3>
+<h3 id="verified-11">Verified</h3>
 <ul>
 <li>Chutes API endpoint responds correctly</li>
 <li>All 13 TEE models accessible (require funded account for actual
@@ -945,7 +973,7 @@ it with HTTP 422. Fixed by adding ccr&#39;s built-in <code>cleancache</code>
 transformer to every provider config, which strips
 <code>cache_control</code> before forwarding to the provider.</li>
 </ul>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li><strong><code>alias_e2e_test.py</code></strong> — end-to-end alias
 verification script that tests each alias by sending requests through
@@ -964,7 +992,7 @@ working (all aliases tested with &quot;Do you see our codebase?&quot;)</h3>
 </ul>
 <h2 id="v160--2026-06-21--multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</h2>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li><strong>Multi-alias provider system</strong> — every provider can
 now have multiple aliases (<code>provider</code>,
@@ -1008,14 +1036,14 @@ require it).</li>
 <li>8/8 test files passed (ALL GREEN), 0 failures.</li>
 </ul>
 <h3 id="usage">Usage</h3>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard sync (2 models per provider, as before)</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-alias sync (verify ALL models, create multiple aliases)</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># With options</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard sync (2 models per provider, as before)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-alias sync (verify ALL models, create multiple aliases)</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># With options</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
 <h2 id="v151--2026-06-20--linux-stat-fix--nezha-deployment">v1.5.1 —
 2026-06-20 — Linux stat fix + nezha deployment</h2>
 <h3 id="fixed-11">Fixed</h3>
@@ -1045,7 +1073,7 @@ pre-existing)</li>
 </ul>
 <h2 id="v150--2026-06-20--cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</h2>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li><strong>Cross-alias session visibility</strong> — sessions created
 under ANY alias (<code>claudeN</code>, <code>deepseek</code>,
@@ -1110,7 +1138,7 @@ also merged.</li>
 </ul>
 <h2 id="v140--2026-06-20--opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</h2>
-<h3 id="added-8">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li><strong><code>opencode</code> provider alias</strong> — <a href="https://opencode.ai/zen">OpenCode Zen</a> curated AI gateway with
 <strong>21 free models</strong> (all $0 cost, all support tool calling +
@@ -1183,7 +1211,7 @@ work).</li>
 </ul>
 <h2 id="v130--2026-06-19--xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</h2>
-<h3 id="added-9">Added</h3>
+<h3 id="added-10">Added</h3>
 <ul>
 <li><strong><code>xiaomi</code> provider alias</strong> — Xiaomi MiMo
 via the <strong>Anthropic-native endpoint</strong>
@@ -1255,7 +1283,7 @@ file.</li>
 </ul>
 <h2 id="v120--2026-06-19--zai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</h2>
-<h3 id="added-10">Added</h3>
+<h3 id="added-11">Added</h3>
 <ul>
 <li><strong><code>zai-coding-plan</code> provider alias</strong> —
 OpenAI-compatible router transport via
@@ -1295,7 +1323,7 @@ include 5 new assertions for <code>zai-coding-plan</code>.</li>
 heavy testing against <strong>real production LLM services</strong>,
 plus end-to-end provider aliases proven on two hosts and two
 transports.</p>
-<h3 id="added-11">Added</h3>
+<h3 id="added-12">Added</h3>
 <ul>
 <li><strong><code>containers</code> + <code>challenges</code>
 submodules</strong> (<code>submodules/</code>) — the distributed-boot
@@ -1403,7 +1431,7 @@ for poe2, poe3 aliases).</li>
 <code>${CMA_PROVIDER_ID%%[0-9]*}</code></li>
 <li><strong>alias file</strong>: same fix applied</li>
 </ul>
-<h3 id="verified-11">Verified</h3>
+<h3 id="verified-12">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
 <code>poe3</code> ✅</li>
@@ -1423,7 +1451,7 @@ gzip-compressed responses but the proxy tried to read them as UTF-8
 without decompressing, causing UnicodeDecodeError. Added gzip
 decompression for both success and error responses.</li>
 </ul>
-<h3 id="verified-12">Verified</h3>
+<h3 id="verified-13">Verified</h3>
 <ul>
 <li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
 <li><code>poe2</code> (gpt-5.5): ✅ YES</li>
@@ -1446,7 +1474,7 @@ Added <code>resolve_refs()</code> function that extracts
 <code>$defs</code>, resolves all <code>$ref</code> references to inline
 definitions, and removes <code>$defs</code>.</li>
 </ul>
-<h3 id="verified-13">Verified</h3>
+<h3 id="verified-14">Verified</h3>
 <ul>
 <li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
 <li><code>poe2</code> (gpt-5.5): ✅ YES</li>
@@ -1517,7 +1545,7 @@ assertions)</li>
 </ul>
 <h2 id="v172--2026-06-22--claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</h2>
-<h3 id="added-12">Added</h3>
+<h3 id="added-13">Added</h3>
 <ul>
 <li><strong>Claude alias verification</strong> in verify_aliases_live.sh
 — tests claude1/2/3 alongside provider aliases</li>

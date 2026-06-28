@@ -44,6 +44,19 @@ brew install jq rsync gawk pandoc weasyprint
 
 ## Install
 
+### Quick install (curl)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh | bash
+```
+
+This clones the repo to `~/claude-toolkit` (or pulls if it already exists),
+installs missing dependencies (jq, rsync, awk) via your system package manager,
+runs the full setup, and wires everything into your shell. Re-run it anytime to
+pull the latest version.
+
+### Manual install
+
 Pick the path that matches your host:
 
 ### A. Existing accounts (host already has ≥1 `~/.claude-*` dir)

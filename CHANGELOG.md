@@ -2,6 +2,27 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.12 — 2026-06-28 — One-line curl installer
+
+### Added
+- **`curl-install.sh`** — one-line bootstrap installer:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh | bash
+  ```
+  Detects platform (Linux/macOS) and shell, auto-installs missing hard
+  dependencies (jq, rsync, awk) via the system package manager (apt/dnf/apk/pacman/brew),
+  clones (or pulls if already present) the repo with all submodules recursively to
+  `~/claude-toolkit`, runs `install.sh`, and prints next-steps. Idempotent;
+  re-runnable. Install dir overridable via `CLAUDE_TOOLKIT_DIR` env var.
+- **README.md** — curl one-liner added at the top of the Install section.
+- **`test_curl_install.sh`** — 22 hermetic tests covering syntax, permissions,
+  URL correctness, submodule cloning, idempotency, platform detection, dependency
+  checks, error handling, and next-steps output.
+
+### Verified
+- `bash -n` + `shellcheck 0` on `curl-install.sh` and `test_curl_install.sh`.
+- `run-all.sh` **11/11 ALL GREEN** (was 10; +`test_curl_install.sh`).
+
 ## v1.7.11 — 2026-06-28 — Round-4: coverage-gap regression tests, toon recursion guard, arg validation
 
 Fourth audit round: found the codebase is converging (export-docs, test harness,
