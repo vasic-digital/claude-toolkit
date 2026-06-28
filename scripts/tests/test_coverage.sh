@@ -294,7 +294,7 @@ it "cma_provider_write_env (B3): model name with literal single quote round-trip
 # cma_providers_dir() is hardcoded to $HOME/.local/share/... (not $SHARED_DIR),
 # so we temporarily override it to write into a sandbox temp dir.
 _b3_tmpdir="$(mktemp -d)"
-_b3_orig_fn="$(type cma_providers_dir 2>/dev/null)"
+_b3_orig_fn="$(declare -f cma_providers_dir 2>/dev/null)"
 cma_providers_dir() { echo "$_b3_tmpdir"; }
 _b3_env="$_b3_tmpdir/b3quote.env"
 cma_provider_write_env "b3quote" "TESTKEY" "native" "https://api.test/v1" "model-with-'quote'" "" "$HOME/.claude-b3"
