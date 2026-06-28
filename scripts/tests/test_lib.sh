@@ -85,4 +85,22 @@ found=(); while IFS= read -r _l; do found+=("$_l"); done < <(cma_detect_accounts
 joined="${found[*]:-}"
 [[ "$joined" == *".claude-real"* ]]; assert_eq 0 $? "finds .claude-real"
 
+it "cma_realpath resolves a symlink chain to its canonical target (no readlink -f)"
+mkdir -p "$HOME/rp/real"
+: > "$HOME/rp/real/file"
+ln -s "$HOME/rp/real/file" "$HOME/rp/link1"
+ln -s "$HOME/rp/link1" "$HOME/rp/link2"          # chain: link2 -> link1 -> real/file
+got="$(cma_realpath "$HOME/rp/link2")"
+want="$(cd "$HOME/rp/real" && pwd -P)/file"
+assert_eq "$want" "$got" "cma_realpath follows the symlink chain"
+# A plain (non-symlink) path canonicalizes to itself.
+got2="$(cma_realpath "$HOME/rp/real/file")"
+assert_eq "$want" "$got2" "cma_realpath is identity on a real path"
+
+it "no runtime script INVOKES 'readlink -f' (absent on BSD/macOS)"
+# Strip comments first so explanatory comments mentioning the flag don't count;
+# we only care about real invocations.
+hits="$(for f in "$SCRIPTS_DIR"/lib.sh "$SCRIPTS_DIR"/claude-*.sh; do sed 's/#.*//' "$f"; done 2>/dev/null | grep -c 'readlink -f')"
+assert_eq 0 "$hits" "zero 'readlink -f' invocations in runtime scripts"
+
 summary

@@ -47,7 +47,7 @@ for dir in "${accounts[@]}"; do
   for item in "${CHECK_LINKS[@]}"; do
     total=$((total+1))
     if [[ -L "$dir/$item" ]] \
-       && [[ "$(readlink -f "$dir/$item")" == "$(readlink -f "$SHARED_DIR/$item" 2>/dev/null || echo "$SHARED_DIR/$item")" ]]; then
+       && [[ "$(cma_realpath "$dir/$item")" == "$(cma_realpath "$SHARED_DIR/$item")" ]]; then
       ok=$((ok+1))
     else
       missing+=("$item")

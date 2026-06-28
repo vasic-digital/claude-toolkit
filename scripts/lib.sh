@@ -113,6 +113,23 @@ cma_os() {
   esac
 }
 
+# Portable realpath. BSD/macOS `readlink` has no `-f`, so `readlink -f` is a hard
+# error there (prints "illegal option -- f", returns empty) even after a bash-4
+# re-exec, because /usr/bin/readlink stays BSD. This resolves a path to its
+# canonical absolute form by walking the symlink chain with single-arg
+# `readlink` (supported everywhere) plus `pwd -P` — the same technique every
+# script's LIB_DIR resolver uses. Safe under `set -e`.
+cma_realpath() {
+  local p="$1" t dir base
+  while [ -L "$p" ]; do
+    t="$(readlink "$p")"
+    case "$t" in /*) p="$t" ;; *) p="$(dirname "$p")/$t" ;; esac
+  done
+  dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || dir="$(dirname "$p")"
+  base="$(basename "$p")"
+  printf '%s/%s\n' "$dir" "$base"
+}
+
 # Find all existing Claude account config directories under $HOME, matching
 # the convention `.claude-<name>`. Echoes absolute paths, one per line,
 # sorted. The default `~/.claude` is intentionally excluded because we treat
@@ -465,7 +482,9 @@ cma_enable_plugins() {
   for p in "$@"; do
     prog+=" | .enabledPlugins[\$p$i] //= true"; i=$((i+1))
   done
-  if jq "${args[@]}" "$prog" "$settings" > "$tmp" 2>/dev/null; then
+  # ${args[@]+...} guards an empty array under set -u on bash 3.2 (reachable
+  # via CMA_ALWAYS_ON_PLUGINS="" from non-re-exec'd claude-providers.sh).
+  if jq ${args[@]+"${args[@]}"} "$prog" "$settings" > "$tmp" 2>/dev/null; then
     mv "$tmp" "$settings"
   else
     rm -f "$tmp"; cma_warn "could not update enabledPlugins in $settings"

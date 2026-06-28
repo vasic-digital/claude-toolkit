@@ -2,6 +2,52 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.7.7 — 2026-06-28 — Portable realpath (BSD portability hardening), set -u edge fix, regression tests
+
+Follow-up hardening release found by a parallel multi-agent audit of v1.7.6.
+
+### Fixed
+- **`readlink -f` → portable `cma_realpath`** at three sites: `claude-unify.sh`
+  (`already_linked_to_shared` and `merge_settings_json`) and
+  `claude-list-accounts.sh` (the link check). `readlink -f` is absent on older
+  macOS and on other BSDs (FreeBSD/NetBSD); there the checks silently fail —
+  making `claude-unify` re-link every shared item on each re-run (accumulating
+  stale `.preunify.*` backups) and `claude-list-accounts` report linked
+  accounts as "not linked". **Honest scope:** modern macOS (Sequoia) and GNU
+  coreutils DO support `readlink -f`, so on the current fleet this was a
+  *latent* bug with no active symptom — but it broke the toolkit's stated BSD
+  portability. Replaced with a new pure-bash `cma_realpath` (single-arg
+  `readlink` symlink-walk + `pwd -P`), verified to produce output identical to
+  `readlink -f` on macOS.
+- **`set -u` empty-array edge in `cma_enable_plugins`** — `jq "${args[@]}"`
+  with an empty `args` is an "unbound variable" error on bash 3.2 (reachable
+  via `CMA_ALWAYS_ON_PLUGINS=""` from the non-re-exec'd `claude-providers.sh`).
+  Guarded with `${args[@]+"${args[@]}"}`.
+
+### Added
+- **`cma_realpath`** portable canonicalizer in `lib.sh`.
+- **Regression tests** (`test_lib.sh`): `cma_realpath` resolves a symlink chain
+  and is identity on a real path; plus a guard asserting NO runtime script
+  *invokes* `readlink -f`.
+
+### Verified
+- `scripts/tests/run-all.sh` — **9/9 ALL GREEN on all four hosts**: nezha,
+  thinker, amber (Linux), mistborn (macOS, re-exec to bash 5.3, BSD userland).
+- `cma_realpath` output confirmed byte-identical to `readlink -f` on macOS.
+
+### Audit findings (v1.7.6 — no code change required)
+- Disabled providers are EXTERNAL, not toolkit bugs (toolkit correctly disabled
+  them on failed verify): `github-models` → HTTP 401 (dead GitHub PAT),
+  `upstage` → HTTP 403 from AWS WAF (egress-IP block).
+- `api_keys.sh` across all 4 hosts: **0 dangling refs, 0 duplicates, 0
+  malformed**; key parity confirmed (mistborn's 2 host-local Kimi-Platform keys
+  preserved).
+- Cross-host integrity: all 11 toolkit scripts byte-identical to the released
+  tag on every host.
+- Known/deferred: published tags `v1.2.0` (gitlab) and `v1.5.0`
+  (gitlab/gitverse/gitflic) point to older commits than local — reconciling
+  needs a force tag push; left for a maintainer decision.
+
 ## v1.7.6 — 2026-06-28 — Always-non-interactive execution, alias-file integrity, macOS/bash-3.2 portability, 4-host rollout
 
 ### Fixed

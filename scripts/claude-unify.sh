@@ -75,7 +75,9 @@ ts() { date +%Y%m%d%H%M%S; }
 
 already_linked_to_shared() {
   [[ -L "$1" ]] || return 1
-  [[ "$(readlink -f "$1")" == "$(readlink -f "$2" 2>/dev/null || echo "$2")" ]]
+  # cma_realpath (not `readlink -f`, which is absent on BSD/macOS — there the
+  # old check always failed, so unify re-linked every item on every re-run).
+  [[ "$(cma_realpath "$1")" == "$(cma_realpath "$2")" ]]
 }
 
 backup_and_remove() {
@@ -146,7 +148,7 @@ merge_settings_json() {
   for acct in "${ACCOUNTS[@]}"; do
     local f="$acct/settings.json"
     if [[ -L "$f" ]]; then
-      resolved="$(readlink -f "$f")"
+      resolved="$(cma_realpath "$f")"  # readlink -f is unavailable on BSD/macOS
       if [[ -f "$resolved" ]]; then files+=("$resolved"); fi
     elif [[ -f "$f" ]]; then
       files+=("$f")
