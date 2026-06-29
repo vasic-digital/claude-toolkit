@@ -317,4 +317,39 @@ b3_inj=1; [[ ! -f "$_b3_pwn" ]] && b3_inj=0
 assert_eq 0 "$b3_inj" "_cma_q injection payload does not execute on source"
 rm -f "$_b3_pwn" "$_b3_tmpdir" "$_b3_tmpdir2"
 
+# ── B5. cma_provider_write_env token-limit fields (v1.8.0 guard) ──────────────
+# v1.8.0 added context_limit/max_output (args 8 & 9) so cma_run_provider can
+# export CLAUDE_CODE_MAX_OUTPUT_TOKENS and never overshoot a provider's real
+# context window. That data path shipped without a test; these assertions cover
+# write_env's emission (value round-trip, "null"->empty, 7-arg back-compat) and
+# confirm the consumer wiring is present in the emitted wrapper.
+_b5_tmpdir="$(mktemp -d)"
+cma_providers_dir() { echo "$_b5_tmpdir"; }
+
+it "cma_provider_write_env (B5): context_limit/max_output round-trip through source"
+cma_provider_write_env "b5lim" "TESTKEY" "native" "https://api.test/v1" "model-x" "" "$HOME/.claude-b5" "262144" "32768"
+b5_ctx="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_CONTEXT_LIMIT"' _ "$_b5_tmpdir/b5lim.env" 2>/dev/null)"
+b5_max="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MAX_OUTPUT"' _ "$_b5_tmpdir/b5lim.env" 2>/dev/null)"
+assert_eq "262144" "$b5_ctx" "CMA_PROVIDER_CONTEXT_LIMIT round-trips through source"
+assert_eq "32768"  "$b5_max" "CMA_PROVIDER_MAX_OUTPUT round-trips through source"
+
+it "cma_provider_write_env (B5): literal \"null\" normalizes to empty"
+cma_provider_write_env "b5null" "TESTKEY" "native" "https://api.test/v1" "model-x" "" "$HOME/.claude-b5" "null" "null"
+b5_ctxn="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_CONTEXT_LIMIT"' _ "$_b5_tmpdir/b5null.env" 2>/dev/null)"
+b5_maxn="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MAX_OUTPUT"' _ "$_b5_tmpdir/b5null.env" 2>/dev/null)"
+assert_eq "" "$b5_ctxn" "context_limit 'null' -> empty (no bogus value leaks into wrapper)"
+assert_eq "" "$b5_maxn" "max_output 'null' -> empty (no bogus value leaks into wrapper)"
+
+it "cma_provider_write_env (B5): omitted limits stay empty (7-arg back-compat)"
+cma_provider_write_env "b5omit" "TESTKEY" "native" "https://api.test/v1" "model-x" "" "$HOME/.claude-b5"
+b5_maxo="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MAX_OUTPUT"' _ "$_b5_tmpdir/b5omit.env" 2>/dev/null)"
+assert_eq "" "$b5_maxo" "omitted max_output stays empty"
+
+it "cma_run_provider (B5): emitted wrapper exports CLAUDE_CODE_MAX_OUTPUT_TOKENS"
+ALIAS_FILE="$_b5_tmpdir/aliases5.sh"
+cma_ensure_alias_file 2>/dev/null || true
+b5_wire=1; grep -q 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' "$ALIAS_FILE" 2>/dev/null && b5_wire=0
+assert_eq 0 "$b5_wire" "consumer wiring present: CMA_PROVIDER_MAX_OUTPUT -> CLAUDE_CODE_MAX_OUTPUT_TOKENS"
+rm -rf "$_b5_tmpdir"
+
 summary
