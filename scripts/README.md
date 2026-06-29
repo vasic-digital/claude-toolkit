@@ -8,27 +8,37 @@ at `../Claude_Multi_Account_Fine_Tuning.md`.
 ## Quick start
 
 ```bash
-cd ~/Documents/scripts
-bash install.sh         # bootstraps everything: symlinks + unify + docs
-exec $SHELL -l          # reload shell so aliases load
-claude-list-accounts    # show the resulting setup
+# from the repo root (after cloning the toolkit):
+bash scripts/install.sh   # bootstraps everything: symlinks + unify + docs
+exec $SHELL -l            # reload shell so aliases load
+claude-list-accounts      # show the resulting setup
 ```
 
 ## Scripts
 
 | Script                      | Purpose                                                     |
 | --------------------------- | ----------------------------------------------------------- |
-| `install.sh`                | One-shot bootstrap. Idempotent.                             |
-| `claude-unify.sh`           | Merge per-account dirs into `~/.claude-shared` + symlink.   |
-| `claude-add-account.sh`     | Add a new `claudeN` (or custom-named) account.              |
-| `claude-remove-account.sh`  | Drop an account's alias + archive/delete its config dir.    |
-| `claude-list-accounts.sh`   | Tabular status of every detected account.                   |
-| `claude-rollback.sh`        | Restore the pre-unification backups.                        |
-| `claude-export-docs.sh`     | Generate the `.html`, `.pdf` and `.docx` siblings of the markdown. |
-| `claude-providers.sh`       | Create/refresh/list/remove Claude Code aliases for other LLM providers. |
-| `providers_resolve.py`      | Pure resolver: models.dev catalog + keys → provider records. |
-| `providers-verify.sh`       | Pluggable verification (LLMsVerifier binary or HTTP probe). |
-| `lib.sh`                    | Shared helpers (alias file, account detection, provider helpers). Sourced. |
+| `install.sh`                | One-shot bootstrap: symlink scripts onto PATH, write the alias file + rc sourcing, run unify, refresh docs. Idempotent. |
+| `curl-install.sh`           | One-line remote installer: detect platform, install hard deps, clone/pull the repo, run `install.sh`. |
+| `claude-unify.sh`           | Merge every detected per-account dir into `~/.claude-shared` and replace per-account entries with symlinks. Re-runnable; `--rollback` to undo. |
+| `claude-add-account.sh`     | Add a new account: create its config dir, link every shared item, register a shell alias (e.g. `claude3`). |
+| `claude-remove-account.sh`  | Remove an account: drop its alias and archive/delete its config dir (shared store untouched). |
+| `claude-list-accounts.sh`   | Print a status table of every detected account (alias, config dir, creds, symlink integrity). |
+| `claude-rollback.sh`        | Convenience wrapper for `claude-unify.sh --rollback`: restore the `.preunify.*` backups, archive the shared store. |
+| `claude-bootstrap.sh`       | Clean-slate provisioning on a host with zero logged-in accounts: create N empty account dirs, the shared store, and `claudeN` aliases. |
+| `claude-sync-state.sh`      | Fast (no-rsync) per-launch merge of every account's `.claude.json` session/project index; called by the alias wrapper before and after each launch. |
+| `claude-session.sh`         | Derive per-project session launch flags (one long-lived session per project root, snake_case-named) plus the per-alias `/color` hint for the alias wrappers. |
+| `claude-providers.sh`       | Create/refresh/list/remove Claude Code aliases for non-Anthropic LLM providers, driven by the models.dev catalog + editable config. |
+| `claude-opencode-sync.sh`   | Mirror the host's Claude plugin Skills, MCP servers, and CLAUDE.md into OpenCode's config. Additive + idempotent. |
+| `claude-export-docs.sh`     | Render the multi-account markdown doc to self-contained `.html` and `.pdf` siblings. |
+| `lib.sh`                    | Shared helpers (env knobs, account detection, alias file, merge + provider helpers). Sourced by every script. |
+| `toon.mjs`                  | Node CLI to encode JSON → / decode TOON (token-efficient prompt format) via `@toon-format/toon`. |
+| `toon_encode.py`            | Python wrapper that shells out to `toon.mjs` to encode JSON to TOON. |
+| `opencode_sync.py`          | Engine behind `claude-opencode-sync.sh`: scans the plugin cache and writes the merged OpenCode config (skills / mcp / instructions). |
+| `providers_generate.py`     | From verified models, generate provider alias configs (env files, shell aliases, `overrides.json` entries). |
+| `providers_resolve.py`      | Pure offline resolver: models.dev catalog + key names → concrete provider records (alias, base URL, transport, strong/fast model). |
+| `model_verify.py`           | HTTP-probe + score every model for a provider (with anti-bluff detection); output a sorted verified-model list. |
+| `providers-verify.sh`       | Pluggable provider verification adapter: LLMsVerifier binary, else HTTP probe, else reports `unverified`. |
 
 ## What lives where after unification
 

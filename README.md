@@ -1,248 +1,213 @@
-# Claude Toolkit
+<div align="center">
 
-Bash toolkit for running **multiple Claude Code accounts on one host** while
-keeping conversation history, memory, todos, plans, plugins, and settings
-**unified** across them. Each account keeps only what must stay private
-(credentials and per-account state); everything else lives in a single
-shared store and is reachable from every account via symlinks.
+# 🧰 Claude Toolkit
 
-It can also **share the whole Claude Code ecosystem with [OpenCode](https://opencode.ai)** —
-every plugin's Skills, MCP servers, and the user `CLAUDE.md` — via one command
-(`claude-opencode-sync`). See **[OpenCode_Integration.md](OpenCode_Integration.md)**.
+### Run many Claude Code accounts on one host — with one unified brain.
 
-The companion deep-dive is `Claude_Multi_Account_Fine_Tuning.md` (also
-rendered as `.html` and `.pdf` siblings).
+One alias per account. Shared history, memory, plugins, settings, and sessions
+across all of them. Plus turn any LLM API key into a Claude Code alias, share
+your whole plugin ecosystem with OpenCode, and auto-name a per-project session
+on every launch.
 
-## What you get
+[![version](https://img.shields.io/badge/version-v1.9.0-blue)](CHANGELOG.md)
+[![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)](#requirements)
+[![shell](https://img.shields.io/badge/bash-4%2B%20(3.2%20auto--reexec)-89e051)](#requirements)
+[![tests](https://img.shields.io/badge/tests-14%20suites%20green-success)](#testing)
+[![shellcheck](https://img.shields.io/badge/shellcheck-0-success)](#testing)
+[![license](https://img.shields.io/badge/license-see%20repo-lightgrey)](#license)
 
-- One alias per account: `claude1`, `claude2`, ... (or custom names like
-  `claudework`) — each launches Claude Code with its own `CLAUDE_CONFIG_DIR`.
-- A single shared store at `~/.claude-shared/` holding `projects/`, `todos/`,
-  `tasks/`, `plans/`, `history.jsonl`, `settings.json`, `plugins/`, `CLAUDE.md`,
-  and friends. Switching accounts is just a shell alias change; the
-  conversation history, project memory, and installed plugins follow you.
-- **Cross-account session resume**: the `projects` / session index inside
-  `.claude.json` is deep-merged across every account on each launch. Sessions
-  created under `claude1` show up in `claude2`'s `--resume` list the next time
-  you launch it — and vice versa. Auth keys (`userID`, `oauthAccount`,
-  `firstStartTime`, `claudeCodeFirstTokenDate`) stay per-account.
-- Per-account directories are mostly symlinks pointing into the shared store.
-  Only `.credentials.json` and `mcp-needs-auth-cache.json` stay strictly
-  private; `.claude.json` is per-account but its non-auth contents (project
-  index, MCP server status, UX state, caches) sync across accounts.
+[Quick start](#-quick-start) · [Features](#-features) · [Commands](#-daily-commands) · [Guides](#-documentation) · [How it works](#-how-cross-account-sync-works)
 
-## Requirements
+</div>
 
-`bash`, `rsync`, `jq`, `awk`. Optional: `pandoc` (+ `weasyprint` or
-`wkhtmltopdf` or headless `chromium`) for regenerating the PDF/HTML docs.
+---
 
-Verified on Linux and macOS. On macOS, install via Homebrew:
+## Why
+
+Running more than one Claude Code account on a machine normally means siloed
+worlds: each account has its own conversation history, project memory, todos,
+plans, and installed plugins, and nothing carries over. Claude Toolkit collapses
+that into **one shared store** — every account is mostly symlinks into it — so
+switching accounts is just a shell alias, and your work, memory, and plugins
+follow you. Only the things that *must* stay private (credentials, auth state)
+remain per-account.
 
 ```bash
-brew install jq rsync gawk pandoc weasyprint
+claude1     # account 1 — your shared projects, memory, plugins, sessions
+claude2     # account 2 — the SAME shared projects, memory, plugins, sessions
+deepseek    # the same ecosystem, running on DeepSeek's best model
 ```
 
-## Install
+## ✨ Features
 
-### Quick install (curl)
+- **🔗 Unified multi-account store.** One alias per account (`claude1`, `claude2`,
+  … or custom names). A single `~/.claude-shared/` holds `projects/`, `todos/`,
+  `tasks/`, `plans/`, `history.jsonl`, `settings.json`, `plugins/`, `CLAUDE.md`
+  and more; each account dir is symlinks into it.
+- **♻️ Cross-account session resume.** The `projects`/session index in
+  `.claude.json` is deep-merged across accounts on every launch — a session
+  started under `claude1` shows up in `claude2`'s `--resume` list, and vice
+  versa. Auth keys never cross.
+- **🏷️ Per-project auto-session naming.** Every bare alias launch resumes — or
+  first-time creates — **one long-lived session per project root**, named after
+  the directory in `snake_case` (`Android 15` → `android_15`). Open `claude2` in
+  a project and you're back in the same ongoing work, properly named — even if
+  the session was previously unnamed. *(Color: a deterministic per-alias `/color`
+  hint is printed; Claude Code's `/color` is TUI-only and can't be auto-applied —
+  see [SESSION_COLOR.md](docs/SESSION_COLOR.md).)*
+- **🌐 Any LLM as a Claude Code alias.** `claude-providers` turns every API key in
+  your keys file into its own alias pointed at that provider's strongest model —
+  fully dynamic (no hardcoded providers/URLs/models), secrets never leave the
+  keys file. [Provider guide →](docs/Provider_Aliases_User_Guide.md)
+- **🔌 Share your ecosystem with OpenCode.** `claude-opencode-sync` exposes every
+  Claude plugin's Skills + MCP servers + `CLAUDE.md` to a host-installed
+  [OpenCode](https://opencode.ai) in one command. [OpenCode guide →](OpenCode_Integration.md)
+- **🪙 TOON encoding utility.** `toon.mjs` / `toon_encode.py` encode JSON to
+  [TOON](docs/TOON_Integration.md) (~40% fewer tokens for structured prompt
+  data). [TOON guide →](docs/TOON_Integration.md)
+- **🛟 Safe & reversible.** Every destructive step is backed up; `claude-rollback`
+  restores everything. Idempotent installers. Verified on Linux and macOS.
+
+## 🚀 Quick start
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vasic-digital/claude-toolkit/main/scripts/curl-install.sh | bash
 ```
 
-This clones the repo to `~/claude-toolkit` (or pulls if it already exists),
-installs missing dependencies (jq, rsync, awk) via your system package manager,
-runs the full setup, and wires everything into your shell. Re-run it anytime to
-pull the latest version.
+Clones to `~/claude-toolkit` (or pulls if present), installs missing
+dependencies via your system package manager, runs the full setup, and wires the
+aliases into your shell. Re-run anytime to update.
 
-### Manual install
-
-Pick the path that matches your host:
-
-### A. Existing accounts (host already has ≥1 `~/.claude-*` dir)
+Then open a new shell and:
 
 ```bash
-git clone <this repo> claude-toolkit
-cd claude-toolkit
-bash scripts/install.sh         # symlinks scripts to ~/.local/bin, writes
-                                # managed alias file, sources from rc files,
-                                # runs unify on existing accounts, regenerates
-                                # docs if pandoc is present.
-exec $SHELL -l                  # reload shell so aliases load
-claude-list-accounts            # confirm setup
+claude-list-accounts     # see what's wired up
+claude1                  # launch account 1 (auto-resumes this project's session)
 ```
 
-### B. Clean-slate host (Claude Code installed but no accounts yet)
+<details>
+<summary><b>Manual install</b></summary>
+
+**A. Host already has ≥1 `~/.claude-*` account:**
 
 ```bash
-git clone <this repo> claude-toolkit
+git clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit
 cd claude-toolkit
-bash scripts/claude-bootstrap.sh --count 2 --yes     # provision claude1, claude2
+bash scripts/install.sh         # symlink scripts onto PATH, write managed alias
+                                # file, source from rc files, unify existing
+                                # accounts, install the TOON dep, refresh docs.
 exec $SHELL -l
-claude1 /login                  # authenticate each account once
-claude2 /login
 claude-list-accounts
 ```
 
-`--aliases personal,work` instead of `--count` for custom names;
-`--dir-of NAME=PATH` to override an alias's config dir.
+**B. Clean-slate host (Claude Code installed, no accounts yet):**
 
-Both scripts are **idempotent** — safe to re-run after pulling updates.
+```bash
+git clone https://github.com/vasic-digital/claude-toolkit.git claude-toolkit
+cd claude-toolkit
+bash scripts/claude-bootstrap.sh --count 2 --yes     # provision claude1, claude2
+exec $SHELL -l
+claude1 /login && claude2 /login                      # authenticate each once
+```
 
-### macOS notes
+`--aliases personal,work` for custom names; `--dir-of NAME=PATH` to override a
+config dir. Both installers are **idempotent**.
+</details>
 
-- macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash
-  (`brew install bash`) when needed.
-- All rc-file edits target `~/.zshrc` only on Darwin (zsh is the default
-  interactive shell).
-
-## Daily commands
+## 📋 Daily commands
 
 | Command | Purpose |
 | ------- | ------- |
-| `claude-list-accounts`   | Tabular status: alias, config dir, creds present, link health. |
-| `claude-add-account`     | Add a new account. Interactive, or `--alias NAME --dir PATH --yes`. |
+| `claude-list-accounts` | Tabular status: alias, config dir, creds, link health. |
+| `claude-add-account` | Add an account. Interactive, or `--alias NAME --dir PATH --yes`. |
 | `claude-remove-account --alias NAME` | Drop an alias; archive (default) or `--delete` its dir. |
-| `claude-unify`           | Re-merge state into the shared store. No args → auto-detects all `~/.claude-*` dirs. |
-| `claude-sync-state`      | Fast JSON-level sync of `.claude.json` project/session index across accounts (no rsync). Run automatically by the `cma_run` alias wrapper before/after every claude launch. |
-| `claude-bootstrap`       | Clean-slate provisioning on a fresh host with no accounts logged in yet. |
-| `claude-rollback`        | Restore the `.preunify.*` backups and move the shared store aside. |
-| `claude-export-docs`     | Regenerate `Claude_Multi_Account_Fine_Tuning.{html,pdf}` from the markdown. |
-| `claude-opencode-sync`   | Expose all Claude plugin Skills + MCP servers + `CLAUDE.md` to a host-installed OpenCode. See [OpenCode_Integration.md](OpenCode_Integration.md). |
-| `claude-providers`       | Create/refresh Claude Code aliases for **other LLM providers** (DeepSeek, Groq, Mistral, GLM, …) from your keys file, pointed at each provider's strongest model. `sync`/`list`/`show`/`remove`/`add`. See [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md). |
+| `claude-unify` | Re-merge state into the shared store (auto-detects `~/.claude-*`). |
+| `claude-sync-state` | Fast `jq` sync of the `.claude.json` session index across accounts. Runs automatically around every launch. |
+| `claude-session` | Per-project session helper (name/id/color/flags) used by the alias wrappers. See [SESSION_COLOR.md](docs/SESSION_COLOR.md). |
+| `claude-bootstrap` | Clean-slate provisioning on a fresh host. |
+| `claude-providers` | Create/refresh aliases for other LLM providers from your keys file. |
+| `claude-opencode-sync` | Expose Claude plugin Skills + MCP + `CLAUDE.md` to OpenCode. |
+| `claude-export-docs` | Regenerate the long-form guide `.html`/`.pdf` from markdown. |
+| `claude-rollback` | Restore `.preunify.*` backups and move the shared store aside. |
 
-After adding an account, log in once:
+## 📚 Documentation
+
+| Guide | What it covers |
+| ----- | -------------- |
+| [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) | Turning LLM keys into aliases; transports, overrides, verification. |
+| [OpenCode Integration](OpenCode_Integration.md) | Sharing Skills + MCP + `CLAUDE.md` with OpenCode. |
+| [Session & Color](docs/SESSION_COLOR.md) | Per-project auto-session naming + the per-alias color hint reality. |
+| [TOON Integration](docs/TOON_Integration.md) | Token-efficient JSON encoding utility. |
+| [Fine-Tuning deep dive](Claude_Multi_Account_Fine_Tuning.md) | Full architecture walkthrough (`.html`/`.pdf` siblings). |
+| [CHANGELOG](CHANGELOG.md) | Release history. |
+
+## 🧩 Requirements
+
+`bash`, `rsync`, `jq`, `awk`. Optional: `node`+`npm` (TOON utility), `pandoc`
+(+ `weasyprint`/`wkhtmltopdf`/headless `chromium`) for doc regeneration.
 
 ```bash
-claude3 /login
+# macOS (Homebrew)
+brew install bash jq rsync gawk pandoc weasyprint
 ```
 
-## Provider aliases (other LLMs)
+macOS ships bash 3.2; the scripts auto-re-exec under Homebrew bash when needed,
+and only touch `~/.zshrc` on Darwin.
 
-`claude-providers` turns every LLM API key in your keys file (`~/api_keys.sh`)
-into its own Claude Code alias, pointed at that provider's strongest model —
-**fully dynamically**, with no hardcoded provider list, base URLs, or model IDs
-(everything is derived from your keys + the [models.dev](https://models.dev)
-catalog, validated by the bundled `LLMsVerifier` submodule).
-
-```bash
-claude-providers sync          # discover keys -> create one alias per provider
-source ~/.local/share/claude-multi-account/aliases.sh
-claude-providers list          # alias, provider, transport, strong/fast model
-deepseek                       # launch Claude Code on DeepSeek's best model
-```
-
-- **Native** providers (Anthropic-compatible) run `claude` directly; **router**
-  providers (OpenAI-compatible / Gemini) go through
-  [claude-code-router](https://github.com/musistudio/claude-code-router).
-- Provider config dirs (`~/.claude-prov-<id>`) reuse all your plugins + history
-  and are **excluded from account detection**, so existing `claudeN` accounts
-  and `claude-add-account` are completely unaffected.
-- Secrets never leave the keys file — the launch wrapper injects them per
-  session; nothing is written to the repo or the alias file.
-
-See the [Provider Aliases User Guide](docs/Provider_Aliases_User_Guide.md) for
-overrides, verification, and the documented `/color` limitation.
-
-## Layout after unification
+## 🗂️ Layout after unification
 
 ```
 ~/.claude-shared/                   # single source of truth
-  projects/  todos/  tasks/  plans/  file-history/  paste-cache/
-  plugins/  shell-snapshots/  session-env/  telemetry/  sessions/
-  backups/  cache/  CLAUDE.md  history.jsonl  settings.json
-  stats-cache.json
+  projects/ todos/ tasks/ plans/ plugins/ sessions/ …
+  CLAUDE.md  history.jsonl  settings.json  stats-cache.json
 
-~/.claude-<account>/                # per-account dir, mostly symlinks
+~/.claude-<account>/                # per-account — mostly symlinks
   .credentials.json                 # PRIVATE — account-locked
-  .claude.json                      # PRIVATE — per-account state
-  mcp-needs-auth-cache.json         # PRIVATE — auth state
-  projects -> ~/.claude-shared/projects
-  ...                               # every shared item is a symlink
+  .claude.json                      # per-account state (non-auth contents sync)
+  mcp-needs-auth-cache.json         # PRIVATE
+  projects -> ~/.claude-shared/projects   # every shared item is a symlink
 
-~/.local/share/claude-multi-account/
-  aliases.sh                        # managed alias file (sourced from rc files)
+~/.local/share/claude-multi-account/aliases.sh   # managed alias file
 ```
 
-## How cross-account session sync works
+## 🔄 How cross-account sync works
 
-Claude Code stores a `projects.<path>` map inside `~/.claude-<account>/.claude.json`
-that holds `lastSessionId`, MCP server status, project-level memory pointers,
-and other per-project state. Without intervention, account A's projects are
-invisible to account B even though the underlying JSONL session transcripts
-live in the shared `projects/` directory.
+Claude Code keeps a `projects.<path>` map inside each account's `.claude.json`
+(`lastSessionId`, MCP status, project memory pointers). Without intervention,
+account A's projects are invisible to account B even though the JSONL transcripts
+live in the shared `projects/`. The toolkit fixes this in two layers:
 
-The toolkit fixes this in two complementary layers:
+1. **At unify time** — `claude-unify` deep-merges every account's `.claude.json`
+   (rightmost-wins on scalars, recursive union of the `projects` subtree),
+   writing each account's auth-private keys back untouched.
+2. **At runtime** — the `cma_run` wrapper calls `claude-sync-state pull` before
+   each launch and `push` after exit (a fast `jq` merge), so sessions created in
+   one account appear in the others on the next launch.
 
-1. **At unify time** — `claude-unify` deep-merges every account's `.claude.json`,
-   biasing rightmost-wins on scalar conflicts and recursively unioning the
-   `projects` subtree. Each account's auth-private keys (`userID`,
-   `oauthAccount`, `firstStartTime`, `claudeCodeFirstTokenDate`) are written
-   back untouched.
-2. **At runtime** — the `cma_run` shell function (installed automatically by
-   `install.sh` into the alias file) calls `claude-sync-state pull` before
-   every claude launch and `claude-sync-state push` after exit. This is a
-   cheap `jq` deep-merge — typically tens of milliseconds — so sessions
-   created in one account are visible to others on the very next launch.
+Auth keys (`userID`, `oauthAccount`, `firstStartTime`, `claudeCodeFirstTokenDate`)
+never cross accounts.
 
-If you ever need to refresh manually:
+## 🧪 Testing
 
 ```bash
-claude-sync-state all       # merge across every detected account
-claude-sync-state pull ~/.claude-<account>   # before launching account
-claude-sync-state push ~/.claude-<account>   # after exiting account
+bash scripts/tests/run-all.sh                 # all hermetic suites (sandboxed $HOME)
+bash scripts/tests/run-all.sh lib unify session   # subset by suffix
+bash scripts/tests/run-proof.sh               # hermetic + live verifiers + evidence bundle
 ```
 
-Auth keys never cross. Verified via the `test_sessions.sh` test suite (30
-assertions covering byte-stable idempotency, identity preservation,
-cross-account visibility, and corrupt-file resilience).
+Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` is never
+touched. The suite is **14 files, all green, shellcheck 0**; live verifiers
+(`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and
+write inspectable evidence to `scripts/tests/proof/`.
 
-## OpenCode integration
-
-`claude-opencode-sync` translates the portable contents of every installed
-Claude plugin into a host-installed OpenCode's config:
-
-- **Skills** → `skills.paths` (every plugin `SKILL.md` folder)
-- **MCP servers** → `mcp{}` (local + remote, deduped, `${CLAUDE_PLUGIN_ROOT}`
-  expanded; a safe no-auth subset is enabled, the rest configured-but-disabled)
-- **`CLAUDE.md`** → `instructions[]`
+## ↩️ Rollback
 
 ```bash
-claude-opencode-sync --dry-run --stats   # preview
-claude-opencode-sync                      # apply (additive, backs up prior config)
+claude-rollback        # == claude-unify --rollback
 ```
 
-On the reference host this wires **1,000+ skills** and **110+ MCP servers**
-into OpenCode while preserving its existing providers and servers. Full guide,
-diagrams, enable policy, and auth steps: **[OpenCode_Integration.md](OpenCode_Integration.md)**.
-
-## Testing
-
-```bash
-bash scripts/tests/run-all.sh                  # all sandboxed suites
-bash scripts/tests/run-all.sh lib unify sessions opencode   # subset by suffix
-
-bash scripts/tests/verify_opencode_live.sh     # live proof vs real OpenCode
-bash scripts/tests/run-proof.sh                # both + dated evidence bundle
-```
-
-Tests use a sandboxed `$HOME` via `mktemp` — your real `~/.claude*` state is
-never touched. `test_sessions.sh` verifies cross-account session/memory
-visibility with physical proofs (sha256 byte-hashes, project key intersection,
-auth-key preservation); `test_opencode.sh` covers the OpenCode sync (MCP
-translation, dedup, enable gating, idempotency, config preservation).
-`run-proof.sh` writes inspectable evidence to `scripts/tests/proof/`.
-
-## Rollback
-
-```bash
-claude-rollback
-# or equivalently:
-claude-unify --rollback
-```
-
-Restores every `.preunify.<timestamp>` backup created during unification and
-moves the shared store aside to `~/.claude-shared.removed.<timestamp>`.
+Restores every `.preunify.<timestamp>` backup and moves the shared store aside to
+`~/.claude-shared.removed.<timestamp>`.
 
 ## License
 

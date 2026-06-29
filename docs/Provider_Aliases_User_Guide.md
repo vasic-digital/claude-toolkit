@@ -106,13 +106,18 @@ Sessions created under **any** alias — `claude1`, `claude2`, `deepseek`,
 ```bash
 # Start a project as deepseek
 cd /path/to/my-project
-deepseek
+deepseek          # bare launch: auto-creates the project's session
 # ... work for a while, then exit
 
 # Continue the same project as opencode
-opencode
-/resume   # shows the deepseek session (and all others)
+opencode          # bare launch: AUTO-RESUMES the same project session — no /resume needed
 ```
+
+A **bare** alias launch (no arguments) now auto-resumes — or first-time creates
+— the one long-lived session keyed to the project root, so switching aliases
+continues the same conversation automatically (see §12 of
+`../Claude_Multi_Account_Fine_Tuning.md` and `SESSION_COLOR.md`). You only need
+`/resume` to switch to a **different** session than the project's own.
 
 **Performance:** adds ~1-2 seconds per launch (jq merge across all dirs). Same
 overhead that `claudeN` aliases already have.
@@ -217,7 +222,7 @@ activated. (Requires the Go toolchain; the build reads keys from your keys file.
 ## 8. Known limitation — default session color
 
 The original goal was for each provider session to default its `/color` to
-**purple**. Investigation of the installed Claude Code (v2.1.178) found that
+**purple**. Investigation of the installed Claude Code (2.1.195) found that
 `/color` is **session-scoped and TUI-only — it is never persisted to disk**, and
 there is no settings key, hook, or environment variable to set a default color.
 So this cannot be automated with the current Claude Code.

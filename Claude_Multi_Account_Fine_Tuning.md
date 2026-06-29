@@ -769,14 +769,53 @@ claude-providers add --from-key VAR --id PROVIDER   # register a mapping, then s
 ### Known limitation — session color
 
 The goal of defaulting each provider session's `/color` to purple is **not
-automatable** on the installed Claude Code (v2.1.178): `/color` is session-scoped
+automatable** on the installed Claude Code (2.1.195): `/color` is session-scoped
 and TUI-only, never persisted, with no settings key or env var. Type
 `/color purple` per session. (Documented in
-`docs/Provider_Aliases_User_Guide.md`.)
+`docs/Provider_Aliases_User_Guide.md` and `docs/SESSION_COLOR.md`.)
 
 Full details, overrides, verification, and troubleshooting live in
 **`docs/Provider_Aliases_User_Guide.md`**; diagrams in
 `docs/diagrams/provider-aliases.md`.
+
+## 12. Per-project auto-session & per-alias color
+
+A **bare** alias launch — native (`claude1`, `claude2`, …) or provider
+(`deepseek`, `kimi-for-coding`, …) with no arguments — resumes, or the first
+time creates, **one long-lived Claude session per project root**. The session
+id is derived deterministically from the project root path (the git
+working-tree root if you are inside a repo, otherwise `$PWD`), so every alias —
+and every subdirectory of the repo — maps to the *same* session: switch aliases
+and you continue the same ongoing work.
+
+The session is named in lowercase `snake_case` from the project root
+directory's basename (e.g. `claude_toolkit`; `Android 15` → `android_15`). The
+name is applied on **both create and resume**, so a session created *without* a
+name — by an older wrapper or a plain `claude` invocation — finally gets named
+the next time you bare-launch an alias into it.
+
+The moment you pass any argument (a prompt, `-p`, `--resume`, `--session-id`,
+any flag), the wrapper steps aside and your arguments go to `claude` verbatim —
+no auto-session is injected.
+
+**Color is a hint only.** Each alias also maps deterministically to one of
+Claude Code's 8 prompt colors, but the toolkit can only *suggest* it: Claude
+Code's `/color` is a **TUI-only** command that **cannot be set
+non-interactively** on the installed `claude 2.1.195` — there is no CLI flag, no
+`settings.json` key, and no environment variable for it. So on launch the
+wrapper prints a deterministic per-alias `/color` *hint*; type it once per
+session to tag the alias visually.
+
+Implemented by `scripts/claude-session.sh`, driven by the `cma_run` /
+`cma_run_provider` alias wrappers in `scripts/lib.sh`. Full details, the
+naming/color tables, and live verification are in **`docs/SESSION_COLOR.md`**.
+
+## 13. TOON utility
+
+`scripts/toon.mjs` (and its Python wrapper `scripts/toon_encode.py`) encode JSON
+into **TOON** (Token-Oriented Object Notation) — a compact encoding that cuts
+token use for structured data in LLM prompts by declaring array fields once.
+See **`docs/TOON_Integration.md`**.
 
 ---
 

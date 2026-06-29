@@ -2,6 +2,67 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.9.0 — 2026-06-29 — Per-project auto-sessions that actually work live + zero-coverage tests
+
+A minor release that makes the v1.8.0 "auto session-per-project" feature do what
+it promised. As shipped, opening any alias gave an **unnamed** session; three
+root causes — all reproduced and fixed against the real `claude 2.1.195` binary,
+then proven **LIVE end-to-end** — are corrected here, plus test coverage for two
+zero-coverage utilities and a documentation refresh.
+
+### Fixed
+- **Per-project auto-session naming never actually named the session — now
+  proven LIVE.** Three independent root causes:
+  - **Legacy/unnamed sessions were never renamed.** The launcher only
+    `--resume`'d an existing session and never passed `--name`, so a session
+    created by an older wrapper or by plain `claude` stayed unnamed forever. Fix:
+    always pass `--name` on resume too. Proven live — `claude --resume <id>
+    --name <x>` renames a previously-unnamed session (custom-title `<NONE>` →
+    `<x>`), contradicting the docs but confirmed empirically.
+  - **The session-existence check used a run-collapsing slug.** It collapsed runs
+    of non-alnum to one `-` (`s/[^A-Za-z0-9]+/-/g`), but claude slugs **per
+    char**, so paths with consecutive non-alnum segments (hidden dirs,
+    `/tmp/.private`, `__pycache__`) false-negatived the lookup and **re-created**
+    instead of resuming. Fix: per-char slug (`s/[^A-Za-z0-9]/-/g`), matching the
+    real on-disk dir names.
+  - **`cma_run` self-heal regenerated only on a missing `unset ANTHROPIC_`
+    marker.** Wrappers predating auto-session carried that marker but not the
+    `claude-session` one, so they never regained the integration. Fix: regenerate
+    when **either** marker is missing.
+
+### Added
+- **`docs/SESSION_COLOR.md`** — resolves the previously dangling reference,
+  documenting per-project auto-session naming and the honest `/color`
+  limitation: in `claude 2.1.195`, `/color` is **TUI-only** (no CLI flag, no
+  `settings.json` key, no env var — verified against the binary and the docs), so
+  the toolkit can only print a deterministic per-alias hint, never auto-apply it.
+- **`test_toon.sh` (9 assertions) and `test_bootstrap.sh` (39 assertions)** —
+  both utilities previously had **zero** coverage. toon (hermetic,
+  SKIP-if-no-node): `toon.mjs` encode/decode round-trip, the `toon_encode.py`
+  python→mjs chain, and non-zero exit on invalid JSON. bootstrap (hermetic):
+  `claude-bootstrap --count 2 --yes` in a sandbox `$HOME` asserting account dirs,
+  shared symlinks, private-file isolation, alias lines, and the documented
+  refuse-to-clobber re-run behavior.
+- **`test_coverage.sh` B6** asserts the emitted `cma_run` / `cma_run_provider`
+  bodies actually carry the auto-session integration (bare-launch guard,
+  `claude-session flags`, `eval set --` apply, color hint) — the session
+  script's own unit tests can't see the wrapper — plus a **self-heal
+  regression**: a stale `cma_run` missing the `claude-session` marker is
+  regenerated (exactly one `cma_run()`, provider-env isolation retained, aliases
+  preserved). `test_session.sh` updated for `--name`-on-resume and a
+  per-char-slug regression (a `/.cfg/` path must resume, not re-create).
+- **Docs refresh.** README rewritten as a project landing page; `scripts/README`
+  refreshed with the full current script inventory; the long-form guide gained
+  "Per-project auto-session & per-alias color" and "TOON utility" sections; the
+  `/color` notes pinned to the verified `claude 2.1.195` (superseding older
+  `2.1.178` references).
+
+### Verified
+- Full suite **14/14 ALL GREEN**; **shellcheck 0**. The session fix proven
+  **LIVE end-to-end** on the real `claude 2.1.195` binary — fresh create, resume,
+  and legacy-unnamed rename all confirmed. New tests are non-vacuous (concrete
+  expected values / negative controls). Installed live on this host and validated.
+
 ## v1.8.1 — 2026-06-29 — Merge-engine correctness + portability hardening
 
 A patch release: an adversarial correctness audit of `claude-unify`'s merge
