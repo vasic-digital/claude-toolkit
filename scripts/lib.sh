@@ -695,8 +695,12 @@ cma_provider_write_env() {
   local id="$1" keyvar="$2" transport="$3" base="$4" model="$5" fast="$6" cdir="$7"
   local context_limit="${8:-}" max_output="${9:-}"
   # Normalize the literal "null" (from a missing JSON field) to empty so it
-  # never leaks into the wrapper as a bogus value.
+  # never leaks into the wrapper as a bogus value. transport+model were missed
+  # originally — a null strong_model/transport wrote CMA_PROVIDER_MODEL='null'
+  # (provider launches with a bogus model). Normalize every field for symmetry.
+  [[ "$transport" == "null" ]] && transport=""
   [[ "$base" == "null" ]] && base=""
+  [[ "$model" == "null" ]] && model=""
   [[ "$fast" == "null" ]] && fast=""
   [[ "$context_limit" == "null" ]] && context_limit=""
   [[ "$max_output" == "null" ]] && max_output=""

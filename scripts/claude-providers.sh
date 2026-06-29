@@ -380,16 +380,16 @@ cmd_sync_multi() {
     # Create config dirs and symlinks for each alias
     local i=0
     while (( i < alias_count )); do
-      local aname; aname="$(jq -r ".aliases[$i].alias_name" "$manifest_out")"
+      local aname; aname="$(jq -r ".aliases[$i].alias_name // empty" "$manifest_out")"
       local cdir="$HOME/${ACCOUNT_PREFIX}prov-${aname}"
 
       cma_link_shared_items "$cdir"
 
       # Write the env file from manifest
-      local strong; strong="$(jq -r ".aliases[$i].strong_model" "$manifest_out")"
-      local ffast; ffast="$(jq -r ".aliases[$i].fast_model" "$manifest_out")"
-      local alias_url; alias_url="$(jq -r ".aliases[$i].base_url" "$manifest_out")"
-      local alias_transport; alias_transport="$(jq -r ".aliases[$i].transport" "$manifest_out")"
+      local strong; strong="$(jq -r ".aliases[$i].strong_model // empty" "$manifest_out")"
+      local ffast; ffast="$(jq -r ".aliases[$i].fast_model // empty" "$manifest_out")"
+      local alias_url; alias_url="$(jq -r ".aliases[$i].base_url // empty" "$manifest_out")"
+      local alias_transport; alias_transport="$(jq -r ".aliases[$i].transport // empty" "$manifest_out")"
       local alias_ctx; alias_ctx="$(jq -r ".aliases[$i].context_limit // empty" "$manifest_out")"
       local alias_max; alias_max="$(jq -r ".aliases[$i].max_output // empty" "$manifest_out")"
 

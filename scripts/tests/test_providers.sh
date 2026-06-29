@@ -541,4 +541,16 @@ assert_eq 0 "$rm_rc" "remove exits 0 (no abort before deleting the env)"
 still=0; [[ -f "$PDIR/ghost.env" ]] && still=1
 assert_eq 0 "$still" "remove actually deleted the provider env file"
 
+# --- 'null' normalization: a missing JSON field (jq -r -> "null") must never ---
+# land in the env file as a bogus value. base/fast/context/max were normalized
+# but model+transport were missed -> CMA_PROVIDER_MODEL='null' broke launches.
+it "cma_provider_write_env: a 'null' model/transport/base is normalized to empty"
+cma_provider_write_env "nulltest" "NT_KEY" "null" "null" "null" "null" "$SANDBOX_HOME/.cdir" "null" "null" >/dev/null 2>&1
+_nf="$(cma_providers_dir)/nulltest.env"
+grep -q "^CMA_PROVIDER_MODEL=''" "$_nf";     assert_eq 0 $? "null strong_model normalized to empty (not 'null')"
+grep -q "^CMA_PROVIDER_TRANSPORT=''" "$_nf"; assert_eq 0 $? "null transport normalized to empty"
+grep -q "^CMA_PROVIDER_BASE_URL=''" "$_nf";  assert_eq 0 $? "null base_url normalized to empty"
+_hasnull=0; grep -qE "CMA_PROVIDER_(MODEL|TRANSPORT|BASE_URL|FAST_MODEL|CONTEXT_LIMIT|MAX_OUTPUT)='null'" "$_nf" && _hasnull=1
+assert_eq 0 "$_hasnull" "no provider field contains the literal string 'null'"
+
 summary

@@ -294,4 +294,22 @@ printf '%s\n' "$hint_err" | grep -q 'alias color:'; assert_eq 0 $? "hint stderr 
 it "hint: EXECUTES with an empty label (edge case) without aborting"
 run_session_from "$hint_proj" hint >/dev/null 2>&1; assert_eq 0 $? "hint with no label exits 0"
 
+# --- cma_project_root branches (exercised via `name`): git-toplevel + pwd -P ---
+# `name` was only tested on non-git sandbox dirs (the pwd -P branch). Cover the
+# git-rev-parse branch and the symlink-resolution behaviour (the macOS
+# /tmp -> /private/tmp class that already bit a live test).
+if command -v git >/dev/null 2>&1; then
+  it "name: a git subdir resolves to the repo TOPLEVEL basename (project-root git branch)"
+  gitrepo="$SANDBOX_HOME/My_Repo"; mkdir -p "$gitrepo/src/deep"
+  git -C "$gitrepo" init -q >/dev/null 2>&1
+  name_git="$(bash "$SESSION_SH" name "$gitrepo/src/deep")"
+  assert_eq "my_repo" "$name_git" "git subdir resolves to repo toplevel basename, snake_cased"
+fi
+
+it "name: a symlinked project dir resolves to its physical basename (pwd -P branch)"
+phys="$SANDBOX_HOME/Phys_Proj"; mkdir -p "$phys"
+ln -s "$phys" "$SANDBOX_HOME/link_proj" 2>/dev/null
+name_link="$(bash "$SESSION_SH" name "$SANDBOX_HOME/link_proj")"
+assert_eq "phys_proj" "$name_link" "symlinked dir resolves via pwd -P to the physical basename"
+
 summary
