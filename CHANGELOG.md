@@ -2,6 +2,24 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.3 — 2026-06-29 — Execution-level wrapper test coverage
+
+### Added
+- **`test_wrapper_exec.sh`** — the first hermetic test that actually *executes*
+  the generated `cma_run` wrapper (every other suite only string-matches its
+  emitted body, so a runtime bug — a `set -e` abort, a dropped `unset`, wrong
+  call order — could ship past a green suite). It drives `cma_run` with a stub
+  `CLAUDE_BIN` env-recorder plus stub `claude-session`/`claude-sync-state`, then
+  asserts RUNTIME guarantees: provider-env isolation (a leaked
+  `ANTHROPIC_BASE_URL`/`AUTH_TOKEN`/`MODEL` is genuinely cleared *before* claude
+  runs), session flags reach claude on a bare launch, `sync-state pull` fires
+  before launch and `push` after, explicit args pass through verbatim with no
+  session-flag injection, plus a non-vacuity guard proving the stub claude really
+  executed. Proven **RED** on a dropped `unset`, **GREEN** on the real wrapper.
+
+### Verified
+- Suite **18/18 green**; shellcheck 0.
+
 ## v1.10.2 — 2026-06-29 — Self-healing rc source lines + strict rc tests
 
 ### Fixed
