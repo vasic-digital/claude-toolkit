@@ -88,6 +88,13 @@ backup_and_remove() {
 
 link_to_shared() {
   local item="$1" acct
+  # Never create a dangling symlink: if the merge step did not produce the
+  # shared item (e.g. settings.json skipped because every account file was
+  # invalid JSON, or a stats-cache.json that no account had), leave each
+  # account's real file untouched rather than backing it up and pointing it at a
+  # missing target — that would silently replace a valid live config with a
+  # broken link.
+  [[ -e "$SHARED_DIR/$item" ]] || return 0
   for acct in "${ACCOUNTS[@]}"; do
     [[ -d "$acct" ]] || continue
     local target="$acct/$item"
@@ -170,6 +177,20 @@ merge_settings_json() {
   if (( ${#files[@]} > 1 )); then
     mapfile -t files < <(printf '%s\n' "${files[@]}" | awk '!seen[$0]++')
   fi
+  # Drop any file that is not valid JSON so one hand-edited/corrupt account
+  # settings.json can't sink the whole merge — jq -s slurps every file and fails
+  # wholesale on a single parse error. Keeping every VALID file means good
+  # accounts still merge AND link_to_shared's target always exists (no dangling
+  # link silently replacing a valid account's live config). See test R3.
+  local validf=()
+  for f in ${files[@]+"${files[@]}"}; do
+    if jq empty "$f" 2>/dev/null; then
+      validf+=("$f")
+    else
+      cma_warn "settings.json in $(dirname "$f") is not valid JSON — excluded from merge"
+    fi
+  done
+  files=(${validf[@]+"${validf[@]}"})
   case "${#files[@]}" in
     0) return 0 ;;
     1) cp -p "${files[0]}" "$SHARED_DIR/settings.json.tmp"

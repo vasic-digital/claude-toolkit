@@ -243,6 +243,11 @@ it "settings.json (R3): one malformed account file does not abort unify"
 assert_eq 0 "$r3_rc" "unify still exits 0 despite a malformed settings.json"
 r3_tmp=0; [[ -e "$r3_sd/settings.json.tmp" ]] && r3_tmp=1
 assert_eq 0 "$r3_tmp" "no orphaned settings.json.tmp left behind"
+# The valid account's settings must NOT become a dangling symlink (silent loss):
+# the merge must still write shared from the valid file(s) and link to it.
+r3_readable=0; [[ -f "$r3_a/settings.json" ]] && r3_readable=1
+assert_eq 1 "$r3_readable" "valid account settings.json still readable (not a dangling symlink)"
+assert_jq "$r3_a/settings.json" '.enabledPlugins.ok' "true" "valid account's settings survive a malformed sibling"
 
 # ── R4: directory merge must resolve file conflicts by newest mtime, not by the
 # lexically-last account name. Regression: pass 2 overlaid ACCOUNTS[-1]
