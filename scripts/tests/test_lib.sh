@@ -122,4 +122,26 @@ else
   _pass "no proof dir on this host (nothing to scan)"
 fi
 
+# cma_merge_claude_json must UNION the projects subtree across accounts while
+# keeping each account's private auth keys (userID/oauthAccount/...) to ITSELF.
+# A regression here would either lose sessions (no union) or leak credentials
+# between accounts (CRITICAL). Locks the property verified by hand this session.
+it "cma_merge_claude_json: private keys stay per-account; projects union (no credential leak)"
+if command -v jq >/dev/null 2>&1; then
+  mj_a="$SANDBOX_HOME/.mrg-a"; mj_b="$SANDBOX_HOME/.mrg-b"; mkdir -p "$mj_a" "$mj_b"
+  printf '%s\n' '{"userID":"UID-A","oauthAccount":"a@x","projects":{"pa":{"v":1}}}' > "$mj_a/.claude.json"
+  printf '%s\n' '{"userID":"UID-B","oauthAccount":"b@x","projects":{"pb":{"v":2}}}' > "$mj_b/.claude.json"
+  cma_merge_claude_json "$mj_a" "$mj_b" >/dev/null 2>&1
+  assert_eq "UID-A" "$(jq -r .userID "$mj_a/.claude.json")" "account A keeps its OWN userID after merge"
+  assert_eq "UID-B" "$(jq -r .userID "$mj_b/.claude.json")" "account B keeps its OWN userID after merge"
+  assert_eq '["pa","pb"]' "$(jq -rc '.projects|keys' "$mj_a/.claude.json")" "A sees both projects (union)"
+  assert_eq '["pa","pb"]' "$(jq -rc '.projects|keys' "$mj_b/.claude.json")" "B sees both projects (union)"
+  mj_leak=0
+  grep -q 'UID-B\|b@x' "$mj_a/.claude.json" && mj_leak=1
+  grep -q 'UID-A\|a@x' "$mj_b/.claude.json" && mj_leak=1
+  assert_eq 0 "$mj_leak" "no cross-account credential leak in either direction"
+else
+  _pass "jq absent — skipping cma_merge_claude_json security test"
+fi
+
 summary
