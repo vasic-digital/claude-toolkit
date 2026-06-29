@@ -114,15 +114,19 @@ merge_dir_into_shared() {
       (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
     fi
   done
-  # Second pass: the LAST account (assumed most recently active) overlays
-  # its versions for files that exist in multiple accounts. This biases
-  # towards the freshest source for conflicting files like memory/*.md.
-  local last="${ACCOUNTS[-1]}"
-  if [[ -d "$last/$item" && ! -L "$last/$item" ]]; then
-    rc=0
-    rsync -a "$last/$item/" "$SHARED_DIR/$item/" || rc=$?
-    (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
-  fi
+  # Second pass: overlay every account with rsync -u (update-only) so the file
+  # carrying the NEWEST mtime wins each conflict, regardless of how many accounts
+  # there are or what they're named. The previous code overlaid only
+  # ACCOUNTS[-1] — the alphabetically-last dir, not necessarily the most recently
+  # active one — which let a stale lexically-last account clobber fresher content
+  # (e.g. memory/*.md) from an earlier account.
+  for acct in "${ACCOUNTS[@]}"; do
+    if [[ -d "$acct/$item" && ! -L "$acct/$item" ]]; then
+      rc=0
+      rsync -au "$acct/$item/" "$SHARED_DIR/$item/" || rc=$?
+      (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
+    fi
+  done
 }
 
 merge_history_jsonl() {

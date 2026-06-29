@@ -244,6 +244,31 @@ assert_eq 0 "$r3_rc" "unify still exits 0 despite a malformed settings.json"
 r3_tmp=0; [[ -e "$r3_sd/settings.json.tmp" ]] && r3_tmp=1
 assert_eq 0 "$r3_tmp" "no orphaned settings.json.tmp left behind"
 
+# ── R4: directory merge must resolve file conflicts by newest mtime, not by the
+# lexically-last account name. Regression: pass 2 overlaid ACCOUNTS[-1]
+# (alphabetically last) unconditionally, so a stale lexically-last account
+# clobbered fresher content from an earlier account.
+r4_sd="$SANDBOX_HOME/.claude-shared-r4"
+r4_a="$SANDBOX_HOME/.claude-r4-a"
+r4_b="$SANDBOX_HOME/.claude-r4-b"
+mkdir -p "$r4_a/projects/p/memory" "$r4_b/projects/p/memory"
+printf '{"n":"r4a"}\n' > "$r4_a/.credentials.json"; printf '{"name":"r4a"}\n' > "$r4_a/.claude.json"
+printf '{"n":"r4b"}\n' > "$r4_b/.credentials.json"; printf '{"name":"r4b"}\n' > "$r4_b/.claude.json"
+printf '{"enabledPlugins":{}}\n' > "$r4_a/settings.json"
+printf '{"enabledPlugins":{}}\n' > "$r4_b/settings.json"
+# Same file in both. b (lexically LAST) is STALE; a (lexically first) is FRESH.
+# Set explicit mtimes (touch -t, portable) so a is strictly newer than b.
+printf 'OLD-from-b\n' > "$r4_b/projects/p/memory/note.md"
+printf 'NEW-from-a\n' > "$r4_a/projects/p/memory/note.md"
+touch -t 202001010000 "$r4_b/projects/p/memory/note.md"
+touch -t 202601010000 "$r4_a/projects/p/memory/note.md"
+SHARED_DIR="$r4_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r4" ACCOUNT_PREFIX=".claude-r4-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+
+it "dir merge (R4): freshest file wins conflicts regardless of account name order"
+assert_file_contains "$r4_sd/projects/p/memory/note.md" "NEW-from-a" \
+  "newer file from lexically-earlier account wins (not the stale lexically-last one)"
+
 it "--rollback restores backups and archives the shared store"
 # shellcheck disable=SC2119  # test intentionally calls run_rollback with no args
 run_rollback >/dev/null 2>&1
