@@ -159,7 +159,7 @@ cmd_sync() {
   # to it (e.g. CODESTRAL_API_KEY + MISTRAL_API_KEY both -> mistral).
   local seen=" "
   local n_created=0 n_skipped=0 n_disabled=0
-  while IFS=$'\t' read -r status pid alias keyvar transport base model fast; do
+  while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out; do
     [[ "$status" == "resolved" ]] || { n_skipped=$((n_skipped+1)); continue; }
     case "$seen" in *" $pid "*) cma_warn "provider '$pid' already handled; skipping duplicate key $keyvar"; continue ;; esac
     seen="$seen$pid "
@@ -195,11 +195,11 @@ cmd_sync() {
     fi
 
     cma_link_shared_items "$cdir"
-    cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir"
+    cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir" "$ctx_limit" "$max_out"
     cma_provider_write_alias "$alias" "$pid"
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus)"
     n_created=$((n_created+1))
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")
 
   cma_log "sync done: $n_created active, $n_disabled disabled (failed verify), $n_skipped not-resolved"
   cma_log "reload your shell or: source $ALIAS_FILE"
@@ -295,7 +295,7 @@ cmd_sync_multi() {
   local seen=" "
   local n_created=0 n_skipped=0
 
-  while IFS=$'\t' read -r status pid alias keyvar transport base model fast; do
+  while IFS=$'\t' read -r status pid alias keyvar transport base model fast ctx_limit max_out; do
     [[ "$status" == "resolved" ]] || { n_skipped=$((n_skipped+1)); continue; }
     case "$seen" in *" $pid "*) continue ;; esac
     seen="$seen$pid "
@@ -363,6 +363,8 @@ cmd_sync_multi() {
       --key-var "$keyvar" \
       --transport "$transport" \
       --base-url "$base" \
+      --context-limit "$ctx_limit" \
+      --max-output "$max_out" \
       --account-prefix "$ACCOUNT_PREFIX" \
       --home "$HOME" \
       2>/dev/null > "$manifest_out" || { cma_warn "alias generation failed for '$pid'"; continue; }
@@ -383,8 +385,10 @@ cmd_sync_multi() {
       local ffast; ffast="$(jq -r ".aliases[$i].fast_model" "$manifest_out")"
       local alias_url; alias_url="$(jq -r ".aliases[$i].base_url" "$manifest_out")"
       local alias_transport; alias_transport="$(jq -r ".aliases[$i].transport" "$manifest_out")"
+      local alias_ctx; alias_ctx="$(jq -r ".aliases[$i].context_limit // empty" "$manifest_out")"
+      local alias_max; alias_max="$(jq -r ".aliases[$i].max_output // empty" "$manifest_out")"
 
-      cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir"
+      cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir" "$alias_ctx" "$alias_max"
       cma_provider_write_alias "$aname" "$aname"
 
       cma_log "  alias '$aname': strong=$strong fast=$ffast [$alias_transport]"
@@ -392,7 +396,7 @@ cmd_sync_multi() {
       i=$((i+1))
     done
 
-  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model] | @tsv' <<<"$records")
+  done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")
 
   cma_log "multi-sync done: $n_created aliases created across all providers"
   cma_log "reload your shell or: source $ALIAS_FILE"

@@ -209,6 +209,23 @@ EOF
     mv "$tmp" "$ALIAS_FILE"
     cma_log "migrated existing aliases in $ALIAS_FILE to use cma_run wrapper"
   fi
+  # Migration: regenerate an outdated cma_run that lacks the provider-env
+  # isolation guard (the 'unset ANTHROPIC_' marker). Without it, a native
+  # claudeN launched in a shell that previously ran a provider alias would
+  # INHERIT that provider's exported ANTHROPIC_BASE_URL/AUTH_TOKEN/MODEL and
+  # talk to the wrong API (e.g. claude1 hitting xiaomi's endpoint). Drop only
+  # the function block; the correct version is re-appended below.
+  if grep -q '^cma_run\(\)' "$ALIAS_FILE" \
+     && ! awk '/^cma_run\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_'; then
+    local tmp_run; tmp_run="$(mktemp)"
+    awk '
+      /^cma_run\(\)/  { skip=1 }
+      skip && /^}/    { skip=0; next }
+      !skip           { print }
+    ' "$ALIAS_FILE" > "$tmp_run"
+    mv "$tmp_run" "$ALIAS_FILE"
+    cma_log "migrated outdated cma_run (provider-env isolation)"
+  fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
   # across every account: pull merged state before launch, push back after exit.
@@ -220,8 +237,27 @@ EOF
 # one before claude runs; pushes the post-session state back out after exit.
 # Cheap (jq deep-merge of one ~50KB file per account), runs unconditionally.
 cma_run() {
+  # Provider-env isolation: native claudeN must talk to the real Anthropic API.
+  # A provider alias run earlier in THIS shell exports ANTHROPIC_BASE_URL etc.;
+  # those persist and would otherwise leak into this native launch (claude1
+  # silently using a provider's endpoint). Clear them so native is always clean.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
   if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
     "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+  fi
+  # Auto session-per-project: when launched with NO args, resume (or create) the
+  # one long-lived session for this project root, name it after the root dir,
+  # trust the workspace, and hint the alias color. Only when bare so explicit
+  # user flags (-p, --resume, a prompt, …) are always respected verbatim.
+  # claude-session emits only "--resume <uuid>" or "--session-id <uuid> --name
+  # <snake>" (no shell metacharacters), so eval-splitting is safe and works in
+  # both bash and zsh (zsh does not word-split unquoted expansions).
+  if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
+    local _cma_sf _cma_label
+    _cma_sf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+    _cma_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_label="${_cma_label#.claude-}"
+    "$HOME/.local/bin/claude-session" hint "$_cma_label" 2>/dev/null || true
+    eval "set -- $_cma_sf"
   fi
   "$CLAUDE_BIN" "$@"
   local rc=$?
@@ -255,15 +291,17 @@ EOF
   #      come after the functions), corrupting the alias file.
   # We now extract the function body (cma_run_provider() .. its closing
   # brace) and match the bare command name, which is quote/space agnostic.
-  # Regenerate when the installed function predates EITHER fix: the
-  # cross-provider sync-state calls ('claude-sync-state'), or the
-  # nounset-safe keys sourcing ('set -a +u'). Both markers live only in the
-  # current heredoc, so once regenerated the function stops re-triggering.
+  # Regenerate when the installed function predates ANY of these: the
+  # cross-provider sync-state calls ('claude-sync-state'), the nounset-safe
+  # keys sourcing ('set -a +u'), or the per-project auto-session integration
+  # ('claude-session'). Each marker lives only in the current heredoc, so once
+  # regenerated the function stops re-triggering.
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     local _prov_body
     _prov_body="$(awk '/^cma_run_provider\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
     if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u'; then
+       ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
+       ! printf '%s\n' "$_prov_body" | grep -q 'claude-session'; then
       local tmp_prov; tmp_prov="$(mktemp)"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -391,6 +429,18 @@ cma_run_provider() {
     export ANTHROPIC_AUTH_TOKEN="$token"
     export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
     [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
+    # Token-limit guard (fixes "400 exceeded model token limit: 262144"):
+    # cap Claude Code's output at the provider model's real max so a request
+    # never overshoots the provider's hard context window. CMA_PROVIDER_MAX_OUTPUT
+    # comes from the catalog (limit.output) via cma_provider_write_env.
+    [[ -n "${CMA_PROVIDER_MAX_OUTPUT:-}" ]] && export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$CMA_PROVIDER_MAX_OUTPUT"
+    # Auto session-per-project (bare launch only — explicit args win verbatim).
+    if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
+      local _cma_psf
+      _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+      "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
+      eval "set -- $_cma_psf"
+    fi
     "$CLAUDE_BIN" "$@"; rc=$?
   fi
   # Push post-session state back to all accounts/providers for cross-alias visibility.
@@ -518,13 +568,20 @@ cma_enable_plugins() {
 }
 
 # Write the non-secret per-provider env file consumed by cma_run_provider.
-# Args: id keyvar transport base_url model fast_model config_dir
+# Args: id keyvar transport base_url model fast_model config_dir [context_limit [max_output]]
+# context_limit and max_output are optional trailing args (default empty).
+# cma_run_provider reads CMA_PROVIDER_MAX_OUTPUT and exports it as
+# CLAUDE_CODE_MAX_OUTPUT_TOKENS so Claude Code never overshoots the provider's
+# real output-token cap (see the 400 "exceeded model token limit" error).
 cma_provider_write_env() {
   local id="$1" keyvar="$2" transport="$3" base="$4" model="$5" fast="$6" cdir="$7"
+  local context_limit="${8:-}" max_output="${9:-}"
   # Normalize the literal "null" (from a missing JSON field) to empty so it
   # never leaks into the wrapper as a bogus value.
   [[ "$base" == "null" ]] && base=""
   [[ "$fast" == "null" ]] && fast=""
+  [[ "$context_limit" == "null" ]] && context_limit=""
+  [[ "$max_output" == "null" ]] && max_output=""
   local pdir; pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
   # Values are single-quoted (with embedded-quote escaping) so sourcing the file
   # in the user's shell is safe regardless of characters in URLs/model ids.
@@ -551,6 +608,13 @@ CMA_PROVIDER_BASE_URL=$(_cma_q "$base")
 CMA_PROVIDER_MODEL=$(_cma_q "$model")
 CMA_PROVIDER_FAST_MODEL=$(_cma_q "$fast")
 CMA_PROVIDER_CONFIG_DIR=$(_cma_q "$cdir")
+# Context-window limits from the models.dev catalog for the selected strong model.
+# CMA_PROVIDER_CONTEXT_LIMIT: input context window (tokens); empty = unknown.
+# CMA_PROVIDER_MAX_OUTPUT:    maximum output tokens; empty = unknown.
+# Consumer: cma_run_provider exports CLAUDE_CODE_MAX_OUTPUT_TOKENS from
+# CMA_PROVIDER_MAX_OUTPUT to prevent overshooting the provider's real limit.
+CMA_PROVIDER_CONTEXT_LIMIT=$(_cma_q "$context_limit")
+CMA_PROVIDER_MAX_OUTPUT=$(_cma_q "$max_output")
 EOF
   unset -f _cma_q
 }

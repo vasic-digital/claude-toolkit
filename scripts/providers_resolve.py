@@ -21,7 +21,9 @@ Usage:
 
 Output: JSON array of records on stdout. Each record:
   {key_var, classification, provider_id, alias, base_url, transport,
-   strong_model, fast_model, status, reason}
+   strong_model, fast_model, context_limit, max_output, status, reason}
+context_limit: input context window tokens (int or null, from strong model's limit.context).
+max_output:    maximum output tokens (int or null, from strong model's limit.output).
 status ∈ {resolved, unmapped, skipped}.
 """
 import argparse
@@ -90,12 +92,14 @@ def select_models(provider):
     strong: reasoning first, then newest release_date, then largest context,
             tie-break highest output cost (proxy for flagship).
     fast:   lowest input cost among tool-call-capable models (else any).
-    Returns (strong_id, fast_id) — either may be None if no models listed.
+    Returns (strong_id, fast_id, context_limit, max_output) — any may be None.
+    context_limit/max_output are taken from the selected strong model's limit
+    field so callers can cap token usage to the provider's real context window.
     """
     models = provider.get("models") or {}
     items = list(models.values())
     if not items:
-        return None, None
+        return None, None, None, None
 
     def strong_key(m):
         cost = m.get("cost") or {}
@@ -122,7 +126,15 @@ def select_models(provider):
         )
 
     fast = min(tool_models, key=fast_key)
-    return strong.get("id"), fast.get("id")
+
+    # Extract context-window limits from the strong model so the generated .env
+    # can advertise CMA_PROVIDER_CONTEXT_LIMIT / CMA_PROVIDER_MAX_OUTPUT for
+    # cap enforcement at launch time.
+    strong_limit = strong.get("limit") or {}
+    context_limit = _num(strong_limit.get("context"))
+    max_output = _num(strong_limit.get("output"))
+
+    return strong.get("id"), fast.get("id"), context_limit, max_output
 
 
 def sanitize_alias(name):
@@ -142,6 +154,7 @@ def resolve(catalog, present_keys, key_aliases, overrides, only=None):
             "key_var": key_var, "classification": cls,
             "provider_id": None, "alias": None, "base_url": None,
             "transport": None, "strong_model": None, "fast_model": None,
+            "context_limit": None, "max_output": None,
             "status": "skipped", "reason": "",
         }
         if cls != "llm":
@@ -158,7 +171,7 @@ def resolve(catalog, present_keys, key_aliases, overrides, only=None):
             continue
 
         provider = catalog[pid]
-        strong, fast = select_models(provider)
+        strong, fast, context_limit, max_output = select_models(provider)
         rec.update({
             "provider_id": pid,
             "alias": sanitize_alias(pid),
@@ -166,6 +179,8 @@ def resolve(catalog, present_keys, key_aliases, overrides, only=None):
             "transport": transport_for(provider),
             "strong_model": strong,
             "fast_model": fast,
+            "context_limit": context_limit,
+            "max_output": max_output,
             "status": "resolved",
         })
 

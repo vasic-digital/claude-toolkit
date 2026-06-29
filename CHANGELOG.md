@@ -2,6 +2,58 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.8.0 — 2026-06-29 — Alias isolation + token-limit guard + per-project auto-sessions
+
+A systematic-debugging pass fixing three reported issues plus a new
+session-per-project feature. Every root cause was reproduced and the fix
+proven with physical evidence before shipping.
+
+### Fixed
+- **CRITICAL — aliases cross-contaminated API endpoints across sessions.**
+  `cma_run_provider` `export`s `ANTHROPIC_BASE_URL`/`AUTH_TOKEN`/`MODEL`/
+  `SMALL_FAST_MODEL` into the interactive shell, and native `cma_run` did **not**
+  clear them — so running a provider alias (e.g. `xiaomi`) and then a native
+  alias (`claude1`) in the same shell made the native one inherit the provider's
+  endpoint (`api.xiaomimimo.com`). `cma_run` now `unset`s those four vars before
+  launch. Proven live: after a leaked xiaomi env, native launch shows
+  `ANTHROPIC_BASE_URL=<unset>`. Existing installs auto-regenerate the wrapper
+  (migration keyed on the new `unset ANTHROPIC_` marker).
+- **Token-limit 400 ("exceeded model token limit: 262144").** The models.dev
+  catalog's per-model `limit.context` / `limit.output` were read for ranking but
+  never emitted, so Claude Code overshot a provider's real context window.
+  `providers_resolve.py` now emits `context_limit` + `max_output`;
+  `providers_generate.py` and `cma_provider_write_env` write
+  `CMA_PROVIDER_CONTEXT_LIMIT` / `CMA_PROVIDER_MAX_OUTPUT` into each `.env`; and
+  `cma_run_provider` exports `CLAUDE_CODE_MAX_OUTPUT_TOKENS` from it. Proven:
+  kimi-for-coding now resolves `context_limit=262144 max_output=32768` from the
+  live catalog.
+- **"workspace has not been trusted" warning on launch.** Confirmed NOT a merge
+  bug (trust propagates across accounts correctly); the warned project was simply
+  never trusted under any account. The launch wrapper now writes
+  `projects[<root>].hasTrustDialogAccepted=true` for the launching project via
+  the new `claude-session` helper.
+
+### Added
+- **Auto session-per-project (`claude-session.sh`).** Every bare alias launch
+  (native or provider) now resumes — or, the first time, creates — one
+  long-lived Claude session per project root: stable `--session-id` (UUID
+  derived from the git-root path), `--name` set to the root dir basename in
+  lowercase snake_case (`Android 15` → `android_15`). Explicit args/flags are
+  always respected verbatim. Verified against the real `claude` CLI:
+  `--session-id` creates, `--resume` resumes.
+- **Per-alias color hint.** A deterministic alias→color mapping over Claude
+  Code's real palette (`red blue green yellow purple orange pink cyan`); printed
+  as a `/color <x>` tip on launch. (Investigated thoroughly: `/color` is a
+  TUI-only command with no CLI flag / settings key / writable persistence, so it
+  cannot be auto-applied — the toolkit suggests it rather than faking it.)
+- **`test_session.sh`** — 27 hermetic assertions for name/id/color/flags/trust/
+  git-root behavior. **`run-all.sh` is now 12 files / 60 assertions, ALL GREEN.**
+
+### Verified
+- Full suite **12/12 ALL GREEN**; **shellcheck 0**; all `.py` compile under
+  `python3 -W error`. All four items proven end-to-end against the live catalog
+  and the emitted alias file.
+
 ## v1.7.12 — 2026-06-28 — One-line curl installer
 
 ### Added

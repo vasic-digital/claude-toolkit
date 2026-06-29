@@ -473,7 +473,9 @@ grep -q 'claude-sync-state.*pull' "$ALIAS_FILE" ; assert_eq 0 $? "pull present i
 grep -q 'claude-sync-state.*push' "$ALIAS_FILE" ; assert_eq 0 $? "push present in wrapper"
 
 it "cma_run wrapper also has sync-state pull+push"
-grep -A20 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
-grep -A20 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
+# -A40: the cma_run body grew (provider-env isolation + auto session-per-project
+# blocks) so push now sits >20 lines after the function header.
+grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
+grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
 
 summary
