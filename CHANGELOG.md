@@ -2,6 +2,29 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.2 — 2026-06-29 — Self-healing rc source lines + strict rc tests
+
+### Fixed
+- **Dangling `source "…/aliases.sh"` lines in rc files.** A transient or moved
+  alias-file path could leave a `source` line in `~/.bashrc`/`~/.zshrc` pointing
+  at a deleted file, so every new login shell printed
+  `-bash: …/aliases.sh: No such file or directory`. `cma_ensure_alias_file` now
+  **prunes** any rc `source`/`.` line whose `aliases.sh` target no longer exists
+  (self-heal on the next install), and recognizes an existing source line across
+  `.`/`source` and `$HOME`/`~`/absolute forms, so re-installs never accumulate
+  duplicate source lines.
+
+### Added
+- **`test_rc_sourcing.sh`** (10 strict assertions) — reproduces the bug class the
+  hermetic suite missed (it sandboxes `$HOME` and never inspected or *sourced*
+  the rc files): prune drops dangling / keeps valid + comments + unrelated lines,
+  ensure self-heals, **a fresh shell sources the rc with NO error** (the reported
+  symptom), idempotent (exactly one source line after 3 calls), and cross-form
+  dedup. Proven RED on the old behavior, GREEN on the fix.
+
+### Verified
+- Suite **17/17 green**; shellcheck 0.
+
 ## v1.10.1 — 2026-06-29 — Robust cma_run wrapper assertions
 
 ### Fixed
