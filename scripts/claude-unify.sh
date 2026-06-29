@@ -126,20 +126,26 @@ merge_dir_into_shared() {
 }
 
 merge_history_jsonl() {
-  local acct tmp; tmp="$(mktemp)"
+  local acct srcs=() tmp; tmp="$(mktemp)"
   for acct in "${ACCOUNTS[@]}"; do
     local f="$acct/history.jsonl"
-    if [[ -f "$f" && ! -L "$f" ]]; then cat "$f" >> "$tmp"; fi
+    if [[ -f "$f" && ! -L "$f" ]]; then srcs+=("$f"); fi
   done
   if [[ -f "$SHARED_DIR/history.jsonl" && ! -L "$SHARED_DIR/history.jsonl" ]]; then
-    cat "$SHARED_DIR/history.jsonl" >> "$tmp"
+    srcs+=("$SHARED_DIR/history.jsonl")
   fi
-  if [[ -s "$tmp" ]]; then
-    awk 'NF && !seen[$0]++' "$tmp" > "$SHARED_DIR/history.jsonl"
+  # Feed the files straight to awk rather than cat'ing them together first: awk
+  # starts a fresh record at every file boundary, so a source missing its
+  # trailing newline cannot fuse its last line onto the next file's first line
+  # (plain `cat` would). Write via a temp file so we never truncate shared while
+  # it is also one of the inputs.
+  if (( ${#srcs[@]} )); then
+    awk 'NF && !seen[$0]++' "${srcs[@]}" > "$tmp"
+    mv "$tmp" "$SHARED_DIR/history.jsonl"
   else
     : > "$SHARED_DIR/history.jsonl"
+    rm -f "$tmp"
   fi
-  rm -f "$tmp"
   return 0
 }
 
@@ -170,12 +176,23 @@ merge_settings_json() {
       # We bind the slurped array to $all so the inner reductions don't
       # iterate over the values of the partially-merged outer object.
       # Write to a temp file first so we never truncate-then-read shared.
-      jq -s '
+      # enabledPlugins is an "any true survives" union: a plugin enabled in ANY
+      # account stays enabled, regardless of account order. A plain `+`/`*` merge
+      # would let the lexically-last account's `false` clobber an earlier `true`.
+      # Guard the jq so a single malformed account settings.json warns + skips
+      # instead of aborting the whole unify under `set -e` (it is item 15 of 16).
+      if jq -s '
         . as $all
         | (reduce $all[] as $x ({}; . * $x))
-        | .enabledPlugins = (reduce $all[] as $x ({}; . + ($x.enabledPlugins // {})))
-      ' "${files[@]}" > "$SHARED_DIR/settings.json.tmp"
-      mv "$SHARED_DIR/settings.json.tmp" "$SHARED_DIR/settings.json"
+        | .enabledPlugins = (reduce $all[] as $x ({};
+            reduce ($x.enabledPlugins // {} | to_entries[]) as $e (.;
+              .[$e.key] = ((.[$e.key] // false) or $e.value))))
+      ' "${files[@]}" > "$SHARED_DIR/settings.json.tmp" 2>/dev/null; then
+        mv "$SHARED_DIR/settings.json.tmp" "$SHARED_DIR/settings.json"
+      else
+        rm -f "$SHARED_DIR/settings.json.tmp"
+        cma_warn "settings.json: one or more account files are invalid JSON; merge skipped"
+      fi
       ;;
   esac
   return 0

@@ -181,6 +181,69 @@ it "sync_claude_md (B4c): account CLAUDE.md seeds shared CLAUDE.md when DEFAULT_
 assert_file_contains "$b4c_sd/CLAUDE.md" "acct2-memory" \
   "sync_claude_md: account CLAUDE.md seeded into shared store when DEFAULT_DIR lacks one"
 
+# ── R1: history.jsonl merge must not fuse records across a source that lacks a
+# trailing newline. Regression for cat-based concat gluing one file's last line
+# onto the next file's first line.
+r1_sd="$SANDBOX_HOME/.claude-shared-r1"
+r1_a="$SANDBOX_HOME/.claude-r1-a"
+r1_b="$SANDBOX_HOME/.claude-r1-b"
+mkdir -p "$r1_a" "$r1_b"
+printf '{"n":"r1a"}\n' > "$r1_a/.credentials.json"; printf '{"name":"r1a"}\n' > "$r1_a/.claude.json"
+printf '{"n":"r1b"}\n' > "$r1_b/.credentials.json"; printf '{"name":"r1b"}\n' > "$r1_b/.claude.json"
+printf '{"enabledPlugins":{}}\n' > "$r1_a/settings.json"
+printf '{"enabledPlugins":{}}\n' > "$r1_b/settings.json"
+# acct a's history has NO trailing newline (the bug trigger); acct b follows it.
+printf '{"e":"one"}\n{"e":"two"}' > "$r1_a/history.jsonl"
+printf '{"e":"three"}\n{"e":"four"}\n' > "$r1_b/history.jsonl"
+SHARED_DIR="$r1_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r1" ACCOUNT_PREFIX=".claude-r1-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+
+it "history.jsonl (R1): a source missing its trailing newline does not fuse records"
+r1_two=1;   grep -qxF '{"e":"two"}'   "$r1_sd/history.jsonl" 2>/dev/null && r1_two=0
+r1_three=1; grep -qxF '{"e":"three"}' "$r1_sd/history.jsonl" 2>/dev/null && r1_three=0
+r1_fused=0; grep -qF  '"two"}{"e":"three"' "$r1_sd/history.jsonl" 2>/dev/null && r1_fused=1
+assert_eq 0 "$r1_two"   "history line {\"e\":\"two\"} preserved intact"
+assert_eq 0 "$r1_three" "history line {\"e\":\"three\"} preserved intact"
+assert_eq 0 "$r1_fused" "no fused two+three record"
+
+# ── R2: enabledPlugins union must keep "any true" regardless of account order.
+# Regression: rightmost-wins let the lexically-last account's false clobber a
+# plugin an earlier account had enabled.
+r2_sd="$SANDBOX_HOME/.claude-shared-r2"
+r2_a="$SANDBOX_HOME/.claude-r2-a"
+r2_b="$SANDBOX_HOME/.claude-r2-b"
+mkdir -p "$r2_a" "$r2_b"
+printf '{"n":"r2a"}\n' > "$r2_a/.credentials.json"; printf '{"name":"r2a"}\n' > "$r2_a/.claude.json"
+printf '{"n":"r2b"}\n' > "$r2_b/.credentials.json"; printf '{"name":"r2b"}\n' > "$r2_b/.claude.json"
+# a (lexically first) enables foo; b (lexically LAST, the overlay account) disables it.
+printf '{"enabledPlugins":{"foo":true}}\n'             > "$r2_a/settings.json"
+printf '{"enabledPlugins":{"foo":false,"bar":true}}\n' > "$r2_b/settings.json"
+SHARED_DIR="$r2_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r2" ACCOUNT_PREFIX=".claude-r2-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+
+it "enabledPlugins (R2): a plugin enabled in any account stays enabled (any-true union)"
+assert_jq "$r2_sd/settings.json" '.enabledPlugins.foo' "true" "foo stays true despite last account false"
+assert_jq "$r2_sd/settings.json" '.enabledPlugins.bar' "true" "bar from last account present"
+
+# ── R3: a single malformed settings.json must not abort the whole unify.
+# Regression: the multi-file jq -s merge ran unguarded under set -e.
+r3_sd="$SANDBOX_HOME/.claude-shared-r3"
+r3_a="$SANDBOX_HOME/.claude-r3-a"
+r3_b="$SANDBOX_HOME/.claude-r3-b"
+mkdir -p "$r3_a" "$r3_b"
+printf '{"n":"r3a"}\n' > "$r3_a/.credentials.json"; printf '{"name":"r3a"}\n' > "$r3_a/.claude.json"
+printf '{"n":"r3b"}\n' > "$r3_b/.credentials.json"; printf '{"name":"r3b"}\n' > "$r3_b/.claude.json"
+printf '{"enabledPlugins":{"ok":true}}\n' > "$r3_a/settings.json"
+printf '%s\n' '{ this is not valid json'  > "$r3_b/settings.json"
+SHARED_DIR="$r3_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r3" ACCOUNT_PREFIX=".claude-r3-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+r3_rc=$?
+
+it "settings.json (R3): one malformed account file does not abort unify"
+assert_eq 0 "$r3_rc" "unify still exits 0 despite a malformed settings.json"
+r3_tmp=0; [[ -e "$r3_sd/settings.json.tmp" ]] && r3_tmp=1
+assert_eq 0 "$r3_tmp" "no orphaned settings.json.tmp left behind"
+
 it "--rollback restores backups and archives the shared store"
 # shellcheck disable=SC2119  # test intentionally calls run_rollback with no args
 run_rollback >/dev/null 2>&1
