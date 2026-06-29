@@ -2,6 +2,21 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.9.2 — 2026-06-29 — Hermetic CLAUDE_BIN resolver test
+
+### Fixed
+- **`test_coverage.sh` B7 "fallback when nowhere" was not hermetic** and failed
+  on hosts that have a real `/usr/local/bin/claude` (caught live on
+  thinker.local): the resolver *correctly* returns the system claude there, but
+  the test wrongly assumed "claude nowhere" was achievable under a sandboxed
+  HOME/PATH (it can't mask absolute system paths). Dropped that one assertion;
+  the load-bearing discovery cases (explicit `CLAUDE_BIN`, `~/.npm-global/bin`
+  discovery) stay covered. Runtime behavior unchanged.
+
+### Verified
+- Suite **14/14 green on all five hosts** (this host, mistborn, thinker, amber,
+  nezha); shellcheck 0.
+
 ## v1.9.1 — 2026-06-29 — CLAUDE_BIN resolves across per-host install locations
 
 A patch found during the live multi-host rollout of v1.9.0.

@@ -415,17 +415,20 @@ b7="$(CLAUDE_BIN=/custom/path/claude cma_resolve_claude_bin)"
 assert_eq "/custom/path/claude" "$b7" "explicit CLAUDE_BIN returned as-is"
 
 it "cma_resolve_claude_bin: finds ~/.npm-global/bin/claude when not on PATH / not in ~/.local/bin"
+# This is the amber.local scenario. ~/.npm-global/bin is checked before the
+# system paths (/opt/homebrew, /usr/local), so a sandboxed HOME makes this
+# deterministic regardless of whether the host has a system-path claude.
 _b7h="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
 mkdir -p "$_b7h/.npm-global/bin" "$_b7h/emptybin"
 printf '#!/bin/sh\n' > "$_b7h/.npm-global/bin/claude"; chmod +x "$_b7h/.npm-global/bin/claude"
 b7="$(unset CLAUDE_BIN; HOME="$_b7h" PATH="$_b7h/emptybin" cma_resolve_claude_bin)"
 assert_eq "$_b7h/.npm-global/bin/claude" "$b7" "resolves the npm-global claude location"
-
-it "cma_resolve_claude_bin: falls back to ~/.local/bin/claude when claude is nowhere"
-_b7h2="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
-mkdir -p "$_b7h2/emptybin"
-b7="$(unset CLAUDE_BIN; HOME="$_b7h2" PATH="$_b7h2/emptybin" cma_resolve_claude_bin)"
-assert_eq "$_b7h2/.local/bin/claude" "$b7" "fallback path when claude is not found anywhere"
-rm -rf "$_b7h" "$_b7h2"
+# NOTE: the "nothing found anywhere -> ~/.local/bin fallback" branch is NOT
+# hermetically testable — the resolver also checks the absolute system paths
+# /opt/homebrew/bin and /usr/local/bin, which a sandboxed HOME/PATH can't mask
+# (a host with a real /usr/local/bin/claude would correctly return that). The
+# fallback is the trivial final printf; the load-bearing discovery logic is
+# covered above.
+rm -rf "$_b7h"
 
 summary
