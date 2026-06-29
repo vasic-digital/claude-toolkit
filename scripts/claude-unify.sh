@@ -296,11 +296,26 @@ rollback() {
   for root in "${ACCOUNTS[@]}"; do roots+=("$root"); done
   for root in "${roots[@]}"; do
     [[ -d "$root" ]] || continue
+    # Restore backups oldest-first. The suffix is a YYYYMMDDHHMMSS timestamp, so
+    # `sort -z` orders lexically = chronologically; the earliest backup is the
+    # true pre-unify original and wins when a path has more than one .preunify.*.
     while IFS= read -r -d '' bk; do
       local orig="${bk%.preunify.*}"
       [[ -L "$orig" ]] && rm -f "$orig"
       [[ -e "$orig" ]] || { mv "$bk" "$orig"; cma_log "restored $orig"; }
-    done < <(find "$root" -maxdepth 1 -name '*.preunify.*' -print0 2>/dev/null)
+    done < <(find "$root" -maxdepth 1 -name '*.preunify.*' -print0 2>/dev/null | sort -z)
+    # Don't scan the shared store itself (its contents move aside intact below);
+    # only external roots can hold links that would dangle.
+    [[ "$root" == "$SHARED_DIR" ]] && continue
+    # Remove leftover symlinks pointing into the shared store. unify created
+    # these for items an account never had (so there's no backup to restore);
+    # without this they dangle once SHARED_DIR is moved aside.
+    while IFS= read -r -d '' lnk; do
+      local tgt; tgt="$(readlink "$lnk")"
+      case "$tgt" in
+        "$SHARED_DIR"|"$SHARED_DIR"/*) rm -f "$lnk"; cma_log "removed shared-store symlink $lnk" ;;
+      esac
+    done < <(find "$root" -maxdepth 1 -type l -print0 2>/dev/null)
   done
   if [[ -d "$SHARED_DIR" ]]; then
     mv "$SHARED_DIR" "${SHARED_DIR}.removed.$(ts)"

@@ -269,6 +269,41 @@ it "dir merge (R4): freshest file wins conflicts regardless of account name orde
 assert_file_contains "$r4_sd/projects/p/memory/note.md" "NEW-from-a" \
   "newer file from lexically-earlier account wins (not the stale lexically-last one)"
 
+# ── R5: rollback must not leave a dangling symlink for an item an account never
+# had. Such items get a shared-store symlink but NO .preunify backup, so the
+# restore loop never visits them; once SHARED_DIR is moved aside they dangle.
+r5_sd="$SANDBOX_HOME/.claude-shared-r5"
+r5_a="$SANDBOX_HOME/.claude-r5-a"
+r5_b="$SANDBOX_HOME/.claude-r5-b"
+mkdir -p "$r5_a/projects" "$r5_b/projects" "$r5_b/todos"   # only b has todos
+printf '{"n":"r5a"}\n' > "$r5_a/.credentials.json"; printf '{"name":"r5a"}\n' > "$r5_a/.claude.json"
+printf '{"n":"r5b"}\n' > "$r5_b/.credentials.json"; printf '{"name":"r5b"}\n' > "$r5_b/.claude.json"
+printf '{"enabledPlugins":{}}\n' > "$r5_a/settings.json"
+printf '{"enabledPlugins":{}}\n' > "$r5_b/settings.json"
+SHARED_DIR="$r5_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r5" ACCOUNT_PREFIX=".claude-r5-" \
+  "$SCRIPTS_DIR/claude-unify.sh" >/dev/null 2>&1
+SHARED_DIR="$r5_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r5" ACCOUNT_PREFIX=".claude-r5-" \
+  "$SCRIPTS_DIR/claude-unify.sh" --rollback >/dev/null 2>&1
+
+it "rollback (R5): no dangling shared-store symlink left for a never-backed-up item"
+r5_dangle=0; [[ -L "$r5_a/todos" ]] && r5_dangle=1
+assert_eq 0 "$r5_dangle" "a/todos (symlink, no backup) is removed on rollback, not left dangling"
+
+# ── R6: rollback restores the OLDEST .preunify backup (the true original) when a
+# path has more than one, deterministically (find order is otherwise arbitrary).
+r6_sd="$SANDBOX_HOME/.claude-shared-r6"
+r6_a="$SANDBOX_HOME/.claude-r6-a"
+mkdir -p "$r6_a"
+printf '{"n":"r6a"}\n' > "$r6_a/.credentials.json"; printf '{"name":"r6a"}\n' > "$r6_a/.claude.json"
+# Two backups for the same path; the oldest timestamp holds the true original.
+printf 'OLDEST-original\n' > "$r6_a/memo.preunify.20200101000000"
+printf 'newer-backup\n'    > "$r6_a/memo.preunify.20240101000000"
+SHARED_DIR="$r6_sd" DEFAULT_DIR="$SANDBOX_HOME/.claude-r6" ACCOUNT_PREFIX=".claude-r6-" \
+  "$SCRIPTS_DIR/claude-unify.sh" --rollback >/dev/null 2>&1
+
+it "rollback (R6): oldest .preunify backup wins when a path has several"
+assert_file_contains "$r6_a/memo" "OLDEST-original" "the true (oldest) original is restored deterministically"
+
 it "--rollback restores backups and archives the shared store"
 # shellcheck disable=SC2119  # test intentionally calls run_rollback with no args
 run_rollback >/dev/null 2>&1
