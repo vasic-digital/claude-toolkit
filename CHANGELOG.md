@@ -2,6 +2,37 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.5 — 2026-06-29 — Provider 'null' field normalization + coverage
+
+### Fixed
+- **A missing JSON field could write `CMA_PROVIDER_MODEL='null'` (and `TRANSPORT`,
+  alias name) into a provider env file**, launching the provider with a bogus
+  model. `cma_provider_write_env` normalized `base`/`fast`/`context`/`max`
+  "null"→empty but missed `model` and `transport`; `claude-providers` multi-sync
+  also extracted `strong_model`/`transport`/`alias_name` with bare `jq -r` (no
+  `// empty`, unlike the already-correct `context_limit`/`max_output`). Fixed at
+  both the source (`// empty` on every extraction) and the choke point (normalize
+  `model`+`transport` in `cma_provider_write_env`). Reproduced (`='null'`),
+  confirmed fixed (`=''`).
+
+### Added (tests)
+- **test_providers.sh** — regression asserting a `null` model/transport/base/etc.
+  is normalized to empty; no field ever contains the literal `'null'`.
+- **test_session.sh** — EXECUTION tests for the `hint` subcommand (run on every
+  bare launch, previously only string-matched) and for `cma_project_root`'s
+  git-toplevel + symlink (`pwd -P`) branches.
+
+### Audited — no change needed (independently verified, not taken on trust)
+- `cma_merge_claude_json`: NO cross-account credential leak; `projects` unioned;
+  corrupt input skipped gracefully (verified with crafted 2-account inputs).
+- BSD/macOS portability: no unguarded GNU-isms (the 3 `readlink -f` hits are
+  comments; `stat -f/-c` branch + `cma_realpath` guards present).
+- jq robustness: the `@tsv` sync paths render null as empty (safe); two reported
+  `2>&1` "error-leak" findings were FALSE — there is no `2>&1` on those lines.
+
+### Verified
+- Suite **18/18 green**; shellcheck 0.
+
 ## v1.10.4 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage
 
 ### Fixed
