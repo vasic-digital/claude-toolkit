@@ -7,25 +7,32 @@ source "$TESTS_DIR/lib/assert.sh"
 ALIAS_FILE="$HOME/.local/share/claude-multi-account/aliases.sh"
 [[ -f "$ALIAS_FILE" ]] || { echo "SKIP: no alias file"; exit 0; }
 
+# Extract a full wrapper body. A fixed `grep -A<N>` window silently missed
+# markers near the end once the cma_run body grew (apply-color, v1.10.0) — the
+# push call slipped past -A30. Anchor on the function header and stop at its
+# closing brace (column-0 `}`), like the other suites do.
+_cma_run_body()  { awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE"; }
+_cma_prov_body() { awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE"; }
+
 test_claude() {
   it "cma_run has sync-state pull"
-  grep -A30 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*pull'
+  _cma_run_body | grep -q 'claude-sync-state.*pull'
   assert_eq 0 $? "cma_run has pull"
 
   it "cma_run has sync-state push"
-  grep -A30 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*push'
+  _cma_run_body | grep -q 'claude-sync-state.*push'
   assert_eq 0 $? "cma_run has push"
 
   it "cma_run has NO proxy code"
-  grep -A30 '^cma_run()' "$ALIAS_FILE" | grep -q '_proxy_script\|_proxy_pid\|cleancache\|streamoptions'
+  _cma_run_body | grep -q '_proxy_script\|_proxy_pid\|cleancache\|streamoptions'
   assert_eq 1 $? "cma_run clean: no proxy code"
 
   it "cma_run has NO transformer code"
-  grep -A30 '^cma_run()' "$ALIAS_FILE" | grep -q 'transformer'
+  _cma_run_body | grep -q 'transformer'
   assert_eq 1 $? "cma_run clean: no transformer"
 
   it "cma_run_provider has proxy detection"
-  grep -A100 '^cma_run_provider()' "$ALIAS_FILE" | grep -q '_proxy_script\|_proxy_pid'
+  _cma_prov_body | grep -q '_proxy_script\|_proxy_pid'
   assert_eq 0 $? "cma_run_provider has proxy detection"
 
   for a in claude1 claude2 claude3; do

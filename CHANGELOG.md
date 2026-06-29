@@ -2,6 +2,19 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.1 — 2026-06-29 — Robust cma_run wrapper assertions
+
+### Fixed
+- **`test_claude.sh` used a fixed `grep -A30` window** to scan the `cma_run`
+  body and silently missed the sync-state `push` marker once the body grew with
+  the v1.10.0 apply-color calls (push slipped past line 30) — failing the suite
+  against a v1.10.0-installed alias file even though the wrapper itself was
+  correct. It now extracts the full function body (awk header → closing brace),
+  robust to future growth.
+
+### Verified
+- Suite **16/16 green** against the v1.10.0 wrapper; shellcheck 0.
+
 ## v1.10.0 — 2026-06-29 — Auto-applied per-alias session color + coverage/wiring
 
 The per-alias session color is now **auto-applied** (it was only a hint in
