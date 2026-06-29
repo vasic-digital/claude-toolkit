@@ -2,6 +2,26 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.9.1 — 2026-06-29 — CLAUDE_BIN resolves across per-host install locations
+
+A patch found during the live multi-host rollout of v1.9.0.
+
+### Fixed
+- **Alias launches failed where claude was installed outside `~/.local/bin`.**
+  `npm i -g @anthropic-ai/claude-code` lands in different prefixes per host
+  (`~/.npm-global/bin`, Homebrew, `~/.local/bin`); the toolkit's fixed
+  `CLAUDE_BIN` default mis-pointed on those hosts, so every `claudeN`/provider
+  launch failed "No such file or directory" (amber.local needed a manual symlink
+  to work). `cma_resolve_claude_bin` now prefers an explicit `CLAUDE_BIN`, then
+  `$PATH`, then the known locations (`~/.local/bin`, `~/.npm-global/bin`,
+  `/opt/homebrew/bin`, `/usr/local/bin`), with a `~/.local/bin` fallback.
+
+### Verified
+- Suite **14/14 green**; **shellcheck 0**. `test_coverage.sh` B7 covers explicit
+  / npm-global / fallback resolution. v1.9.0's auto-session naming confirmed
+  installed + **live-validated** (create-named + legacy-rename) on all five
+  hosts: this host, mistborn, thinker, amber, nezha.
+
 ## v1.9.0 — 2026-06-29 — Per-project auto-sessions that actually work live + zero-coverage tests
 
 A minor release that makes the v1.8.0 "auto session-per-project" feature do what
