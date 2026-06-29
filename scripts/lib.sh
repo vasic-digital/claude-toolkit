@@ -207,6 +207,45 @@ cma_validate_alias() {
   [[ "$1" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] || cma_die "invalid alias name: $1"
 }
 
+# Match an rc-file line that sources an aliases.sh, capturing the path:
+#   BASH_REMATCH[2] = the (possibly $HOME/~/quoted) target path.
+# Anchored so leading-# comment lines (e.g. "# migrated to …/aliases.sh: …")
+# never match. Used by the prune + dedup helpers below.
+CMA_ALIAS_SRC_RE='^[[:space:]]*(source|\.)[[:space:]]+"?([^"[:space:]]*aliases\.sh)"?[[:space:]]*$'
+
+# Remove rc-file lines that source an aliases.sh whose target no longer exists
+# (a stale path from a moved install, or a transient ALIAS_FILE used in testing).
+# Without this, a deleted alias file leaves a dangling line that errors
+# "-bash: …/aliases.sh: No such file or directory" on every new login shell.
+cma_prune_stale_alias_sources() {
+  local rc="$1" tmp line target changed=0
+  [[ -f "$rc" ]] || return 0
+  tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")" || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ $CMA_ALIAS_SRC_RE ]]; then
+      target="${BASH_REMATCH[2]}"; target="${target/#\$HOME/$HOME}"; target="${target/#\~/$HOME}"
+      if [[ ! -f "$target" ]]; then changed=1; continue; fi
+    fi
+    printf '%s\n' "$line" >> "$tmp"
+  done < "$rc"
+  if (( changed )); then mv "$tmp" "$rc"; cma_log "pruned stale aliases.sh source line(s) from $rc"; else rm -f "$tmp"; fi
+}
+
+# True if $rc already sources a file resolving to $2 (across `.`/`source` and
+# $HOME/~/absolute forms), so we never append a duplicate source line.
+cma_rc_sources_alias_file() {
+  local rc="$1" want="$2" line target want_real
+  [[ -f "$rc" ]] || return 1
+  want_real="$(cma_realpath "$want" 2>/dev/null || printf '%s' "$want")"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ $CMA_ALIAS_SRC_RE ]]; then
+      target="${BASH_REMATCH[2]}"; target="${target/#\$HOME/$HOME}"; target="${target/#\~/$HOME}"
+      [[ "$(cma_realpath "$target" 2>/dev/null || printf '%s' "$target")" == "$want_real" ]] && return 0
+    fi
+  done < "$rc"
+  return 1
+}
+
 # Ensure $ALIAS_FILE exists with the header sentinel and is sourced from
 # the user's rc files. Idempotent — safe to call repeatedly.
 cma_ensure_alias_file() {
@@ -526,7 +565,11 @@ EOF
   local rc src_line="source \"$ALIAS_FILE\""
   for rc in "${CMA_RC_FILES[@]}"; do
     [[ -f "$rc" ]] || continue
-    if ! grep -F -q "$src_line" "$rc"; then
+    cma_prune_stale_alias_sources "$rc"   # self-heal: drop dangling aliases.sh source lines
+    # Add the canonical source line only if no existing line already sources THIS
+    # alias file (matched across .|source and $HOME/~/absolute forms) — prevents
+    # duplicate source lines accumulating across re-installs with differing forms.
+    if ! cma_rc_sources_alias_file "$rc" "$ALIAS_FILE"; then
       printf '\n# Claude multi-account aliases\n%s\n' "$src_line" >> "$rc"
       cma_log "added source line to $rc"
     fi
