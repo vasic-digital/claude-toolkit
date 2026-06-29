@@ -120,12 +120,20 @@ main() {
       # Best-effort trust (never blocks launch).
       cma_trust_project "$config_dir" "$root" || true
       # Claude stores sessions at <config_dir>/projects/<slug>/<uuid>.jsonl,
-      # where <slug> is the path with non-alnum -> '-'. If the session file
-      # already exists, resume it; otherwise create it with a name.
-      proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]+/-/g')"
+      # where <slug> replaces EACH non-alnum char with '-' (NO run-collapsing —
+      # verified against claude 2.1.195's real on-disk dirs, e.g. /tmp/.private
+      # -> -tmp--private). The old collapsing form caused a false-negative
+      # existence check for paths with consecutive separators (hidden dirs,
+      # __pycache__), making the launcher re-create instead of resume.
+      proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
       sess_file="$config_dir/projects/$proj_slug/$sid.jsonl"
+      # Always pass --name: on a fresh id it names the new session; on --resume it
+      # (re)applies the name, which is how an EXISTING unnamed session — created by
+      # an older wrapper or by plain `claude` — finally gets named. Verified live
+      # against claude 2.1.195: `claude --resume <id> --name <x>` renames a
+      # previously-unnamed session (custom-title goes <NONE> -> <x>).
       if [[ -f "$sess_file" ]]; then
-        printf -- '--resume %s\n' "$sid"
+        printf -- '--resume %s --name %s\n' "$sid" "$name"
       else
         printf -- '--session-id %s --name %s\n' "$sid" "$name"
       fi

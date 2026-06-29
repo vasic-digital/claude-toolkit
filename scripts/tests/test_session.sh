@@ -145,30 +145,52 @@ assert_eq 0 "$cond" "flags --session-id is a valid UUID (got: $sid_fr)"
 # 5. flags – resume (session .jsonl already exists)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-it "flags resume: when session .jsonl exists, output is '--resume <uuid>'"
+it "flags resume: when session .jsonl exists, output is '--resume <uuid> --name <snake>'"
 proj_res="$SANDBOX_HOME/resume_proj"
 cfg_res="$SANDBOX_HOME/cfg_resume"
 mkdir -p "$proj_res" "$cfg_res"
 
 # The UUID and slug must match what the script itself would compute when run
 # from inside $proj_res.  Use the same invocations so path canonicalisation
-# (pwd -P) is handled identically on both sides.
+# (pwd -P) is handled identically on both sides. Slug uses the PER-CHAR rule
+# (s/[^A-Za-z0-9]/-/g) — claude's real on-disk slug does NOT collapse runs.
 res_sid="$(run_session_from "$proj_res" id)"
 res_root="$(cd "$proj_res" && pwd -P)"
-res_slug="$(printf '%s' "$res_root" | sed -E 's/[^A-Za-z0-9]+/-/g')"
+res_slug="$(printf '%s' "$res_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+res_name="$(run_session_from "$proj_res" name)"
 
 sess_dir="$cfg_res/projects/$res_slug"
 mkdir -p "$sess_dir"
 printf '{"type":"user","content":"hello"}\n' > "$sess_dir/$res_sid.jsonl"
 
 flags_res="$(run_session_from "$proj_res" flags "$cfg_res")"
-assert_eq "--resume $res_sid" "$flags_res" "resume output is '--resume <uuid>'"
+# Resume now ALSO carries --name: re-passing the name on --resume is what lets an
+# existing UNNAMED session finally get named (proven live on claude 2.1.195:
+# `claude --resume <id> --name <x>` sets custom-title <NONE> -> <x>).
+assert_eq "--resume $res_sid --name $res_name" "$flags_res" "resume output is '--resume <uuid> --name <snake>'"
 
-it "flags resume: output does NOT contain --session-id or --name"
+it "flags resume: output carries --name (renames legacy unnamed sessions), no --session-id"
 cond=1; [[ "$flags_res" != *"--session-id"* ]] && cond=0
 assert_eq 0 "$cond" "resume output has no --session-id"
-cond=1; [[ "$flags_res" != *"--name"* ]] && cond=0
-assert_eq 0 "$cond" "resume output has no --name"
+cond=1; [[ "$flags_res" == *"--name $res_name"* ]] && cond=0
+assert_eq 0 "$cond" "resume output carries --name $res_name"
+
+# Regression for the per-char slug fix: a project path with CONSECUTIVE
+# non-alnum chars (e.g. a hidden '/.cfg/' segment) must still resolve to claude's
+# real slug so an existing session is RESUMED, not re-created. The old collapsing
+# slug (s/…+/-/g) produced a single '-' here and false-negatived the lookup.
+it "flags resume: consecutive separators in the path still resume (per-char slug)"
+proj_cs="$SANDBOX_HOME/.cfg/cs_proj"
+cfg_cs="$SANDBOX_HOME/cfg_cs"
+mkdir -p "$proj_cs" "$cfg_cs"
+cs_sid="$(run_session_from "$proj_cs" id)"
+cs_root="$(cd "$proj_cs" && pwd -P)"
+cs_slug="$(printf '%s' "$cs_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+mkdir -p "$cfg_cs/projects/$cs_slug"
+printf '{"type":"user","content":"hi"}\n' > "$cfg_cs/projects/$cs_slug/$cs_sid.jsonl"
+flags_cs="$(run_session_from "$proj_cs" flags "$cfg_cs")"
+cond=1; [[ "$flags_cs" == "--resume $cs_sid"* ]] && cond=0
+assert_eq 0 "$cond" "path with '/.' resumes (not re-creates); got: $flags_cs"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 6. trust – flags writes hasTrustDialogAccepted=true into .claude.json

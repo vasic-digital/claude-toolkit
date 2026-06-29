@@ -352,4 +352,57 @@ b5_wire=1; grep -q 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' "$ALIAS_FILE" 2>/dev/null && 
 assert_eq 0 "$b5_wire" "consumer wiring present: CMA_PROVIDER_MAX_OUTPUT -> CLAUDE_CODE_MAX_OUTPUT_TOKENS"
 rm -rf "$_b5_tmpdir"
 
+# ── B6. auto-session integration in the emitted wrappers + self-heal ──────────
+# The per-project auto-session (claude-session flags/hint) lives INSIDE the
+# cma_run / cma_run_provider bodies. A dropped integration would ship unnamed
+# sessions undetected (the session-script's own unit tests can't see the
+# wrapper), so assert the emitted bodies carry it — and that a stale cma_run
+# missing the 'claude-session' marker self-heals on the next ensure (the trigger
+# previously fired only on a missing 'unset ANTHROPIC_', so older wrappers never
+# regained auto-session).
+ALIAS_FILE="$SANDBOX_HOME/aliases_b6.sh"; mkdir -p "$(dirname "$ALIAS_FILE")"
+rm -f "$ALIAS_FILE"; cma_ensure_alias_file
+_b6_run="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+_b6_prov="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+
+it "cma_run body wires per-project auto-session (claude-session flags + bare-launch guard + apply + hint)"
+b6=1; printf '%s\n' "$_b6_run" | grep -q 'claude-session' && b6=0
+assert_eq 0 "$b6" "cma_run calls claude-session"
+b6=1; printf '%s\n' "$_b6_run" | grep -q ' flags ' && b6=0
+assert_eq 0 "$b6" "cma_run uses 'claude-session flags'"
+b6=1; printf '%s\n' "$_b6_run" | grep -qF '$# -eq 0' && b6=0
+assert_eq 0 "$b6" "cma_run gates auto-session on a bare launch"
+b6=1; printf '%s\n' "$_b6_run" | grep -qF 'eval "set -- ' && b6=0
+assert_eq 0 "$b6" "cma_run applies the session flags (eval set --)"
+b6=1; printf '%s\n' "$_b6_run" | grep -qF ' hint ' && b6=0
+assert_eq 0 "$b6" "cma_run emits the per-alias color hint"
+
+it "cma_run_provider body also wires per-project auto-session"
+b6=1; printf '%s\n' "$_b6_prov" | grep -q 'claude-session' && b6=0
+assert_eq 0 "$b6" "cma_run_provider calls claude-session"
+
+it "self-heal: a cma_run missing the claude-session marker is regenerated"
+# Outdated wrapper: cma_run HAS 'unset ANTHROPIC_' but LACKS 'claude-session'.
+# The old trigger checked only the first marker, so it never regenerated.
+rm -f "$ALIAS_FILE"; mkdir -p "$(dirname "$ALIAS_FILE")"
+{
+  printf '# Managed by claude-multi-account. Do not edit by hand.\n'
+  printf 'export CLAUDE_BIN="/usr/bin/true"\n'
+  printf 'cma_run() {\n'
+  printf '  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN\n'
+  # shellcheck disable=SC2016  # literal alias-body text; $CLAUDE_BIN/$@ must NOT expand here
+  printf '  "$CLAUDE_BIN" "$@"\n'
+  printf '}\n'
+  printf 'alias claude1="CLAUDE_CONFIG_DIR=%s/.claude-acct1 cma_run"\n' "$HOME"
+} > "$ALIAS_FILE"
+cma_ensure_alias_file
+_b6_run2="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+b6=1; printf '%s\n' "$_b6_run2" | grep -q 'claude-session' && b6=0
+assert_eq 0 "$b6" "stale cma_run (no claude-session) was regenerated with auto-session"
+b6=1; printf '%s\n' "$_b6_run2" | grep -q 'unset ANTHROPIC_' && b6=0
+assert_eq 0 "$b6" "regenerated cma_run still has provider-env isolation"
+b6_cnt="$(grep -c '^cma_run()' "$ALIAS_FILE")"
+assert_eq 1 "$b6_cnt" "exactly one cma_run() after self-heal (no duplication)"
+assert_file_contains "$ALIAS_FILE" "alias claude1=" "claude1 alias preserved through self-heal"
+
 summary

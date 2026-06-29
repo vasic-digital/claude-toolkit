@@ -226,8 +226,19 @@ EOF
   # INCLUDING "cma_run_provider()". That false match made the re-append guard
   # below think cma_run still existed after it was stripped, dropping the
   # function entirely. Literal `()` matches only the real cma_run() header.
+  # Regenerate cma_run if its body is missing ANY current marker:
+  #   * 'unset ANTHROPIC_' — provider-env isolation (native must not inherit a
+  #     provider endpoint left exported in the shell), and
+  #   * 'claude-session'   — the per-project auto-session naming integration.
+  # A stale wrapper lacking EITHER would silently misbehave (wrong endpoint, or
+  # unnamed sessions) and must self-heal on the next install/ensure. The earlier
+  # bug checked only the first marker, so wrappers predating auto-session never
+  # regained it.
+  local _cma_run_body
+  _cma_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" 2>/dev/null)"
   if grep -q '^cma_run()' "$ALIAS_FILE" \
-     && ! awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_'; then
+     && { ! printf '%s\n' "$_cma_run_body" | grep -q 'unset ANTHROPIC_' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -235,7 +246,7 @@ EOF
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
     mv "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (provider-env isolation)"
+    cma_log "migrated outdated cma_run (provider-env isolation + auto-session)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
