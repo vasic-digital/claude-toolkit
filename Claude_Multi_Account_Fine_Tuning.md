@@ -766,12 +766,19 @@ claude-providers remove <id>   # remove alias + env, back up the config dir
 claude-providers add --from-key VAR --id PROVIDER   # register a mapping, then sync
 ```
 
-### Known limitation — session color
+### Session color — auto-applied (v1.10.0)
 
-The goal of defaulting each provider session's `/color` to purple is **not
-automatable** on the installed Claude Code (2.1.195): `/color` is session-scoped
-and TUI-only, never persisted, with no settings key or env var. Type
-`/color purple` per session. (Documented in
+Each provider session is now tagged with the alias's deterministic color
+**automatically**. The toolkit writes an `agent-color` record
+(`{"type":"agent-color","agentColor":"<color>","sessionId":"<id>"}`) into the
+session's `.jsonl` — the same record Claude Code's `/color` command writes — via
+`claude-session apply-color`, called by the `cma_run_provider` wrapper. This is
+the **only** non-interactive way to set the prompt color on the installed Claude
+Code (2.1.195): `/color` itself is TUI-only and `claude -p '/color x'` is a
+no-op, with no CLI flag, settings key, or env var. Verified live that the record
+is written, is idempotent (re-applied only when the color changes), and persists
+across `claude --resume`. The toolkit cannot observe the TUI, so confirm the
+prompt-bar rendering visually on first launch. (Documented in
 `docs/Provider_Aliases_User_Guide.md` and `docs/SESSION_COLOR.md`.)
 
 Full details, overrides, verification, and troubleshooting live in
@@ -798,13 +805,21 @@ The moment you pass any argument (a prompt, `-p`, `--resume`, `--session-id`,
 any flag), the wrapper steps aside and your arguments go to `claude` verbatim —
 no auto-session is injected.
 
-**Color is a hint only.** Each alias also maps deterministically to one of
-Claude Code's 8 prompt colors, but the toolkit can only *suggest* it: Claude
-Code's `/color` is a **TUI-only** command that **cannot be set
-non-interactively** on the installed `claude 2.1.195` — there is no CLI flag, no
-`settings.json` key, and no environment variable for it. So on launch the
-wrapper prints a deterministic per-alias `/color` *hint*; type it once per
-session to tag the alias visually.
+**Color is auto-applied (v1.10.0).** Each alias maps deterministically to one of
+Claude Code's 8 prompt colors, and the toolkit now applies it for you: on a bare
+launch the wrapper writes an `agent-color` record
+(`{"type":"agent-color","agentColor":"<color>","sessionId":"<id>"}`) into the
+session's `.jsonl` — the exact record Claude Code's `/color` command writes — via
+`claude-session apply-color`. It runs **before** launch (to colour a resumed
+session) and **after** exit (to colour a freshly-created one). It is idempotent:
+the record is re-written only when the color actually changes, so switching
+aliases re-colors the *same* session and the file never grows unbounded. This is
+the **only** non-interactive mechanism: `/color` is TUI-only and
+`claude -p '/color x'` is a no-op — there is no CLI flag, `settings.json` key, or
+environment variable for it (verified against `claude 2.1.195`). Verified live
+that the record is written, is idempotent, and persists across `claude --resume`.
+The toolkit cannot programmatically observe the TUI, so confirm the prompt-bar
+rendering visually on first launch.
 
 Implemented by `scripts/claude-session.sh`, driven by the `cma_run` /
 `cma_run_provider` alias wrappers in `scripts/lib.sh`. Full details, the

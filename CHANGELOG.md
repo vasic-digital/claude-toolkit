@@ -2,6 +2,45 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.0 — 2026-06-29 — Auto-applied per-alias session color + coverage/wiring
+
+The per-alias session color is now **auto-applied** (it was only a hint in
+v1.9.x), plus self-healing for a stale `CLAUDE_BIN` and several closed
+test-coverage gaps.
+
+### Added
+- **Auto-applied per-alias session color.** Each bare alias launch now writes the
+  alias's color into the session as an `agent-color` record — the exact record
+  Claude Code's `/color` writes — via the new `claude-session apply-color`,
+  called by `cma_run`/`cma_run_provider` (before launch to colour a resumed
+  session; after exit to colour a freshly-created one). Deterministic
+  `md5(label) mod 8` over red/blue/green/yellow/purple/orange/pink/cyan: each
+  alias gets a stable, distinct colour, and switching the same session between
+  aliases re-colours it. Verified **LIVE** on claude 2.1.195 — written,
+  idempotent, persists across `--resume`. (Prompt-bar rendering must be confirmed
+  visually: `/color` is TUI-only and `claude -p '/color x'` is a no-op, so
+  record injection is the only non-interactive mechanism. See
+  [docs/SESSION_COLOR.md](docs/SESSION_COLOR.md).)
+- Test coverage: `test_install.sh` (executes `install.sh` in a sandbox —
+  symlinks, alias file, idempotency), `test_verify_scripts.sh` (`model_verify.py`
+  + `providers-verify.sh`), `test_session` apply-color tests (incl. the `set -e`
+  regression), `test_coverage` B7 (`CLAUDE_BIN` resolver), B8 (`CLAUDE_BIN`
+  migration), B9 (apply-color wired into both wrappers). `run-proof.sh` now also
+  runs the previously-orphaned `verify_aliases_live.sh`.
+
+### Fixed
+- **Stale `CLAUDE_BIN` self-heals.** Existing installs whose alias file pointed
+  `CLAUDE_BIN` at a non-existent path (e.g. `~/.local/bin/claude` where npm put
+  claude in `~/.npm-global/bin` — the amber.local case) now rewrite it to a
+  resolved, executable claude on the next install/ensure.
+- A `set -e`/`pipefail` bug where `apply-color` aborted before writing on a
+  session that had no existing `agent-color` record.
+
+### Verified
+- Suite **16/16 ALL GREEN**; **shellcheck 0**. Color injection proven **LIVE** on
+  real claude 2.1.195 (write / idempotent / persist-across-`--resume` /
+  recolour-on-alias-switch).
+
 ## v1.9.2 — 2026-06-29 — Hermetic CLAUDE_BIN resolver test
 
 ### Fixed
