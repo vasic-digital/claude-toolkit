@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 scratch_*.log
+
+# Node dependencies for the TOON utility — installed via `npm install`
+# (run automatically by install.sh). Never vendor these into git.
+/node_modules/

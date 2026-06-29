@@ -44,6 +44,23 @@ cma_log "platform: $(cma_os)"
 for t in rsync jq awk; do cma_require "$t"; done
 command -v pandoc >/dev/null 2>&1 || cma_warn "pandoc not found — PDF/HTML export will be skipped"
 
+# 1b. Node deps for the optional TOON utility (scripts/toon.mjs, and the
+# toon_encode.py wrapper that shells out to it). Soft by design: the toolkit's
+# core (unify/add-account) needs no Node, so a missing npm is a warning, not a
+# hard failure. Idempotent — npm install is a no-op once @toon-format/toon is
+# already present. (node_modules/ is gitignored; this is how the dep arrives.)
+_cma_repo_root="$(cd "$LIB_DIR/.." && pwd)"
+if [[ -f "$_cma_repo_root/package.json" ]]; then
+  if command -v npm >/dev/null 2>&1; then
+    cma_log "installing Node deps for the TOON utility (npm install) ..."
+    ( cd "$_cma_repo_root" && npm install --no-audit --no-fund --silent ) \
+      || cma_warn "npm install failed — scripts/toon.mjs (TOON utility) may be unavailable"
+  else
+    cma_warn "npm not found — scripts/toon.mjs (TOON utility) unavailable until you run 'npm install' in $_cma_repo_root"
+  fi
+fi
+unset _cma_repo_root
+
 # 2. Symlink the scripts onto PATH.
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 mkdir -p "$BIN_DIR"
