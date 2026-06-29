@@ -92,11 +92,11 @@ assert_file_contains "$acct2/.credentials.json" "acct2" "acct2 creds intact"
 
 it "re-running claude-unify is idempotent (settings.json byte-stable)"
 checksum_before="$(sha256sum "$SHARED_DIR/settings.json" | cut -d' ' -f1)"
-target_before="$(readlink -f "$acct1/projects")"
+target_before="$(cma_realpath "$acct1/projects")"  # readlink -f is unavailable on BSD/macOS
 # shellcheck disable=SC2119  # test intentionally calls run_unify with no args
 run_unify >/dev/null 2>&1
 checksum_after="$(sha256sum "$SHARED_DIR/settings.json" | cut -d' ' -f1)"
-target_after="$(readlink -f "$acct1/projects")"
+target_after="$(cma_realpath "$acct1/projects")"
 assert_eq "$checksum_before" "$checksum_after" "settings.json unchanged"
 assert_eq "$target_before"   "$target_after"   "symlink target unchanged"
 

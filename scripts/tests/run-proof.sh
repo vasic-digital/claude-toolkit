@@ -32,7 +32,7 @@ prov_rc=${PIPESTATUS[0]}
 
 # Distil the tallies for the report.
 # Strip ANSI colour so the distilled report is clean plain text.
-strip_ansi() { sed -E 's/\x1b\[[0-9;]*m//g'; }
+strip_ansi() { sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }  # \xNN is GNU-sed-only; build ESC literally for BSD/macOS
 sand_line="$(grep -E 'Test files:|ALL GREEN' "$SAND_LOG" | tail -2 | strip_ansi | tr '\n' ' ')"
 live_line="$(grep -E '[0-9]+ passed|SKIP:' "$LIVE_LOG" | tail -1 | strip_ansi)"
 prov_line="$(grep -E '[0-9]+ passed|SKIP:' "$PROV_LOG" | tail -1 | strip_ansi)"

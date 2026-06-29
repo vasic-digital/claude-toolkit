@@ -45,14 +45,30 @@ assert_dir() {
   else _fail "$msg" "missing dir: $path"; fi
 }
 
+# Portable realpath for the harness. BSD/macOS `readlink` has no `-f`, so
+# `readlink -f` is a hard error there (empty output) — which would make the
+# symlink assertions below pass/fail spuriously on macOS. Self-contained
+# (mirrors lib.sh's cma_realpath) so assert.sh works even in test files that
+# don't source lib.sh (e.g. test_add_remove.sh).
+_assert_realpath() {
+  local p="$1" t dir base
+  while [ -L "$p" ]; do
+    t="$(readlink "$p")"
+    case "$t" in /*) p="$t" ;; *) p="$(dirname "$p")/$t" ;; esac
+  done
+  dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || dir="$(dirname "$p")"
+  base="$(basename "$p")"
+  printf '%s/%s\n' "$dir" "$base"
+}
+
 assert_symlink_to() {
   local link="$1" expected="$2" msg="${3:-symlink target}"
   if [[ ! -L "$link" ]]; then
     _fail "$msg" "not a symlink: $link"
     return
   fi
-  local actual; actual="$(readlink -f "$link")"
-  local want;   want="$(readlink -f "$expected" 2>/dev/null || echo "$expected")"
+  local actual; actual="$(_assert_realpath "$link")"
+  local want;   want="$(_assert_realpath "$expected")"
   if [[ "$actual" == "$want" ]]; then _pass "$msg: $link -> $expected"
   else _fail "$msg" "want=$want got=$actual"; fi
 }

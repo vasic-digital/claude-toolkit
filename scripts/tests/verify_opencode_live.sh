@@ -31,6 +31,14 @@ if ! command -v opencode >/dev/null 2>&1; then
   exit 0
 fi
 
+# `timeout` is GNU coreutils; on macOS it is `gtimeout` (or absent). Resolve it
+# once so the live checks degrade gracefully instead of hard-failing with
+# "timeout: command not found" on a host that has opencode but no coreutils.
+TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
+_oc_timeout() {
+  if [[ -n "$TIMEOUT_BIN" ]]; then "$TIMEOUT_BIN" "$@"; else shift; "$@"; fi
+}
+
 mkdir -p "$PROOF_DIR"
 
 # Redact secrets from any text BEFORE it is written to the committed proof dir.
@@ -81,7 +89,7 @@ it "opencode discovers the Claude plugin skills"
 # count + extract names, then drop the raw dump so we commit only the compact,
 # human-checkable evidence (the sorted unique skill-name list).
 SKILLS_RAW="$(mktemp "${TMPDIR:-/tmp}/oc-skills.XXXXXX")"
-timeout 240 opencode debug skill >"$SKILLS_RAW" 2>"$PROOF_DIR/20-skills.err"
+_oc_timeout 240 opencode debug skill >"$SKILLS_RAW" 2>"$PROOF_DIR/20-skills.err"
 skills="$(grep -c '"name":' "$SKILLS_RAW" 2>/dev/null || true)"
 echo "skills_resolved=$skills (threshold $MIN_SKILLS)" >> "$PROOF_DIR/00-summary.txt"
 grep -o '"name": "[^"]*"' "$SKILLS_RAW" 2>/dev/null | sed 's/"name": //' \
@@ -92,11 +100,11 @@ else _fail "skills resolved" "got=$skills want>=$MIN_SKILLS"; fi
 
 # --- 4. enabled MCP servers connect -------------------------------------
 it "every enabled MCP server connects"
-timeout 300 opencode mcp list >"$PROOF_DIR/30-mcp-list.txt.raw" 2>&1
+_oc_timeout 300 opencode mcp list >"$PROOF_DIR/30-mcp-list.txt.raw" 2>&1
 cma_redact_secrets < "$PROOF_DIR/30-mcp-list.txt.raw" > "$PROOF_DIR/30-mcp-list.txt"
 rm -f "$PROOF_DIR/30-mcp-list.txt.raw"
 # Strip ANSI colour so parsing is robust (30-mcp-list.txt is already redacted).
-sed -E 's/\x1b\[[0-9;]*m//g' "$PROOF_DIR/30-mcp-list.txt" > "$PROOF_DIR/31-mcp-list.clean.txt"
+sed -E "s/$(printf '\033')\[[0-9;]*m//g" "$PROOF_DIR/30-mcp-list.txt" > "$PROOF_DIR/31-mcp-list.clean.txt"
 connected="$(grep -c '✓' "$PROOF_DIR/31-mcp-list.clean.txt" 2>/dev/null || true)"
 failed="$(grep -c '✗' "$PROOF_DIR/31-mcp-list.clean.txt" 2>/dev/null || true)"
 echo "mcp_connected=$connected mcp_failed=$failed" >> "$PROOF_DIR/00-summary.txt"
