@@ -2,6 +2,107 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.8.1 — 2026-06-29 — Merge-engine correctness + portability hardening
+
+A patch release: an adversarial correctness audit of `claude-unify`'s merge
+engine plus a BSD/GNU portability pass over the test + proof tooling. All
+fixes/hardening — **no new features**. Housekeeping: a divergent mirror lineage
+that re-created `v1.7.11` (`1e975e5`) was merged back into `main` resolved to
+**OURS** (local already carries v1.7.11 → v1.8.0 and later fixes that supersede
+it), leaving a tree byte-identical to HEAD so all four mirrors converge on one
+lineage; the `containers` submodule was fast-forwarded to latest `main`
+(`71d3256` → `67ed35a`).
+
+### Fixed
+- **`history.jsonl` merge fused records across a source missing its trailing
+  newline.** `merge_history_jsonl` `cat`'d sources into a temp first, gluing one
+  file's last line onto the next file's first line → two entries collapsed into
+  one invalid-JSON line. Fix: feed files straight to `awk` (fresh record per
+  file). Regression **R1** (RED before, GREEN after).
+- **`enabledPlugins` union dropped "any true".** The `jq` used `+`/`*`
+  (rightmost-wins), so a plugin enabled in an earlier account but `false` in the
+  lexically-last account ended up disabled for everyone — contradicting the
+  documented "any true survives" guarantee. Fix: OR-of-true reduce over every
+  account. Regression **R2**.
+- **A single malformed `settings.json` aborted the whole unify — and naive
+  guarding then risked silent config loss.** The multi-file `jq -s` ran unguarded
+  under `set -e` (settings is item 15 of 16), halting mid-run. Merely skipping the
+  merge was worse: `link_to_shared` still replaced each valid account's real
+  `settings.json` with a symlink to a never-written target (a dangling link →
+  silent loss, exit 0). Final fix (hardened after adversarial review): validate
+  each file with `jq empty` and merge only the valid ones (a malformed sibling is
+  excluded, not fatal), and `link_to_shared` refuses to create a link when the
+  shared target is absent. Regression **R3** (asserts the valid account's settings
+  stay readable, not just that unify exits 0).
+- **Directory-merge conflicts were resolved by lexical account name, not
+  recency.** `merge_dir_into_shared`'s second pass overlaid only `ACCOUNTS[-1]`
+  (alphabetically-last) while claiming to bias toward the "most recently active"
+  account, so a stale account sorting last could clobber fresher `memory/*.md`.
+  Fix: overlay every account with `rsync -au` so the newest-mtime file wins each
+  conflict, independent of name/order. Regression **R4**.
+- **Rollback left dangling symlinks.** Unify symlinks every shared item into each
+  account; for an item an account never had there is no `.preunify` backup, so
+  rollback's restore loop never visited it and the symlink dangled once
+  `SHARED_DIR` moved aside. Fix: after restoring backups, remove any leftover
+  symlink whose target points into `SHARED_DIR` (skipping the shared store
+  itself). Regression **R5**.
+- **Rollback restored a non-deterministic backup.** `find -print0` was unsorted,
+  so when a path had several `.preunify.*` backups an arbitrary one was restored.
+  Fix: `sort -z` (timestamps are `YYYYMMDDHHMMSS` = lexical-chronological) so the
+  oldest — the true pre-unify original — wins. Regression **R6**.
+- **`test_unify.sh` B2 was a vacuous PASS.** It called `cma_realpath` (a `lib.sh`
+  function) without sourcing `lib.sh`, so the call errored to empty and the
+  assertion compared `"" == ""` — the symlink target was never verified. Fix:
+  source `lib.sh` + `set +e` (matching every sibling test that uses lib functions
+  directly). Now prints the real resolved `SHARED_DIR/plugins/cache` path.
+- **Portability: 3 GNU-only constructs broke the test/proof tooling on macOS**
+  (the shipped runtime toolkit was already clean). `readlink -f` (no `-f` on BSD)
+  in `assert_symlink_to`/`test_unify.sh` returned empty → spurious symlink
+  pass/fail, fixed with a self-contained `_assert_realpath` in `assert.sh` +
+  `cma_realpath` in `test_unify.sh`; `sed -E 's/\x1b…//'` (`\xNN` is GNU-sed-only)
+  in `run-proof.sh`/`verify_opencode_live.sh` left ANSI in, skewing `grep -c`
+  counts, fixed by building the ESC byte via `printf '\033'`; unguarded `timeout`
+  (GNU coreutils) in `verify_opencode_live.sh`, fixed by resolving
+  `timeout`/`gtimeout` once and degrading if absent.
+- **De-vendored `node_modules`.** `node_modules/@toon-format/toon` was committed
+  by an accidental "Auto-commit" yet load-bearing (`scripts/toon.mjs` imports the
+  bare specifier; `toon_encode.py` shells out to it) with nothing ever running
+  `npm install`. Removed from the tree (`git rm --cached` + gitignore
+  `/node_modules/`). Proven by fresh-clone simulation: `ERR_MODULE_NOT_FOUND`
+  before, encodes correctly after.
+- **`mktemp` portability.** Standardized every bare `mktemp [-d]` to the templated
+  `mktemp [-d] "${TMPDIR:-/tmp}/cma.XXXXXX"` form CLAUDE.md prescribes (BSD
+  `mktemp` requires a template; only GNU tolerates a bare call) across `lib.sh`,
+  `claude-unify`/`providers`/`opencode-sync`/`session`/`install`, and the test
+  harness (the sandbox keeps its `cma-test.` prefix for the cleanup safety check).
+
+### Added
+- **B5 token-limit guard coverage** (`test_coverage.sh`). The v1.8.0
+  `context_limit`/`max_output` path (`cma_provider_write_env` →
+  `CMA_PROVIDER_CONTEXT_LIMIT`/`CMA_PROVIDER_MAX_OUTPUT` → `cma_run_provider`
+  exporting `CLAUDE_CODE_MAX_OUTPUT_TOKENS`) shipped with **zero** tests — the
+  only v1.8.0 fix lacking one. 4 cases / 6 concrete-value assertions: round-trip
+  (`262144`/`32768`), `null`→empty normalization, 7-arg back-compat, and the
+  emitted wrapper carrying the export.
+- **`npm install` step in `install.sh`** (soft — warns, never hard-fails, when
+  `npm` is absent; core unify/add-account needs no Node), so a fresh clone gets
+  `@toon-format/toon` without a vendored tree. `curl-install.sh` inherits it via
+  delegation.
+- **+16 regression assertions** — 6 in `test_coverage.sh` (B5) and 10 in
+  `test_unify.sh` (R1–R6 above), each written RED-before / GREEN-after.
+- **Documented two deliberate merge/sync trade-offs** in-code so they are
+  explicit rather than silent: `cma_merge_claude_json` replaces (not
+  element-unions) array values; `claude-sync-state` pull/push is last-writer-wins
+  (no portable mutex is worth its stale-lock failure modes for a per-launch hook).
+
+### Verified
+- Full suite **12/12 ALL GREEN**; **shellcheck 0**; all `.py` compile under
+  `python3 -W error`. Each bugfix proven **RED-before / GREEN-after**; the
+  de-vendor proven via fresh-clone simulation (`node scripts/toon.mjs` +
+  `toon_encode.py`); ESC-strip verified functionally; the post-merge tree
+  confirmed byte-identical to HEAD. Installed live on this host and validated
+  against all existing aliases (3 native + 44 provider) + `claude-list-accounts`.
+
 ## v1.8.0 — 2026-06-29 — Alias isolation + token-limit guard + per-project auto-sessions
 
 A systematic-debugging pass fixing three reported issues plus a new
