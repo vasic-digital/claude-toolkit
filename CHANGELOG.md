@@ -2,6 +2,32 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.7 — 2026-06-29 — Shared-items drift guard + audit closure
+
+### Added (tests)
+- **test_unify.sh** — a drift guard asserting `claude-unify.sh`'s `SHARED_ITEMS`
+  equals lib.sh's `CMA_SHARED_ITEMS` (used by `claude-add-account`) minus the
+  intentional `CLAUDE.md` special-case (unify promotes it via `sync_claude_md`).
+  Catches the documented hazard of adding a shared item to one list only.
+- Cleaned a pre-existing SC2319 lint in test_unify.sh.
+
+### Audited — no code changes (3 parallel investigators; every finding independently checked)
+- **Unify + rollback engine: clean** — enabledPlugins union, history.jsonl dedup,
+  settings.json merge (malformed-input safe), plugin-manifest path rewrite, and
+  rollback all verified correct across 170+ assertions + edge cases.
+- **OpenCode sync (`opencode_sync.py`): clean** — idempotent + additive verified;
+  two reported "bugs" were refuted against the code: the `setdefault` "can't
+  update existing keys" IS the documented never-clobber design, and the
+  `--enable-all` secret nit is not a security issue (an unresolved secret can't
+  leak) and matches "enable everything" semantics.
+- **Runtime sync + add-account: clean** — the `SHARED_ITEMS` "drift" is the
+  intentional `CLAUDE.md` special-case (now locked by the guard above); sync-state
+  private-key isolation, corrupt-input handling, and add-account idempotency
+  verified.
+
+### Verified
+- Suite **18/18 green**; shellcheck 0.
+
 ## v1.10.6 — 2026-06-29 — Committed credential-leak regression test
 
 ### Added (tests)
