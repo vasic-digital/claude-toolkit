@@ -16,6 +16,10 @@ SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 
 source "$TESTS_DIR/lib/assert.sh"
 source "$TESTS_DIR/lib/sandbox.sh"
+# shellcheck source=../lib.sh
+source "$SCRIPTS_DIR/lib.sh"   # defines cma_realpath etc. used directly below
+# lib.sh enables `set -e`; this harness asserts on failures, so relax it.
+set +e
 
 make_sandbox
 
