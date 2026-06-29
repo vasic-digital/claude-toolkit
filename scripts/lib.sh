@@ -50,15 +50,20 @@ cma_merge_claude_json() {
   cma_require jq
 
   # Build the merged "shared portion" (everything except private keys).
-  local shared_tmp; shared_tmp="$(mktemp)"
+  local shared_tmp; shared_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   printf '{}\n' > "$shared_tmp"
   local acct prev="$shared_tmp"
   for acct in "${accts[@]}"; do
     local f="$acct/.claude.json"
     [[ -s "$f" ]] || continue
-    local next; next="$(mktemp)"
+    local next; next="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     # $a (accumulator) * ($b stripped of private keys). jq's `*` is recursive
-    # deep-merge for objects; rightmost wins on scalar conflicts.
+    # deep-merge for objects; rightmost wins on scalar conflicts AND on array
+    # values (arrays are replaced, not element-unioned — e.g. a per-project
+    # prompt-history array takes the last account's copy). This is a deliberate
+    # deep-merge trade-off: the projects subtree is unioned at the object-key
+    # level (which is what the cross-account session/MCP/memory index needs);
+    # blind element-level array union would be wrong for config-style arrays.
     if ! jq -s --argjson priv "$CMA_CLAUDE_JSON_PRIVATE_KEYS" '
       . as [$a, $b]
       | ($b | with_entries(select(.key as $k | $priv | index($k) | not))) as $shared_b
@@ -76,7 +81,7 @@ cma_merge_claude_json() {
   # its own private keys overlaid on top of the shared portion.
   for acct in "${accts[@]}"; do
     local f="$acct/.claude.json" out
-    out="$(mktemp)"
+    out="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     if [[ -s "$f" ]]; then
       # Guard against set -e: a corrupt $f makes jq fail, which would abort
       # the whole loop and leave the remaining accounts unsynced.
@@ -203,7 +208,7 @@ EOF
   # landed; idempotent (a line already using cma_run is left alone).
   # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the regex/sed pattern, not a shell expansion
   if grep -qE '^alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=[^ ]+[[:space:]]+\\?\$CLAUDE_BIN"$' "$ALIAS_FILE"; then
-    local tmp; tmp="$(mktemp)"
+    local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the sed pattern, matching alias file content
     sed -E 's|(^alias[[:space:]]+[^=]+=)"(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN"$|\1"\2 cma_run"|' "$ALIAS_FILE" > "$tmp"
     mv "$tmp" "$ALIAS_FILE"
@@ -223,7 +228,7 @@ EOF
   # function entirely. Literal `()` matches only the real cma_run() header.
   if grep -q '^cma_run()' "$ALIAS_FILE" \
      && ! awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_'; then
-    local tmp_run; tmp_run="$(mktemp)"
+    local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
       skip && /^}/    { skip=0; next }
@@ -308,7 +313,7 @@ EOF
     if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'claude-session'; then
-      local tmp_prov; tmp_prov="$(mktemp)"
+      local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
         /^cma_run_provider\(\) ?\{/ { skip=1 }
@@ -407,7 +412,7 @@ cma_run_provider() {
       cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)"
     fi
     if command -v jq >/dev/null 2>&1; then
-      local tmp; tmp="$(mktemp)"; chmod 600 "$tmp" 2>/dev/null || true
+      local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"; chmod 600 "$tmp" 2>/dev/null || true
       # Pass the secret through the environment ($ENV.tok), never as a jq argv
       # argument — argv is visible in ps/proc to other local users.
       if CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
@@ -492,7 +497,7 @@ cma_write_alias() {
   esac
   cma_ensure_alias_file
   # Strip any prior line for this alias, then append the new one.
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   # Note: bash aliases can't take args, so we use a quoted CLAUDE_CONFIG_DIR= prefix
   # plus a wrapped invocation. The wrapper is a shell function reference (cma_run)
@@ -506,7 +511,7 @@ cma_write_alias() {
 cma_remove_alias() {
   local alias_name="$1"
   [[ -f "$ALIAS_FILE" ]] || return 0
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   mv "$tmp" "$ALIAS_FILE"
 }
@@ -551,7 +556,7 @@ cma_enable_plugins() {
   local settings="$SHARED_DIR/settings.json" tmp
   mkdir -p "$SHARED_DIR"
   [[ -s "$settings" ]] || printf '{}\n' > "$settings"
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   local args=() p i=0
   # Use a dedicated counter for the jq --arg names: each iteration appends THREE
   # elements (--arg, "pN", value), so deriving the index from ${#args[@]} drifts
@@ -638,7 +643,7 @@ cma_provider_write_alias() {
       return 1 ;;
   esac
   cma_ensure_alias_file
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"
   mv "$tmp" "$ALIAS_FILE"

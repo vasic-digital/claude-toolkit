@@ -91,8 +91,8 @@ done
 
 cma_log "scanning plugins in $CLAUDE_PLUGINS_DIR"
 
-OC_TMP="$(mktemp)"
-STATS_TMP="$(mktemp)"
+OC_TMP="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+STATS_TMP="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
 trap 'rm -f "$OC_TMP" "$STATS_TMP"' EXIT
 
 OC_CONFIG="$OPENCODE_CONFIG" \

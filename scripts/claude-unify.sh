@@ -130,7 +130,7 @@ merge_dir_into_shared() {
 }
 
 merge_history_jsonl() {
-  local acct srcs=() tmp; tmp="$(mktemp)"
+  local acct srcs=() tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   for acct in "${ACCOUNTS[@]}"; do
     local f="$acct/history.jsonl"
     if [[ -f "$f" && ! -L "$f" ]]; then srcs+=("$f"); fi
@@ -226,7 +226,7 @@ absorb_default_plugins() {
 rewrite_plugin_paths() {
   local f="$SHARED_DIR/plugins/installed_plugins.json"
   if [[ -f "$f" ]]; then
-    local tmp; tmp="$(mktemp)"
+    local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     jq --arg shared "$SHARED_DIR" '
       .plugins |= with_entries(
         .value |= map(
@@ -238,7 +238,7 @@ rewrite_plugin_paths() {
   fi
   local km="$SHARED_DIR/plugins/known_marketplaces.json"
   if [[ -f "$km" ]]; then
-    local tmp; tmp="$(mktemp)"
+    local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     jq --arg shared "$SHARED_DIR" '
       with_entries(
         if ((.value.installLocation // "") | test(".*/plugins/marketplaces/"))

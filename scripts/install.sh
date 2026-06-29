@@ -99,7 +99,7 @@ cma_ensure_alias_file
 migrate_inline_aliases() {
   local rc="$1"
   [[ -f "$rc" ]] || return 0
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   local changed=0
   while IFS= read -r line; do
     if [[ "$line" =~ ^alias[[:space:]]+(claude[0-9a-zA-Z_-]+)=.*CLAUDE_CONFIG_DIR=([^[:space:]\"]+) ]]; then

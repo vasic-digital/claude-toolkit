@@ -104,7 +104,7 @@ ensure_catalog() {
   fi
   if (( fresh )); then return 0; fi
   cma_require curl
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   if curl -s --max-time 45 "$CMA_MODELS_DEV_URL" -o "$tmp" \
      && python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$tmp" 2>/dev/null; then
     mv "$tmp" "$CACHE"
@@ -265,7 +265,7 @@ cmd_add() {
   cma_require jq
   mkdir -p "$(dirname "$KEY_ALIASES")"
   [[ -s "$KEY_ALIASES" ]] || echo '{}' > "$KEY_ALIASES"
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   jq --arg k "$from_key" --arg p "$pid" '.[$k]=$p' "$KEY_ALIASES" > "$tmp" && mv "$tmp" "$KEY_ALIASES"
   cma_log "registered $from_key -> $pid in $KEY_ALIASES"
   cmd_sync

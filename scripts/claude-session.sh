@@ -95,7 +95,7 @@ cma_trust_project() {
   f="$config_dir/.claude.json"
   command -v jq >/dev/null 2>&1 || return 0
   [[ -f "$f" ]] || printf '{}\n' > "$f" 2>/dev/null || return 0
-  tmp="$(mktemp 2>/dev/null)" || return 0
+  tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" || return 0
   if jq --arg p "$root" '
         .projects = (.projects // {})
         | .projects[$p] = ((.projects[$p] // {}) + {hasTrustDialogAccepted: true})

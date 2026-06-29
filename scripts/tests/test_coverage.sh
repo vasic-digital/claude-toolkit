@@ -293,7 +293,7 @@ it "cma_provider_write_env (B3): model name with literal single quote round-trip
 # Args: id keyvar transport base_url model fast_model config_dir
 # cma_providers_dir() is hardcoded to $HOME/.local/share/... (not $SHARED_DIR),
 # so we temporarily override it to write into a sandbox temp dir.
-_b3_tmpdir="$(mktemp -d)"
+_b3_tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
 _b3_orig_fn="$(declare -f cma_providers_dir 2>/dev/null)"
 cma_providers_dir() { echo "$_b3_tmpdir"; }
 _b3_env="$_b3_tmpdir/b3quote.env"
@@ -308,7 +308,7 @@ rm -f "$_b3_pwn"
 # Build the injection string without a heredoc so single/double quotes stay readable.
 # The payload would close the single-quoted value and inject a shell command.
 _b3_inject="x'; touch ${_b3_pwn}; echo '"
-_b3_tmpdir2="$(mktemp -d)"
+_b3_tmpdir2="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
 cma_providers_dir() { echo "$_b3_tmpdir2"; }
 cma_provider_write_env "b3inject" "TESTKEY" "native" "https://api.test/v1" "$_b3_inject" "" "$HOME/.claude-b3i"
 _b3_env2="$_b3_tmpdir2/b3inject.env"
@@ -323,7 +323,7 @@ rm -f "$_b3_pwn" "$_b3_tmpdir" "$_b3_tmpdir2"
 # context window. That data path shipped without a test; these assertions cover
 # write_env's emission (value round-trip, "null"->empty, 7-arg back-compat) and
 # confirm the consumer wiring is present in the emitted wrapper.
-_b5_tmpdir="$(mktemp -d)"
+_b5_tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
 cma_providers_dir() { echo "$_b5_tmpdir"; }
 
 it "cma_provider_write_env (B5): context_limit/max_output round-trip through source"

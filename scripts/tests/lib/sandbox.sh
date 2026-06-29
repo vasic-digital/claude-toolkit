@@ -14,7 +14,7 @@
 SCRIPTS_DIR="${SCRIPTS_DIR:-$HOME/Documents/scripts}"
 
 make_sandbox() {
-  SANDBOX_HOME="$(mktemp -d -t cma-test.XXXXXXXX)"
+  SANDBOX_HOME="$(mktemp -d "${TMPDIR:-/tmp}/cma-test.XXXXXX")"
   # Override every env var the toolkit reads from. Pointing HOME at the
   # sandbox is the main switch; the other vars only matter if a caller
   # tests defaults explicitly.

@@ -80,6 +80,16 @@ case "$mode" in
     # rewriting every file. The "target" arg exists so the alias wrapper can
     # report which account triggered the sync (and we don't waste cycles when
     # there's only one account — nothing to merge from/to).
+    #
+    # KNOWN, ACCEPTED race: pull/push rewrite EVERY account's .claude.json, not
+    # just the target's. Two claudeN launching concurrently can interleave; the
+    # per-file mv is last-writer-wins, so a non-union scalar another account
+    # just wrote can be lost. The projects subtree is unioned (the common case
+    # is safe), and an in-flight partial write is caught by the jq guard and
+    # skipped. We deliberately do NOT add a lock here: a cross-platform mutex
+    # (no portable flock on macOS) with stale-lock recovery would add more
+    # failure modes than the rare scalar-loss it prevents, on a hook that runs
+    # on every launch. Revisit only if non-projects scalar state proves lossy.
     if (( ${#ALL_ACCOUNTS[@]} == 1 )); then
       exit 0
     fi
