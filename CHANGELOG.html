@@ -240,14 +240,21 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <ul>
 <li><a href="#changelog" id="toc-changelog">Changelog</a>
 <ul>
+<li><a href="#v1106--2026-06-29--committed-credential-leak-regression-test" id="toc-v1106--2026-06-29--committed-credential-leak-regression-test">v1.10.6
+— 2026-06-29 — Committed credential-leak regression test</a>
+<ul>
+<li><a href="#added-tests" id="toc-added-tests">Added (tests)</a></li>
+<li><a href="#verified" id="toc-verified">Verified</a></li>
+</ul></li>
 <li><a href="#v1105--2026-06-29--provider-null-field-normalization--coverage" id="toc-v1105--2026-06-29--provider-null-field-normalization--coverage">v1.10.5
 — 2026-06-29 — Provider &#39;null&#39; field normalization + coverage</a>
 <ul>
 <li><a href="#fixed" id="toc-fixed">Fixed</a></li>
-<li><a href="#added-tests" id="toc-added-tests">Added (tests)</a></li>
+<li><a href="#added-tests-1" id="toc-added-tests-1">Added
+(tests)</a></li>
 <li><a href="#audited--no-change-needed-independently-verified-not-taken-on-trust" id="toc-audited--no-change-needed-independently-verified-not-taken-on-trust">Audited
 — no change needed (independently verified, not taken on trust)</a></li>
-<li><a href="#verified" id="toc-verified">Verified</a></li>
+<li><a href="#verified-1" id="toc-verified-1">Verified</a></li>
 </ul></li>
 <li><a href="#v1104--2026-06-29--set--epipefail-abort-fixes--hardened-test-coverage" id="toc-v1104--2026-06-29--set--epipefail-abort-fixes--hardened-test-coverage">v1.10.4
 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage</a>
@@ -255,26 +262,26 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <li><a href="#fixed-1" id="toc-fixed-1">Fixed</a></li>
 <li><a href="#changed-tests" id="toc-changed-tests">Changed
 (tests)</a></li>
-<li><a href="#verified-1" id="toc-verified-1">Verified</a></li>
+<li><a href="#verified-2" id="toc-verified-2">Verified</a></li>
 </ul></li>
 <li><a href="#v1103--2026-06-29--execution-level-wrapper-test-coverage" id="toc-v1103--2026-06-29--execution-level-wrapper-test-coverage">v1.10.3
 — 2026-06-29 — Execution-level wrapper test coverage</a>
 <ul>
 <li><a href="#added" id="toc-added">Added</a></li>
-<li><a href="#verified-2" id="toc-verified-2">Verified</a></li>
+<li><a href="#verified-3" id="toc-verified-3">Verified</a></li>
 </ul></li>
 <li><a href="#v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests" id="toc-v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</a>
 <ul>
 <li><a href="#fixed-2" id="toc-fixed-2">Fixed</a></li>
 <li><a href="#added-1" id="toc-added-1">Added</a></li>
-<li><a href="#verified-3" id="toc-verified-3">Verified</a></li>
+<li><a href="#verified-4" id="toc-verified-4">Verified</a></li>
 </ul></li>
 <li><a href="#v1101--2026-06-29--robust-cma_run-wrapper-assertions" id="toc-v1101--2026-06-29--robust-cma_run-wrapper-assertions">v1.10.1 —
 2026-06-29 — Robust cma_run wrapper assertions</a>
 <ul>
 <li><a href="#fixed-3" id="toc-fixed-3">Fixed</a></li>
-<li><a href="#verified-4" id="toc-verified-4">Verified</a></li>
+<li><a href="#verified-5" id="toc-verified-5">Verified</a></li>
 </ul></li>
 <li><a href="#v1100--2026-06-29--auto-applied-per-alias-session-color--coveragewiring" id="toc-v1100--2026-06-29--auto-applied-per-alias-session-color--coveragewiring">v1.10.0
 — 2026-06-29 — Auto-applied per-alias session color +
@@ -282,19 +289,19 @@ coverage/wiring</a>
 <ul>
 <li><a href="#added-2" id="toc-added-2">Added</a></li>
 <li><a href="#fixed-4" id="toc-fixed-4">Fixed</a></li>
-<li><a href="#verified-5" id="toc-verified-5">Verified</a></li>
+<li><a href="#verified-6" id="toc-verified-6">Verified</a></li>
 </ul></li>
 <li><a href="#v192--2026-06-29--hermetic-claude_bin-resolver-test" id="toc-v192--2026-06-29--hermetic-claude_bin-resolver-test">v1.9.2 —
 2026-06-29 — Hermetic CLAUDE_BIN resolver test</a>
 <ul>
 <li><a href="#fixed-5" id="toc-fixed-5">Fixed</a></li>
-<li><a href="#verified-6" id="toc-verified-6">Verified</a></li>
+<li><a href="#verified-7" id="toc-verified-7">Verified</a></li>
 </ul></li>
 <li><a href="#v191--2026-06-29--claude_bin-resolves-across-per-host-install-locations" id="toc-v191--2026-06-29--claude_bin-resolves-across-per-host-install-locations">v1.9.1
 — 2026-06-29 — CLAUDE_BIN resolves across per-host install locations</a>
 <ul>
 <li><a href="#fixed-6" id="toc-fixed-6">Fixed</a></li>
-<li><a href="#verified-7" id="toc-verified-7">Verified</a></li>
+<li><a href="#verified-8" id="toc-verified-8">Verified</a></li>
 </ul></li>
 <li><a href="#v190--2026-06-29--per-project-auto-sessions-that-actually-work-live--zero-coverage-tests" id="toc-v190--2026-06-29--per-project-auto-sessions-that-actually-work-live--zero-coverage-tests">v1.9.0
 — 2026-06-29 — Per-project auto-sessions that actually work live +
@@ -302,14 +309,14 @@ zero-coverage tests</a>
 <ul>
 <li><a href="#fixed-7" id="toc-fixed-7">Fixed</a></li>
 <li><a href="#added-3" id="toc-added-3">Added</a></li>
-<li><a href="#verified-8" id="toc-verified-8">Verified</a></li>
+<li><a href="#verified-9" id="toc-verified-9">Verified</a></li>
 </ul></li>
 <li><a href="#v181--2026-06-29--merge-engine-correctness--portability-hardening" id="toc-v181--2026-06-29--merge-engine-correctness--portability-hardening">v1.8.1
 — 2026-06-29 — Merge-engine correctness + portability hardening</a>
 <ul>
 <li><a href="#fixed-8" id="toc-fixed-8">Fixed</a></li>
 <li><a href="#added-4" id="toc-added-4">Added</a></li>
-<li><a href="#verified-9" id="toc-verified-9">Verified</a></li>
+<li><a href="#verified-10" id="toc-verified-10">Verified</a></li>
 </ul></li>
 <li><a href="#v180--2026-06-29--alias-isolation--token-limit-guard--per-project-auto-sessions" id="toc-v180--2026-06-29--alias-isolation--token-limit-guard--per-project-auto-sessions">v1.8.0
 — 2026-06-29 — Alias isolation + token-limit guard + per-project
@@ -317,13 +324,13 @@ auto-sessions</a>
 <ul>
 <li><a href="#fixed-9" id="toc-fixed-9">Fixed</a></li>
 <li><a href="#added-5" id="toc-added-5">Added</a></li>
-<li><a href="#verified-10" id="toc-verified-10">Verified</a></li>
+<li><a href="#verified-11" id="toc-verified-11">Verified</a></li>
 </ul></li>
 <li><a href="#v1712--2026-06-28--one-line-curl-installer" id="toc-v1712--2026-06-28--one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</a>
 <ul>
 <li><a href="#added-6" id="toc-added-6">Added</a></li>
-<li><a href="#verified-11" id="toc-verified-11">Verified</a></li>
+<li><a href="#verified-12" id="toc-verified-12">Verified</a></li>
 </ul></li>
 <li><a href="#v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation" id="toc-v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation">v1.7.11
 — 2026-06-28 — Round-4: coverage-gap regression tests, toon recursion
@@ -333,7 +340,7 @@ guard, arg validation</a>
 <li><a href="#added--coverage-gap-regression-tests-the-same-class-that-let-enable-plugins" id="toc-added--coverage-gap-regression-tests-the-same-class-that-let-enable-plugins">Added
 — coverage-gap regression tests (the same class that let
 enable-plugins</a></li>
-<li><a href="#verified-12" id="toc-verified-12">Verified</a></li>
+<li><a href="#verified-13" id="toc-verified-13">Verified</a></li>
 </ul></li>
 <li><a href="#v1710--2026-06-28--round-3-audit-enable-plugins-bug-fix-path-traversal-guards-proxy-robustness" id="toc-v1710--2026-06-28--round-3-audit-enable-plugins-bug-fix-path-traversal-guards-proxy-robustness">v1.7.10
 — 2026-06-28 — Round-3 audit: enable-plugins bug fix, path-traversal
@@ -342,7 +349,7 @@ guards, proxy robustness</a>
 <li><a href="#fixed-11" id="toc-fixed-11">Fixed</a></li>
 <li><a href="#security-defense-in-depth" id="toc-security-defense-in-depth">Security (defense-in-depth)</a></li>
 <li><a href="#robustness" id="toc-robustness">Robustness</a></li>
-<li><a href="#verified-13" id="toc-verified-13">Verified</a></li>
+<li><a href="#verified-14" id="toc-verified-14">Verified</a></li>
 <li><a href="#audit-round-3--verified-clean" id="toc-audit-round-3--verified-clean">Audit (round 3) — verified
 clean</a></li>
 </ul></li>
@@ -354,7 +361,7 @@ secret redaction, docs accuracy, shellcheck 0</a>
 <li><a href="#fixed-12" id="toc-fixed-12">Fixed</a></li>
 <li><a href="#docs" id="toc-docs">Docs</a></li>
 <li><a href="#quality" id="toc-quality">Quality</a></li>
-<li><a href="#verified-14" id="toc-verified-14">Verified</a></li>
+<li><a href="#verified-15" id="toc-verified-15">Verified</a></li>
 </ul></li>
 <li><a href="#v178--2026-06-28--secret-hygiene-argv--committed-proof-leaks-dead-code-fix-coverage-tests" id="toc-v178--2026-06-28--secret-hygiene-argv--committed-proof-leaks-dead-code-fix-coverage-tests">v1.7.8
 — 2026-06-28 — Secret hygiene (argv + committed-proof leaks), dead-code
@@ -363,7 +370,7 @@ fix, coverage tests</a>
 <li><a href="#security-1" id="toc-security-1">Security</a></li>
 <li><a href="#fixed-13" id="toc-fixed-13">Fixed</a></li>
 <li><a href="#added-7" id="toc-added-7">Added</a></li>
-<li><a href="#verified-15" id="toc-verified-15">Verified</a></li>
+<li><a href="#verified-16" id="toc-verified-16">Verified</a></li>
 </ul></li>
 <li><a href="#v177--2026-06-28--portable-realpath-bsd-portability-hardening-set--u-edge-fix-regression-tests" id="toc-v177--2026-06-28--portable-realpath-bsd-portability-hardening-set--u-edge-fix-regression-tests">v1.7.7
 — 2026-06-28 — Portable realpath (BSD portability hardening), set -u
@@ -371,7 +378,7 @@ edge fix, regression tests</a>
 <ul>
 <li><a href="#fixed-14" id="toc-fixed-14">Fixed</a></li>
 <li><a href="#added-8" id="toc-added-8">Added</a></li>
-<li><a href="#verified-16" id="toc-verified-16">Verified</a></li>
+<li><a href="#verified-17" id="toc-verified-17">Verified</a></li>
 <li><a href="#audit-findings-v176--no-code-change-required" id="toc-audit-findings-v176--no-code-change-required">Audit findings
 (v1.7.6 — no code change required)</a></li>
 </ul></li>
@@ -383,7 +390,7 @@ macOS/bash-3.2 portability, 4-host rollout</a>
 <li><a href="#added-9" id="toc-added-9">Added</a></li>
 <li><a href="#multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal" id="toc-multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal">Multi-host
 rollout (nezha · mistborn.local · thinker.local · amber.local)</a></li>
-<li><a href="#verified-17" id="toc-verified-17">Verified</a></li>
+<li><a href="#verified-18" id="toc-verified-18">Verified</a></li>
 </ul></li>
 <li><a href="#v175--2026-06-28--cross-provider-resume-session-visibility-fix" id="toc-v175--2026-06-28--cross-provider-resume-session-visibility-fix">v1.7.5
 — 2026-06-28 — Cross-provider /resume session visibility fix</a>
@@ -391,7 +398,7 @@ rollout (nezha · mistborn.local · thinker.local · amber.local)</a></li>
 <li><a href="#fixed-16" id="toc-fixed-16">Fixed</a></li>
 <li><a href="#root-cause-analysis" id="toc-root-cause-analysis">Root
 Cause Analysis</a></li>
-<li><a href="#verified-18" id="toc-verified-18">Verified</a></li>
+<li><a href="#verified-19" id="toc-verified-19">Verified</a></li>
 <li><a href="#tests" id="toc-tests">Tests</a></li>
 </ul></li>
 <li><a href="#v174--2026-06-26--kimi-provider-fix--aws-iac-mcp-disabled-by-default" id="toc-v174--2026-06-26--kimi-provider-fix--aws-iac-mcp-disabled-by-default">v1.7.4
@@ -414,27 +421,27 @@ Savings</a></li>
 2026-06-21 — Poe proxy fix (alias file + install)</a>
 <ul>
 <li><a href="#fixed-18" id="toc-fixed-18">Fixed</a></li>
-<li><a href="#verified-19" id="toc-verified-19">Verified</a></li>
+<li><a href="#verified-20" id="toc-verified-20">Verified</a></li>
 <li><a href="#tests-3" id="toc-tests-3">Tests</a></li>
 </ul></li>
 <li><a href="#v164--2026-06-21--poe-proxy-fix-for-tool-compatibility" id="toc-v164--2026-06-21--poe-proxy-fix-for-tool-compatibility">v1.6.4 —
 2026-06-21 — Poe proxy fix for tool compatibility</a>
 <ul>
 <li><a href="#fixed-19" id="toc-fixed-19">Fixed</a></li>
-<li><a href="#verified-20" id="toc-verified-20">Verified</a></li>
+<li><a href="#verified-21" id="toc-verified-21">Verified</a></li>
 <li><a href="#tests-4" id="toc-tests-4">Tests</a></li>
 </ul></li>
 <li><a href="#v163--2026-06-21--poe-provider-382-models-3-aliases" id="toc-v163--2026-06-21--poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</a>
 <ul>
 <li><a href="#added-11" id="toc-added-11">Added</a></li>
-<li><a href="#verified-21" id="toc-verified-21">Verified</a></li>
+<li><a href="#verified-22" id="toc-verified-22">Verified</a></li>
 </ul></li>
 <li><a href="#v162--2026-06-21--chutes-provider-documentation--model-update" id="toc-v162--2026-06-21--chutes-provider-documentation--model-update">v1.6.2
 — 2026-06-21 — Chutes provider documentation + model update</a>
 <ul>
 <li><a href="#changed-1" id="toc-changed-1">Changed</a></li>
-<li><a href="#verified-22" id="toc-verified-22">Verified</a></li>
+<li><a href="#verified-23" id="toc-verified-23">Verified</a></li>
 </ul></li>
 <li><a href="#v161--2026-06-21--cache_control-fix--e2e-tests" id="toc-v161--2026-06-21--cache_control-fix--e2e-tests">v1.6.1 —
 2026-06-21 — cache_control fix + E2E tests</a>
@@ -515,21 +522,21 @@ live (real &quot;Do you see my code?&quot; against production APIs)</a></li>
 2026-06-21 — Poe proxy fix for all aliases</a>
 <ul>
 <li><a href="#fixed-22" id="toc-fixed-22">Fixed</a></li>
-<li><a href="#verified-23" id="toc-verified-23">Verified</a></li>
+<li><a href="#verified-24" id="toc-verified-24">Verified</a></li>
 <li><a href="#tests-5" id="toc-tests-5">Tests</a></li>
 </ul></li>
 <li><a href="#v168--2026-06-21--poe-proxy-gzip-fix" id="toc-v168--2026-06-21--poe-proxy-gzip-fix">v1.6.8 — 2026-06-21 — Poe
 proxy gzip fix</a>
 <ul>
 <li><a href="#fixed-23" id="toc-fixed-23">Fixed</a></li>
-<li><a href="#verified-24" id="toc-verified-24">Verified</a></li>
+<li><a href="#verified-25" id="toc-verified-25">Verified</a></li>
 <li><a href="#tests-6" id="toc-tests-6">Tests</a></li>
 </ul></li>
 <li><a href="#v169--2026-06-21--poe-proxy-ref-fix-for-grok-4" id="toc-v169--2026-06-21--poe-proxy-ref-fix-for-grok-4">v1.6.9 —
 2026-06-21 — Poe proxy $ref fix for Grok-4</a>
 <ul>
 <li><a href="#fixed-24" id="toc-fixed-24">Fixed</a></li>
-<li><a href="#verified-25" id="toc-verified-25">Verified</a></li>
+<li><a href="#verified-26" id="toc-verified-26">Verified</a></li>
 <li><a href="#tests-7" id="toc-tests-7">Tests</a></li>
 </ul></li>
 <li><a href="#v170--2026-06-22--poe-proxy-complete-fix-all-aliases-verified" id="toc-v170--2026-06-22--poe-proxy-complete-fix-all-aliases-verified">v1.7.0
@@ -560,6 +567,23 @@ Cause Analysis</a></li>
 </nav>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v1106--2026-06-29--committed-credential-leak-regression-test">v1.10.6
+— 2026-06-29 — Committed credential-leak regression test</h2>
+<h3 id="added-tests">Added (tests)</h3>
+<ul>
+<li><strong>test_lib.sh</strong> — a committed security regression for
+<code>cma_merge_claude_json</code>: two accounts with distinct
+<code>userID</code>/<code>oauthAccount</code> and disjoint
+<code>projects</code> are merged; asserts each account keeps its OWN
+private auth keys (no cross-account leak in either direction) and the
+<code>projects</code> subtree is unioned both ways. The function
+previously had only indirect coverage (via the full unify workflow);
+this locks the property an audit verified by hand this session.</li>
+</ul>
+<h3 id="verified">Verified</h3>
+<ul>
+<li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
+</ul>
 <h2 id="v1105--2026-06-29--provider-null-field-normalization--coverage">v1.10.5
 — 2026-06-29 — Provider &#39;null&#39; field normalization + coverage</h2>
 <h3 id="fixed">Fixed</h3>
@@ -579,7 +603,7 @@ the choke point (normalize <code>model</code>+<code>transport</code> in
 <code>cma_provider_write_env</code>). Reproduced (<code>=&#39;null&#39;</code>),
 confirmed fixed (<code>=&#39;&#39;</code>).</li>
 </ul>
-<h3 id="added-tests">Added (tests)</h3>
+<h3 id="added-tests-1">Added (tests)</h3>
 <ul>
 <li><strong>test_providers.sh</strong> — regression asserting a
 <code>null</code> model/transport/base/etc. is normalized to empty; no
@@ -602,7 +626,7 @@ branch + <code>cma_realpath</code> guards present).</li>
 (safe); two reported <code>2&gt;&amp;1</code> &quot;error-leak&quot; findings were
 FALSE — there is no <code>2&gt;&amp;1</code> on those lines.</li>
 </ul>
-<h3 id="verified">Verified</h3>
+<h3 id="verified-1">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
 </ul>
@@ -643,7 +667,7 @@ alias-less provider and assert no abort.</li>
 string-matched): exits 0, writes only to stderr, names the snake_case
 project, handles an empty label.</li>
 </ul>
-<h3 id="verified-1">Verified</h3>
+<h3 id="verified-2">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0. All three aborts
 reproduced (RED) and confirmed fixed (GREEN); the providers fix proven
@@ -671,7 +695,7 @@ with no session-flag injection, plus a non-vacuity guard proving the
 stub claude really executed. Proven <strong>RED</strong> on a dropped
 <code>unset</code>, <strong>GREEN</strong> on the real wrapper.</li>
 </ul>
-<h3 id="verified-2">Verified</h3>
+<h3 id="verified-3">Verified</h3>
 <ul>
 <li>Suite <strong>18/18 green</strong>; shellcheck 0.</li>
 </ul>
@@ -702,7 +726,7 @@ error</strong> (the reported symptom), idempotent (exactly one source
 line after 3 calls), and cross-form dedup. Proven RED on the old
 behavior, GREEN on the fix.</li>
 </ul>
-<h3 id="verified-3">Verified</h3>
+<h3 id="verified-4">Verified</h3>
 <ul>
 <li>Suite <strong>17/17 green</strong>; shellcheck 0.</li>
 </ul>
@@ -718,7 +742,7 @@ the body grew with the v1.10.0 apply-color calls (push slipped past line
 though the wrapper itself was correct. It now extracts the full function
 body (awk header → closing brace), robust to future growth.</li>
 </ul>
-<h3 id="verified-4">Verified</h3>
+<h3 id="verified-5">Verified</h3>
 <ul>
 <li>Suite <strong>16/16 green</strong> against the v1.10.0 wrapper;
 shellcheck 0.</li>
@@ -771,7 +795,7 @@ install/ensure.</li>
 <code>apply-color</code> aborted before writing on a session that had no
 existing <code>agent-color</code> record.</li>
 </ul>
-<h3 id="verified-5">Verified</h3>
+<h3 id="verified-6">Verified</h3>
 <ul>
 <li>Suite <strong>16/16 ALL GREEN</strong>; <strong>shellcheck
 0</strong>. Color injection proven <strong>LIVE</strong> on real claude
@@ -792,7 +816,7 @@ assertion; the load-bearing discovery cases (explicit
 <code>CLAUDE_BIN</code>, <code>~/.npm-global/bin</code> discovery) stay
 covered. Runtime behavior unchanged.</li>
 </ul>
-<h3 id="verified-6">Verified</h3>
+<h3 id="verified-7">Verified</h3>
 <ul>
 <li>Suite <strong>14/14 green on all five hosts</strong> (this host,
 mistborn, thinker, amber, nezha); shellcheck 0.</li>
@@ -817,7 +841,7 @@ locations (<code>~/.local/bin</code>, <code>~/.npm-global/bin</code>,
 <code>/opt/homebrew/bin</code>, <code>/usr/local/bin</code>), with a
 <code>~/.local/bin</code> fallback.</li>
 </ul>
-<h3 id="verified-7">Verified</h3>
+<h3 id="verified-8">Verified</h3>
 <ul>
 <li>Suite <strong>14/14 green</strong>; <strong>shellcheck 0</strong>.
 <code>test_coverage.sh</code> B7 covers explicit / npm-global / fallback
@@ -902,7 +926,7 @@ per-alias color&quot; and &quot;TOON utility&quot; sections; the <code>/color</c
 notes pinned to the verified <code>claude 2.1.195</code> (superseding
 older <code>2.1.178</code> references).</li>
 </ul>
-<h3 id="verified-8">Verified</h3>
+<h3 id="verified-9">Verified</h3>
 <ul>
 <li>Full suite <strong>14/14 ALL GREEN</strong>; <strong>shellcheck
 0</strong>. The session fix proven <strong>LIVE end-to-end</strong> on
@@ -1041,7 +1065,7 @@ values; <code>claude-sync-state</code> pull/push is last-writer-wins (no
 portable mutex is worth its stale-lock failure modes for a per-launch
 hook).</li>
 </ul>
-<h3 id="verified-9">Verified</h3>
+<h3 id="verified-10">Verified</h3>
 <ul>
 <li>Full suite <strong>12/12 ALL GREEN</strong>; <strong>shellcheck
 0</strong>; all <code>.py</code> compile under
@@ -1120,7 +1144,7 @@ assertions for name/id/color/flags/trust/ git-root behavior.
 <strong><code>run-all.sh</code> is now 12 files / 60 assertions, ALL
 GREEN.</strong></li>
 </ul>
-<h3 id="verified-10">Verified</h3>
+<h3 id="verified-11">Verified</h3>
 <ul>
 <li>Full suite <strong>12/12 ALL GREEN</strong>; <strong>shellcheck
 0</strong>; all <code>.py</code> compile under
@@ -1148,7 +1172,7 @@ tests covering syntax, permissions, URL correctness, submodule cloning,
 idempotency, platform detection, dependency checks, error handling, and
 next-steps output.</li>
 </ul>
-<h3 id="verified-11">Verified</h3>
+<h3 id="verified-12">Verified</h3>
 <ul>
 <li><code>bash -n</code> + <code>shellcheck 0</code> on
 <code>curl-install.sh</code> and <code>test_curl_install.sh</code>.</li>
@@ -1211,7 +1235,7 @@ branches</strong> (<code>test_unify.sh</code>): branch (b) seeds
 removes it and gives an account a <code>CLAUDE.md</code>, asserts that
 one wins.</li>
 </ul>
-<h3 id="verified-12">Verified</h3>
+<h3 id="verified-13">Verified</h3>
 <ul>
 <li><code>run-all.sh</code> <strong>10/10 ALL GREEN</strong> (coverage
 now 39+10=49 assertions; unify now 43+7=50); <strong>shellcheck
@@ -1272,7 +1296,7 @@ a broken alias.</li>
 <code>gzip.decompress</code> is now guarded like the error path, so a
 corrupt gzip body no longer propagates.</li>
 </ul>
-<h3 id="verified-13">Verified</h3>
+<h3 id="verified-14">Verified</h3>
 <ul>
 <li><code>run-all.sh</code> <strong>10/10 ALL GREEN</strong> (coverage
 now 32 assertions incl. the enable-plugins + injection regressions);
@@ -1378,7 +1402,7 @@ resolves the sourced-file warnings properly; fixed the
 SC2015/SC1090/SC1003; the one remaining reserved no-op flag carries a
 justified inline disable.</li>
 </ul>
-<h3 id="verified-14">Verified</h3>
+<h3 id="verified-15">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> <strong>10/10 ALL
 GREEN</strong>; <strong>shellcheck 0</strong>; every <code>.py</code>
@@ -1469,7 +1493,7 @@ scans <code>scripts/tests/proof</code> for provider-key prefixes and URL
 <code>user:password@</code> creds, counting suspect lines so a failure
 never re-echoes a secret.</li>
 </ul>
-<h3 id="verified-15">Verified</h3>
+<h3 id="verified-16">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>10/10 ALL
 GREEN</strong> locally (was 9; +<code>test_coverage.sh</code>).</li>
@@ -1529,7 +1553,7 @@ non-re-exec&#39;d <code>claude-providers.sh</code>). Guarded with
 real path; plus a guard asserting NO runtime script <em>invokes</em>
 <code>readlink -f</code>.</li>
 </ul>
-<h3 id="verified-16">Verified</h3>
+<h3 id="verified-17">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>9/9 ALL GREEN on all
 four hosts</strong>: nezha, thinker, amber (Linux), mistborn (macOS,
@@ -1630,7 +1654,7 @@ amber.</li>
 active providers each</strong>, models verified via HTTP probes,
 <strong>0 unbound errors</strong>.</li>
 </ul>
-<h3 id="verified-17">Verified</h3>
+<h3 id="verified-18">Verified</h3>
 <ul>
 <li><code>scripts/tests/run-all.sh</code> — <strong>9/9 files, ALL GREEN
 on all four hosts</strong>: nezha (Linux), thinker (Linux), amber
@@ -1680,7 +1704,7 @@ couldn&#39;t find A&#39;s session</li>
 </ol>
 <p>After fix: all providers/accounts share the same merged
 <code>lastSessionId</code> via sync-state.</p>
-<h3 id="verified-18">Verified</h3>
+<h3 id="verified-19">Verified</h3>
 <ul>
 <li><strong>Local host</strong>: all providers show identical
 <code>lastSessionId</code> after sync (confirmed)</li>
@@ -1770,7 +1794,7 @@ name caused <code>unbound variable</code> error on nezha (Linux,
 <li><strong>install.sh: auto-copy proxy scripts</strong> to
 <code>~/.local/share/.../proxy/</code> during install.</li>
 </ul>
-<h3 id="verified-19">Verified</h3>
+<h3 id="verified-20">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
 <code>poe3</code> ✅</li>
@@ -1793,7 +1817,7 @@ API.</li>
 now auto-starts compatibility proxies for providers that need them
 (detected by <code>scripts/proxy/&lt;provider&gt;_proxy.py</code>).</li>
 </ul>
-<h3 id="verified-20">Verified</h3>
+<h3 id="verified-21">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work through proxy: <code>poe</code> ✅,
 <code>poe2</code> ✅, <code>poe3</code> ✅</li>
@@ -1822,7 +1846,7 @@ code, 40 image gen, 17 video gen, 12 TTS, 1 STT, 166 other</li>
 <li><strong>Documentation</strong>: full Poe section in
 Provider_Aliases_User_Guide.md</li>
 </ul>
-<h3 id="verified-21">Verified</h3>
+<h3 id="verified-22">Verified</h3>
 <ul>
 <li>API endpoint responds correctly</li>
 <li>Authentication works</li>
@@ -1842,7 +1866,7 @@ fast=<code>Qwen/Qwen3.6-27B-TEE</code>.</li>
 Provider_Aliases_User_Guide.md with full model table, TEE explanation,
 pay-per-use note, and setup instructions.</li>
 </ul>
-<h3 id="verified-22">Verified</h3>
+<h3 id="verified-23">Verified</h3>
 <ul>
 <li>Chutes API endpoint responds correctly</li>
 <li>All 13 TEE models accessible (require funded account for actual
@@ -2319,7 +2343,7 @@ for poe2, poe3 aliases).</li>
 <code>${CMA_PROVIDER_ID%%[0-9]*}</code></li>
 <li><strong>alias file</strong>: same fix applied</li>
 </ul>
-<h3 id="verified-23">Verified</h3>
+<h3 id="verified-24">Verified</h3>
 <ul>
 <li>All 3 Poe aliases work: <code>poe</code> ✅, <code>poe2</code> ✅,
 <code>poe3</code> ✅</li>
@@ -2339,7 +2363,7 @@ gzip-compressed responses but the proxy tried to read them as UTF-8
 without decompressing, causing UnicodeDecodeError. Added gzip
 decompression for both success and error responses.</li>
 </ul>
-<h3 id="verified-24">Verified</h3>
+<h3 id="verified-25">Verified</h3>
 <ul>
 <li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
 <li><code>poe2</code> (gpt-5.5): ✅ YES</li>
@@ -2362,7 +2386,7 @@ Added <code>resolve_refs()</code> function that extracts
 <code>$defs</code>, resolves all <code>$ref</code> references to inline
 definitions, and removes <code>$defs</code>.</li>
 </ul>
-<h3 id="verified-25">Verified</h3>
+<h3 id="verified-26">Verified</h3>
 <ul>
 <li><code>poe</code> (claude-sonnet-4.6): ✅ YES</li>
 <li><code>poe2</code> (gpt-5.5): ✅ YES</li>

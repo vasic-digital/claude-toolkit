@@ -2,6 +2,19 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.6 — 2026-06-29 — Committed credential-leak regression test
+
+### Added (tests)
+- **test_lib.sh** — a committed security regression for `cma_merge_claude_json`:
+  two accounts with distinct `userID`/`oauthAccount` and disjoint `projects` are
+  merged; asserts each account keeps its OWN private auth keys (no cross-account
+  leak in either direction) and the `projects` subtree is unioned both ways. The
+  function previously had only indirect coverage (via the full unify workflow);
+  this locks the property an audit verified by hand this session.
+
+### Verified
+- Suite **18/18 green**; shellcheck 0.
+
 ## v1.10.5 — 2026-06-29 — Provider 'null' field normalization + coverage
 
 ### Fixed
