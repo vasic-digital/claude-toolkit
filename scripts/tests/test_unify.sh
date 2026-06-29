@@ -316,6 +316,17 @@ assert_dir "$acct1/projects" "acct1 projects restored as real dir"
 assert_not_symlink "$acct1/projects" "no longer a symlink"
 cond=1; [[ ! -d "$SHARED_DIR" ]] && cond=0; assert_eq 0 "$cond" "shared store moved aside"
 shared_archive="$(find "$HOME" -maxdepth 1 -name '.claude-shared.removed.*' -type d 2>/dev/null | head -1)"
-[[ -n "$shared_archive" ]]; cond=$?; assert_eq 0 "$cond" "archive sibling exists"
+cond=0; [[ -n "$shared_archive" ]] || cond=1; assert_eq 0 "$cond" "archive sibling exists"
+
+# Drift guard: claude-add-account wires CMA_SHARED_ITEMS (lib.sh) while
+# claude-unify.sh carries its own SHARED_ITEMS. CLAUDE.md documents "keep the two
+# lists in sync". They MUST agree EXCEPT for CLAUDE.md, which unify handles
+# specially via sync_claude_md() (promotion from ~/.claude / DEFAULT_DIR — a
+# generic rsync/symlink cannot do that). This catches accidental future drift
+# (a new shared item added to one list only) without forcing the two paths to merge.
+it "shared-item lists stay in sync: unify SHARED_ITEMS == CMA_SHARED_ITEMS minus the CLAUDE.md special-case"
+_cma_items="$(awk '/^CMA_SHARED_ITEMS=\(/{f=1} f{print} f&&/\)/{exit}' "$SCRIPTS_DIR/lib.sh" | tr -d '()"' | tr ' ' '\n' | grep -vE 'CMA_SHARED_ITEMS=|^$|^CLAUDE\.md$' | sort | tr '\n' ' ')"
+_uni_items="$(awk '/^SHARED_ITEMS=\(/{f=1} f{print} f&&/\)/{exit}' "$SCRIPTS_DIR/claude-unify.sh" | tr -d '()"' | tr ' ' '\n' | grep -vE 'SHARED_ITEMS=|^$' | sort | tr '\n' ' ')"
+assert_eq "$_uni_items" "$_cma_items" "the two shared-item lists agree (modulo the intentional CLAUDE.md special-case)"
 
 summary
