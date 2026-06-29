@@ -280,4 +280,18 @@ ac_empty="$SANDBOX_HOME/ac_empty"; mkdir -p "$ac_empty"
 run_session_from "$ac_empty" apply-color "$ac_cfg" alias_one; rc=$?
 assert_eq 0 "$rc" "apply-color returns 0 when no session file exists"
 
+# --- hint: EXECUTE it (cma_run calls `claude-session hint` on every bare launch;
+# previously this path was only string-matched in the wrapper body, never run) --
+it "hint: EXECUTES cleanly and writes the project + colour to stderr only"
+hint_proj="$SANDBOX_HOME/Hint_Demo"; mkdir -p "$hint_proj"
+hint_out="$(run_session_from "$hint_proj" hint claude2 2>/dev/null)"            # stdout only
+hint_err="$(run_session_from "$hint_proj" hint claude2 2>&1 1>/dev/null)"; hint_rc=$?
+assert_eq 0 "$hint_rc" "hint exits 0 (no set -e abort)"
+assert_eq "" "$hint_out" "hint writes nothing to stdout (must not pollute the launch)"
+printf '%s\n' "$hint_err" | grep -q 'hint_demo';   assert_eq 0 $? "hint stderr names the snake_case project"
+printf '%s\n' "$hint_err" | grep -q 'alias color:'; assert_eq 0 $? "hint stderr states the alias colour"
+
+it "hint: EXECUTES with an empty label (edge case) without aborting"
+run_session_from "$hint_proj" hint >/dev/null 2>&1; assert_eq 0 $? "hint with no label exits 0"
+
 summary

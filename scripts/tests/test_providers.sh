@@ -473,13 +473,16 @@ grep -q 'claude-sync-state.*pull' "$ALIAS_FILE" ; assert_eq 0 $? "pull present i
 grep -q 'claude-sync-state.*push' "$ALIAS_FILE" ; assert_eq 0 $? "push present in wrapper"
 
 it "cma_run wrapper also has sync-state pull+push"
-# -A40: the cma_run body grew (provider-env isolation + auto session-per-project
-# blocks) so push now sits >20 lines after the function header.
-grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
-grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
+# Extract the FULL cma_run body (header → its column-0 closing brace) instead of a
+# fixed `grep -A<N>` window: the body grows (provider-env isolation + auto session
+# blocks), and a fixed window silently drops late markers like 'push' (which now
+# sits ~30 lines in). Same robust pattern as test_claude.sh's _cma_run_body.
+_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+printf '%s\n' "$_run_body" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
+printf '%s\n' "$_run_body" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
 
 it "cma_run has provider-env isolation (clears leaked ANTHROPIC_* before native launch)"
-grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_BASE_URL' ; assert_eq 0 $? "cma_run unsets ANTHROPIC_BASE_URL"
+printf '%s\n' "$_run_body" | grep -q 'unset ANTHROPIC_BASE_URL' ; assert_eq 0 $? "cma_run unsets ANTHROPIC_BASE_URL"
 
 it "migration regenerating cma_run does NOT drop it (BRE empty-group \\(\\) bug regression)"
 # Reproduce the exact failure: an OLD-format alias file with a cma_run lacking
@@ -512,5 +515,30 @@ assert_eq 1 "$mig_prov"  "cma_run_provider preserved"
 assert_eq 1 "$mig_alias" "claudeN alias preserved through migration"
 assert_eq 1 "$mig_unset" "regenerated cma_run carries the env-isolation fix"
 rm -f "$_mig"
+
+# --- set -e/pipefail guard: a provider whose alias line is absent ------------
+# claude-providers.sh runs `set -euo pipefail`. cmd_list/cmd_remove resolve the
+# alias name via `grep ... | sed | head -1`; under pipefail a no-match grep
+# (exit 1) aborted the subshell/function. A provider .env can legitimately have
+# no alias line (manual edit, partial setup). These EXECUTE the real script.
+it "claude-providers list does NOT abort on a provider with no alias line"
+mkdir -p "$PDIR"
+cat > "$PDIR/ghost.env" <<'GHOST'
+CMA_PROVIDER_ID='ghost'
+CMA_PROVIDER_TRANSPORT='native'
+CMA_PROVIDER_BASE_URL='https://ghost.example/anthropic'
+CMA_PROVIDER_MODEL='ghost-model'
+CMA_PROVIDER_FAST_MODEL='ghost-fast'
+CMA_PROVIDER_KEYVAR='GHOST_API_KEY'
+GHOST
+list_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"; list_rc=$?
+assert_eq 0 "$list_rc" "list exits 0 (no abort on the alias-less provider)"
+printf '%s\n' "$list_out" | grep -q 'ghost'; assert_eq 0 $? "list still shows the alias-less provider"
+
+it "claude-providers remove does NOT abort on a provider with no alias line"
+bash "$PROVIDERS_SH" remove ghost >/dev/null 2>&1; rm_rc=$?
+assert_eq 0 "$rm_rc" "remove exits 0 (no abort before deleting the env)"
+still=0; [[ -f "$PDIR/ghost.env" ]] && still=1
+assert_eq 0 "$still" "remove actually deleted the provider env file"
 
 summary

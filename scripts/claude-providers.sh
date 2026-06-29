@@ -219,7 +219,10 @@ cmd_list() {
     id=""; transport=""; model=""; fast=""
     # shellcheck disable=SC1090
     ( set -a; . "$f"; set +a
-      alias="$(grep -E "cma_run_provider $CMA_PROVIDER_ID(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)"
+      # `|| alias=""` is LOAD-BEARING: under `set -euo pipefail` a no-match grep
+      # (exit 1, propagated by pipefail) would abort the subshell — and the whole
+      # listing — for any provider whose alias line is absent.
+      alias="$(grep -E "cma_run_provider $CMA_PROVIDER_ID(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)" || alias=""
       printf '%-14s %-16s %-8s %-26s %-26s\n' \
         "${alias:-?}" "$CMA_PROVIDER_ID" "$CMA_PROVIDER_TRANSPORT" "$CMA_PROVIDER_MODEL" "${CMA_PROVIDER_FAST_MODEL:-}" )
   done
@@ -240,7 +243,9 @@ cmd_remove() {
   case "$id" in *[!A-Za-z0-9._-]*) cma_die "invalid provider id: $id" ;; esac
   local f; f="$(cma_providers_dir)/$id.env"
   [[ -f "$f" ]] || cma_die "no such provider: $id"
-  local alias; alias="$(grep -E "cma_run_provider $id(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)"
+  # `|| alias=""` is LOAD-BEARING: under `set -euo pipefail` a no-match grep would
+  # abort cmd_remove before `rm -f "$f"`, leaving the provider half-removed.
+  local alias; alias="$(grep -E "cma_run_provider $id(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)" || alias=""
   [[ -n "$alias" ]] && cma_remove_alias "$alias"
   rm -f "$f"
   local cdir="$HOME/${CMA_PROVIDER_DIR_PREFIX}${id}"

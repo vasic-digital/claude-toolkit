@@ -275,7 +275,10 @@ EOF
   # CLAUDE_BIN is not executable, rewrite it to a resolved one so every alias
   # launch finds claude without a manual symlink.
   local _cur_cb _cur_cb_exp _new_cb
-  _cur_cb="$(grep -m1 '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null)"
+  # `|| _cur_cb=""` is LOAD-BEARING: under `set -euo pipefail` a no-match grep
+  # (an older/hand-edited alias file with no `export CLAUDE_BIN=` line) would
+  # abort cma_ensure_alias_file mid-run.
+  _cur_cb="$(grep -m1 '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null)" || _cur_cb=""
   _cur_cb="${_cur_cb#export CLAUDE_BIN=}"; _cur_cb="${_cur_cb#\"}"; _cur_cb="${_cur_cb%\"}"
   _cur_cb_exp="${_cur_cb/#\$HOME/$HOME}"; _cur_cb_exp="${_cur_cb_exp/#\~/$HOME}"
   if [[ -n "$_cur_cb" && ! -x "$_cur_cb_exp" ]]; then

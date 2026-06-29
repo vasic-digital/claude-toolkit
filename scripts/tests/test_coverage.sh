@@ -455,6 +455,20 @@ _b8cb="$(grep -m1 '^export CLAUDE_BIN=' "$_b8af" | sed -E 's/^export CLAUDE_BIN=
 assert_eq "$_b8h/.npm-global/bin/claude" "$_b8cb" "stale CLAUDE_BIN rewritten to the resolved (npm-global) claude"
 rm -rf "$_b8h"
 
+# ── B8b. migration probe must not abort on an alias file with NO CLAUDE_BIN line ─
+# lib.sh runs `set -euo pipefail`. The migration probe
+# `_cur_cb="$(grep -m1 '^export CLAUDE_BIN=' "$ALIAS_FILE")"` returns 1 (no match)
+# on an older/hand-edited alias file lacking that line, which aborted
+# cma_ensure_alias_file mid-run (fixed with `|| _cur_cb=""`). EXECUTE the function.
+it "cma_ensure_alias_file: no abort when the existing alias file lacks export CLAUDE_BIN"
+_b8b="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
+mkdir -p "$_b8b/.local/share/claude-multi-account"
+_b8baf="$_b8b/.local/share/claude-multi-account/aliases.sh"
+printf '# old alias file, no export CLAUDE_BIN line\nalias claude1=x\n' > "$_b8baf"
+( unset CLAUDE_BIN; HOME="$_b8b"; ALIAS_FILE="$_b8baf"; CMA_RC_FILES=(); cma_ensure_alias_file ) >/dev/null 2>&1
+assert_eq 0 $? "cma_ensure_alias_file completed (did not abort under set -e)"
+rm -rf "$_b8b"
+
 # ── B9. apply-color wired into both emitted wrappers (auto-color integration) ──
 it "cma_run + cma_run_provider bodies call claude-session apply-color"
 ALIAS_FILE="$SANDBOX_HOME/aliases_b9.sh"; mkdir -p "$(dirname "$ALIAS_FILE")"; rm -f "$ALIAS_FILE"
