@@ -2,6 +2,38 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.4 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage
+
+### Fixed
+- **`claude-providers list` / `remove` aborted on a provider with no alias line.**
+  Under `set -euo pipefail`, the alias-name probe `grep … | sed | head -1` returns
+  1 (no match) when a provider's `.env` exists but its `alias` line is absent
+  (manual edit / partial setup); pipefail propagated the failure and `set -e`
+  killed the subshell (`list`) or the function before `rm -f` (`remove`). Guarded
+  both with `|| alias=""`. (claude-providers.sh)
+- **`cma_ensure_alias_file` aborted on an alias file lacking `export CLAUDE_BIN=`.**
+  The CLAUDE_BIN-migration probe `grep -m1 '^export CLAUDE_BIN=' …` returned 1 on
+  an older/hand-edited alias file and aborted the function mid-run under `set -e`.
+  Guarded with `|| _cur_cb=""`. (lib.sh)
+
+### Changed (tests)
+- **test_providers.sh** — replaced the AT-RISK fixed-window `grep -A40 '^cma_run()'`
+  assertions (the `push` marker had drifted to within 9 lines of the window edge,
+  the same brittleness that already broke `-A30` once) with full-body awk
+  extraction; added EXECUTION regressions that run the real `claude-providers
+  list`/`remove` against an alias-less provider and assert no abort.
+- **test_coverage.sh** — added a regression that EXECUTES `cma_ensure_alias_file`
+  against an alias file with no `export CLAUDE_BIN=` line and asserts it completes.
+- **test_session.sh** — added EXECUTION tests for the `hint` subcommand (run on
+  every bare launch, previously only string-matched): exits 0, writes only to
+  stderr, names the snake_case project, handles an empty label.
+
+### Verified
+- Suite **18/18 green**; shellcheck 0. All three aborts reproduced (RED) and
+  confirmed fixed (GREEN); the providers fix proven RED on a guard-stripped copy.
+  Found via 3 parallel investigator subagents, each finding independently
+  reproduced before fixing.
+
 ## v1.10.3 — 2026-06-29 — Execution-level wrapper test coverage
 
 ### Added
