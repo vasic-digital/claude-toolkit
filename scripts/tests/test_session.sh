@@ -246,4 +246,38 @@ else
     "name is identical from repo root and deep subdir"
 fi
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 8. apply-color – inject the per-alias agent-color into the session jsonl
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+it "apply-color: writes the alias colour into a session that has none (set -e regression)"
+ac_proj="$SANDBOX_HOME/ac_proj"; ac_cfg="$SANDBOX_HOME/ac_cfg"
+mkdir -p "$ac_proj"
+ac_sid="$(run_session_from "$ac_proj" id)"
+ac_root="$(cd "$ac_proj" && pwd -P)"; ac_slug="$(printf '%s' "$ac_root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+ac_sf="$ac_cfg/projects/$ac_slug/$ac_sid.jsonl"
+mkdir -p "$(dirname "$ac_sf")"
+printf '{"type":"user","content":"hi"}\n' > "$ac_sf"   # session with NO agent-color record
+ac_color="$(run_session_from "$ac_proj" color alias_one)"
+run_session_from "$ac_proj" apply-color "$ac_cfg" alias_one
+ac_got="$(grep '"type":"agent-color"' "$ac_sf" 2>/dev/null | tail -1 | sed -E 's/.*"agentColor":"([^"]*)".*/\1/')"
+assert_eq "$ac_color" "$ac_got" "agent-color for alias_one written (=$ac_color)"
+
+it "apply-color: idempotent — same alias does not append a duplicate"
+ac_b="$(grep -c '"type":"agent-color"' "$ac_sf")"
+run_session_from "$ac_proj" apply-color "$ac_cfg" alias_one
+ac_a="$(grep -c '"type":"agent-color"' "$ac_sf")"
+assert_eq "$ac_b" "$ac_a" "no duplicate agent-color on re-apply"
+
+it "apply-color: switching alias re-colours the session"
+ac_color2="$(run_session_from "$ac_proj" color alias_two)"
+run_session_from "$ac_proj" apply-color "$ac_cfg" alias_two
+ac_got2="$(grep '"type":"agent-color"' "$ac_sf" 2>/dev/null | tail -1 | sed -E 's/.*"agentColor":"([^"]*)".*/\1/')"
+assert_eq "$ac_color2" "$ac_got2" "session colour follows the current alias (=$ac_color2)"
+
+it "apply-color: no-op (exit 0) when the session file does not exist yet"
+ac_empty="$SANDBOX_HOME/ac_empty"; mkdir -p "$ac_empty"
+run_session_from "$ac_empty" apply-color "$ac_cfg" alias_one; rc=$?
+assert_eq 0 "$rc" "apply-color returns 0 when no session file exists"
+
 summary

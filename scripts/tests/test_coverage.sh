@@ -431,4 +431,39 @@ assert_eq "$_b7h/.npm-global/bin/claude" "$b7" "resolves the npm-global claude l
 # covered above.
 rm -rf "$_b7h"
 
+# ── B8. CLAUDE_BIN migration: rewrite a stale (non-executable) CLAUDE_BIN ──────
+# Existing installs whose alias file points CLAUDE_BIN at a path that doesn't
+# exist on THIS host (e.g. ~/.local/bin/claude where npm installed to
+# ~/.npm-global/bin — the amber.local case) must self-heal so aliases launch.
+it "cma_ensure_alias_file: stale non-executable CLAUDE_BIN is rewritten to a resolved claude"
+_b8h="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
+mkdir -p "$_b8h/.npm-global/bin" "$_b8h/emptybin" "$_b8h/.local/share/claude-multi-account"
+printf '#!/bin/sh\n' > "$_b8h/.npm-global/bin/claude"; chmod +x "$_b8h/.npm-global/bin/claude"
+_b8af="$_b8h/.local/share/claude-multi-account/aliases.sh"
+# shellcheck disable=SC2016  # $HOME is a literal in the alias file, expanded at source time
+{ printf '# Managed by claude-multi-account.\n'; printf 'export CLAUDE_BIN="$HOME/.local/bin/claude"\n'; } > "$_b8af"
+(
+  unset CLAUDE_BIN
+  # Constrain PATH to system coreutils only (NOT the user dirs where claude
+  # lives), so `command -v claude` misses and the resolver falls to the
+  # ~/.npm-global location — while mktemp/sed/mv stay available for the rewrite.
+  # shellcheck disable=SC2123  # deliberate, scoped to this subshell
+  HOME="$_b8h"; PATH="/usr/bin:/bin"; ALIAS_FILE="$_b8af"; CMA_RC_FILES=()
+  cma_ensure_alias_file
+) >/dev/null 2>&1
+_b8cb="$(grep -m1 '^export CLAUDE_BIN=' "$_b8af" | sed -E 's/^export CLAUDE_BIN="?//; s/"?$//')"
+assert_eq "$_b8h/.npm-global/bin/claude" "$_b8cb" "stale CLAUDE_BIN rewritten to the resolved (npm-global) claude"
+rm -rf "$_b8h"
+
+# ── B9. apply-color wired into both emitted wrappers (auto-color integration) ──
+it "cma_run + cma_run_provider bodies call claude-session apply-color"
+ALIAS_FILE="$SANDBOX_HOME/aliases_b9.sh"; mkdir -p "$(dirname "$ALIAS_FILE")"; rm -f "$ALIAS_FILE"
+cma_ensure_alias_file
+_b9_run="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+_b9_prov="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+b9=1; printf '%s\n' "$_b9_run"  | grep -q 'apply-color' && b9=0
+assert_eq 0 "$b9" "cma_run calls apply-color"
+b9=1; printf '%s\n' "$_b9_prov" | grep -q 'apply-color' && b9=0
+assert_eq 0 "$b9" "cma_run_provider calls apply-color"
+
 summary

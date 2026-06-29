@@ -138,14 +138,40 @@ main() {
         printf -- '--session-id %s --name %s\n' "$sid" "$name"
       fi
       ;;
+    apply-color)
+      # Auto-apply the per-alias prompt-bar color by writing an `agent-color`
+      # record into the session jsonl — the ONLY non-interactive way to set color
+      # in claude 2.1.195 (/color is TUI-only; `claude -p '/color x'` is a no-op).
+      # Verified live: an injected agent-color record is exactly what /color
+      # writes and it PERSISTS across --resume. Idempotent: only appends when the
+      # session's current color differs (e.g. you switched aliases on the same
+      # session), so the file never grows unbounded. No-op until the session
+      # file exists, so the launcher calls this AFTER launch too (to colour a
+      # freshly-created session for next time) and BEFORE (to colour a resume now).
+      local config_dir="${1:-$CLAUDE_CONFIG_DIR}" label="${2:-}" root sid color proj_slug sess_file latest
+      root="$(cma_project_root "$PWD")"
+      sid="$(cma_session_id "$root")"
+      color="$(cma_label_color "$label")"
+      proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+      sess_file="$config_dir/projects/$proj_slug/$sid.jsonl"
+      [[ -f "$sess_file" ]] || return 0
+      # NOTE: `|| latest=""` is load-bearing — the script runs under `set -e -o
+      # pipefail`, and on a session with NO existing agent-color record grep
+      # exits 1, which would otherwise abort the function BEFORE we write the
+      # colour (the exact case we need to handle: colouring a fresh session).
+      latest="$(grep '"type":"agent-color"' "$sess_file" 2>/dev/null | tail -1 \
+                | sed -E 's/.*"agentColor":"([^"]*)".*/\1/')" || latest=""
+      [[ "$latest" == "$color" ]] && return 0
+      printf '{"type":"agent-color","agentColor":"%s","sessionId":"%s"}\n' "$color" "$sid" >> "$sess_file"
+      ;;
     hint)
       local label="${1:-}" color name
       color="$(cma_label_color "$label")"
       name="$(cma_session_name "$PWD")"
-      printf 'claude-session: project "%s" — tip: type  /color %s  to tag this alias.\n' \
+      printf 'claude-session: project "%s" — alias color: %s (auto-applied).\n' \
         "$name" "$color" >&2
       ;;
-    *) printf 'usage: claude-session {flags|name|id|color|hint} [args]\n' >&2; return 2 ;;
+    *) printf 'usage: claude-session {flags|name|id|color|apply-color|hint} [args]\n' >&2; return 2 ;;
   esac
 }
 

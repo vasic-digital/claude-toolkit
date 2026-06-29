@@ -197,13 +197,31 @@ test_claude_alias() {
   unset CLAUDE_CONFIG_DIR
 }
 
+# Claude alias tests drive the real `cma_run` wrapper (from aliases.sh) over the
+# native Anthropic transport, so they need BOTH a resolvable claude binary AND
+# the cma_run function loaded. On a host missing either, skip them instead of
+# emitting false FAILs (matches the live-verifier SKIP convention).
+claude_bin="${CLAUDE_BIN:-$(command -v claude 2>/dev/null || true)}"
 if [[ -z "$TARGET_ALIAS" ]]; then
-  # Dynamically test only the account dirs that actually exist on this host,
-  # so the script does not produce false FAILs on hosts with different account names.
-  for _cdir in "$HOME/.claude-milos85vasic" "$HOME/.claude-milos85vasic2nd" "$HOME/.claude-milos85vasic3rd"; do
-    [[ -d "$_cdir" ]] || continue
-    test_claude_alias "${_cdir##*/.claude-}" "$_cdir"
-  done
+  if [[ -n "$claude_bin" ]] && declare -F cma_run >/dev/null 2>&1; then
+    # Dynamically test only the account dirs that actually exist on this host,
+    # so the script does not produce false FAILs on hosts with different account names.
+    for _cdir in "$HOME/.claude-milos85vasic" "$HOME/.claude-milos85vasic2nd" "$HOME/.claude-milos85vasic3rd"; do
+      [[ -d "$_cdir" ]] || continue
+      test_claude_alias "${_cdir##*/.claude-}" "$_cdir"
+    done
+  else
+    echo "SKIP claude-alias tests (no claude binary or cma_run wrapper present)" | tee -a "$EV"
+  fi
+fi
+
+# Nothing was actually exercised (no provider env files, and the Claude alias
+# tests were skipped): SKIP cleanly with exit 0 so run-proof doesn't count an
+# absent prerequisite as a failure (mirrors verify_opencode/providers_live.sh).
+if (( total == 0 )); then
+  echo | tee -a "$EV"
+  echo "SKIP: no provider aliases and no runnable Claude alias tests on this host — alias live verification skipped." | tee -a "$EV"
+  exit 0
 fi
 
 echo | tee -a "$EV"

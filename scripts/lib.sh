@@ -230,6 +230,24 @@ EOF
     mv "$tmp" "$ALIAS_FILE"
     cma_log "migrated existing aliases in $ALIAS_FILE to use cma_run wrapper"
   fi
+  # Migration: an existing alias file may carry a stale CLAUDE_BIN pointing at a
+  # path that does not exist on THIS host (e.g. ~/.local/bin/claude when npm put
+  # claude in ~/.npm-global/bin — the amber.local case). If the recorded
+  # CLAUDE_BIN is not executable, rewrite it to a resolved one so every alias
+  # launch finds claude without a manual symlink.
+  local _cur_cb _cur_cb_exp _new_cb
+  _cur_cb="$(grep -m1 '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null)"
+  _cur_cb="${_cur_cb#export CLAUDE_BIN=}"; _cur_cb="${_cur_cb#\"}"; _cur_cb="${_cur_cb%\"}"
+  _cur_cb_exp="${_cur_cb/#\$HOME/$HOME}"; _cur_cb_exp="${_cur_cb_exp/#\~/$HOME}"
+  if [[ -n "$_cur_cb" && ! -x "$_cur_cb_exp" ]]; then
+    _new_cb="$(cma_resolve_claude_bin)"
+    if [[ "$_new_cb" != "$_cur_cb" && -x "${_new_cb/#\$HOME/$HOME}" ]]; then
+      local tmp_cb; tmp_cb="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+      sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
+      mv "$tmp_cb" "$ALIAS_FILE"
+      cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
+    fi
+  fi
   # Migration: regenerate an outdated cma_run that lacks the provider-env
   # isolation guard (the 'unset ANTHROPIC_' marker). Without it, a native
   # claudeN launched in a shell that previously ran a provider alias would
@@ -254,7 +272,8 @@ EOF
   _cma_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" 2>/dev/null)"
   if grep -q '^cma_run()' "$ALIAS_FILE" \
      && { ! printf '%s\n' "$_cma_run_body" | grep -q 'unset ANTHROPIC_' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session'; }; then
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -290,18 +309,25 @@ cma_run() {
   # claude-session emits only "--resume <uuid>" or "--session-id <uuid> --name
   # <snake>" (no shell metacharacters), so eval-splitting is safe and works in
   # both bash and zsh (zsh does not word-split unquoted expansions).
+  local _cma_label=""
   if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
-    local _cma_sf _cma_label
+    local _cma_sf
     _cma_sf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
     _cma_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_label="${_cma_label#.claude-}"
     "$HOME/.local/bin/claude-session" hint "$_cma_label" 2>/dev/null || true
     eval "set -- $_cma_sf"
+    # Auto-apply the per-alias color: a resumable session's jsonl exists now, so
+    # colour it before launch; a brand-new session's file appears during launch,
+    # so we colour it again after exit (see post-launch call below).
+    "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$_cma_label" 2>/dev/null || true
   fi
   "$CLAUDE_BIN" "$@"
   local rc=$?
   if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
     "$HOME/.local/bin/claude-sync-state" push "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
   fi
+  [[ -n "$_cma_label" && -x "$HOME/.local/bin/claude-session" ]] && \
+    "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$_cma_label" 2>/dev/null || true
   return $rc
 }
 EOF
@@ -339,7 +365,8 @@ EOF
     _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
     if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'claude-session'; then
+       ! printf '%s\n' "$_prov_body" | grep -q 'claude-session' || \
+       ! printf '%s\n' "$_prov_body" | grep -q 'apply-color'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -478,6 +505,9 @@ cma_run_provider() {
       _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
       "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
       eval "set -- $_cma_psf"
+      # Auto-apply this provider alias's color to the session (idempotent).
+      "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
+      _cma_pcolor=1
     fi
     "$CLAUDE_BIN" "$@"; rc=$?
   fi
@@ -485,6 +515,10 @@ cma_run_provider() {
   if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
     "$HOME/.local/bin/claude-sync-state" push "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
   fi
+  # Colour a freshly-created session too (its jsonl exists now), so the colour is
+  # in place on the next resume even on the very first launch.
+  [[ "${_cma_pcolor:-}" == 1 && -x "$HOME/.local/bin/claude-session" ]] && \
+    "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
   return $rc
 }
 EOF

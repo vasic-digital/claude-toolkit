@@ -30,12 +30,19 @@ PROV_LOG="$PROOF_DIR/42-live-providers.log"
 bash "$TESTS_DIR/verify_providers_live.sh" 2>&1 | tee "$PROV_LOG"
 prov_rc=${PIPESTATUS[0]}
 
+echo
+echo "==> live alias verification (provider + Claude aliases)"
+ALIAS_LOG="$PROOF_DIR/43-live-aliases.log"
+bash "$TESTS_DIR/verify_aliases_live.sh" 2>&1 | tee "$ALIAS_LOG"
+alias_rc=${PIPESTATUS[0]}
+
 # Distil the tallies for the report.
 # Strip ANSI colour so the distilled report is clean plain text.
 strip_ansi() { sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }  # \xNN is GNU-sed-only; build ESC literally for BSD/macOS
 sand_line="$(grep -E 'Test files:|ALL GREEN' "$SAND_LOG" | tail -2 | strip_ansi | tr '\n' ' ')"
 live_line="$(grep -E '[0-9]+ passed|SKIP:' "$LIVE_LOG" | tail -1 | strip_ansi)"
 prov_line="$(grep -E '[0-9]+ passed|SKIP:' "$PROV_LOG" | tail -1 | strip_ansi)"
+alias_line="$(grep -E '[0-9]+ passed|PASS: [0-9]+|SKIP:' "$ALIAS_LOG" | tail -1 | strip_ansi)"
 
 {
   echo "# Toolkit proof of work"
@@ -61,15 +68,21 @@ prov_line="$(grep -E '[0-9]+ passed|SKIP:' "$PROV_LOG" | tail -1 | strip_ansi)"
   echo '```'
   echo "exit code: \`$prov_rc\`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)"
   echo
+  echo "## Live alias verification (real provider + Claude aliases)"
+  echo '```'
+  echo "$alias_line"
+  echo '```'
+  echo "exit code: \`$alias_rc\`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)"
+  echo
   echo "Artifacts: \`10-debug-config.json\`, \`21-skill-names.txt\`," \
-       "\`31-mcp-list.clean.txt\`, \`50-providers-live.txt\`."
+       "\`31-mcp-list.clean.txt\`, \`50-providers-live.txt\`, \`43-live-aliases.log\`."
 } > "$PROOF_DIR/PROOF.md"
 
 echo
 echo "============================================"
 echo "PROOF written to $PROOF_DIR/PROOF.md"
-echo "sandbox rc=$sand_rc   live rc=$live_rc   providers rc=$prov_rc"
-if (( sand_rc == 0 && live_rc == 0 && prov_rc == 0 )); then
+echo "sandbox rc=$sand_rc   live rc=$live_rc   providers rc=$prov_rc   aliases rc=$alias_rc"
+if (( sand_rc == 0 && live_rc == 0 && prov_rc == 0 && alias_rc == 0 )); then
   echo "ALL GREEN — evidence is in $PROOF_DIR"
   exit 0
 fi
