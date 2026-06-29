@@ -215,11 +215,17 @@ EOF
   # INHERIT that provider's exported ANTHROPIC_BASE_URL/AUTH_TOKEN/MODEL and
   # talk to the wrong API (e.g. claude1 hitting xiaomi's endpoint). Drop only
   # the function block; the correct version is re-appended below.
-  if grep -q '^cma_run\(\)' "$ALIAS_FILE" \
-     && ! awk '/^cma_run\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_'; then
+  # NOTE: match with LITERAL parens `^cma_run()` — NOT `^cma_run\(\)`. In both
+  # grep BRE and awk ERE, `\(\)` is an *empty capture group* that matches the
+  # empty string, so `^cma_run\(\)` matches any line starting with "cma_run",
+  # INCLUDING "cma_run_provider()". That false match made the re-append guard
+  # below think cma_run still existed after it was stripped, dropping the
+  # function entirely. Literal `()` matches only the real cma_run() header.
+  if grep -q '^cma_run()' "$ALIAS_FILE" \
+     && ! awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_'; then
     local tmp_run; tmp_run="$(mktemp)"
     awk '
-      /^cma_run\(\)/  { skip=1 }
+      /^cma_run\(\) ?\{/ { skip=1 }
       skip && /^}/    { skip=0; next }
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
@@ -229,7 +235,7 @@ EOF
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
   # across every account: pull merged state before launch, push back after exit.
-  if ! grep -q '^cma_run\(\)' "$ALIAS_FILE"; then
+  if ! grep -q '^cma_run()' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
 
 # Wrapper: keeps .claude.json projects/session index synced across every
@@ -298,14 +304,14 @@ EOF
   # regenerated the function stops re-triggering.
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     local _prov_body
-    _prov_body="$(awk '/^cma_run_provider\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+    _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
     if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'claude-session'; then
       local tmp_prov; tmp_prov="$(mktemp)"
       # Drop only the function block; preserve everything before and after it.
       awk '
-        /^cma_run_provider\(\)/ { skip=1 }
+        /^cma_run_provider\(\) ?\{/ { skip=1 }
         skip && /^}/            { skip=0; next }
         !skip                   { print }
       ' "$ALIAS_FILE" > "$tmp_prov"
@@ -313,7 +319,7 @@ EOF
       cma_log "migrated outdated cma_run_provider (sync-state + nounset-safe keys)"
     fi
   fi
-  if ! grep -q '^cma_run_provider\(\)' "$ALIAS_FILE"; then
+  if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
 
 cma_run_provider() {

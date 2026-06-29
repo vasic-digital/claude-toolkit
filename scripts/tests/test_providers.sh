@@ -478,4 +478,39 @@ it "cma_run wrapper also has sync-state pull+push"
 grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
 grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
 
+it "cma_run has provider-env isolation (clears leaked ANTHROPIC_* before native launch)"
+grep -A40 '^cma_run()' "$ALIAS_FILE" | grep -q 'unset ANTHROPIC_BASE_URL' ; assert_eq 0 $? "cma_run unsets ANTHROPIC_BASE_URL"
+
+it "migration regenerating cma_run does NOT drop it (BRE empty-group \\(\\) bug regression)"
+# Reproduce the exact failure: an OLD-format alias file with a cma_run lacking
+# the 'unset ANTHROPIC_' marker, followed by cma_run_provider() and a claudeN
+# alias. The buggy guard `grep '^cma_run\(\)'` matched cma_run_provider() too
+# (empty capture group = matches "cma_run" prefix), so after stripping cma_run
+# the re-append was skipped and the function vanished. With literal `()` it must
+# strip-and-re-append cma_run, keep cma_run_provider, and preserve the alias.
+_mig="$ALIAS_FILE.migtest"
+cat > "$_mig" <<'OLDFMT'
+export CLAUDE_BIN="/usr/bin/true"
+
+cma_run() {
+  "$CLAUDE_BIN" "$@"
+}
+
+cma_run_provider() {
+  echo old
+}
+
+alias claude1="CLAUDE_CONFIG_DIR=$HOME/.claude-acct1 cma_run"
+OLDFMT
+( ALIAS_FILE="$_mig" cma_ensure_alias_file ) >/dev/null 2>&1
+mig_run="$(grep -c '^cma_run()' "$_mig")"
+mig_prov="$(grep -c '^cma_run_provider()' "$_mig")"
+mig_alias="$(grep -c '^alias claude1=' "$_mig")"
+mig_unset="$(grep -c 'unset ANTHROPIC_BASE_URL' "$_mig")"
+assert_eq 1 "$mig_run"   "cma_run re-appended after migration (not dropped)"
+assert_eq 1 "$mig_prov"  "cma_run_provider preserved"
+assert_eq 1 "$mig_alias" "claudeN alias preserved through migration"
+assert_eq 1 "$mig_unset" "regenerated cma_run carries the env-isolation fix"
+rm -f "$_mig"
+
 summary
