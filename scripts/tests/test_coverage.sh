@@ -405,4 +405,27 @@ b6_cnt="$(grep -c '^cma_run()' "$ALIAS_FILE")"
 assert_eq 1 "$b6_cnt" "exactly one cma_run() after self-heal (no duplication)"
 assert_file_contains "$ALIAS_FILE" "alias claude1=" "claude1 alias preserved through self-heal"
 
+# ── B7. cma_resolve_claude_bin: find claude across per-host install locations ──
+# npm's global prefix varies (~/.npm-global vs ~/.local vs Homebrew). A fixed
+# ~/.local/bin default mis-points where `npm i -g` landed elsewhere, breaking
+# every alias launch. The resolver must prefer explicit CLAUDE_BIN, then $PATH,
+# then the known locations. (Regression for the amber.local rollout finding.)
+it "cma_resolve_claude_bin: explicit CLAUDE_BIN wins verbatim"
+b7="$(CLAUDE_BIN=/custom/path/claude cma_resolve_claude_bin)"
+assert_eq "/custom/path/claude" "$b7" "explicit CLAUDE_BIN returned as-is"
+
+it "cma_resolve_claude_bin: finds ~/.npm-global/bin/claude when not on PATH / not in ~/.local/bin"
+_b7h="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
+mkdir -p "$_b7h/.npm-global/bin" "$_b7h/emptybin"
+printf '#!/bin/sh\n' > "$_b7h/.npm-global/bin/claude"; chmod +x "$_b7h/.npm-global/bin/claude"
+b7="$(unset CLAUDE_BIN; HOME="$_b7h" PATH="$_b7h/emptybin" cma_resolve_claude_bin)"
+assert_eq "$_b7h/.npm-global/bin/claude" "$b7" "resolves the npm-global claude location"
+
+it "cma_resolve_claude_bin: falls back to ~/.local/bin/claude when claude is nowhere"
+_b7h2="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
+mkdir -p "$_b7h2/emptybin"
+b7="$(unset CLAUDE_BIN; HOME="$_b7h2" PATH="$_b7h2/emptybin" cma_resolve_claude_bin)"
+assert_eq "$_b7h2/.local/bin/claude" "$b7" "fallback path when claude is not found anywhere"
+rm -rf "$_b7h" "$_b7h2"
+
 summary

@@ -21,7 +21,23 @@ fi
 : "${ALIAS_FILE:=$HOME/.local/share/claude-multi-account/aliases.sh}"
 : "${ACCOUNT_PREFIX:=.claude-}"
 
-CLAUDE_BIN_DEFAULT="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
+# Resolve the Claude Code binary for the alias wrappers. Prefer an explicit
+# CLAUDE_BIN, then $PATH, then the common install locations. npm's global prefix
+# varies per host (e.g. ~/.npm-global vs ~/.local vs Homebrew), so a fixed
+# ~/.local/bin default mis-points on hosts where `npm i -g @anthropic-ai/...`
+# landed elsewhere — making EVERY alias launch fail "No such file". Checking
+# the real locations keeps a fresh install working without a manual symlink.
+cma_resolve_claude_bin() {
+  if [ -n "${CLAUDE_BIN:-}" ]; then printf '%s\n' "$CLAUDE_BIN"; return 0; fi
+  local c; if c="$(command -v claude 2>/dev/null)"; then printf '%s\n' "$c"; return 0; fi
+  local p
+  for p in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" \
+           /opt/homebrew/bin/claude /usr/local/bin/claude; do
+    [ -x "$p" ] && { printf '%s\n' "$p"; return 0; }
+  done
+  printf '%s\n' "$HOME/.local/bin/claude"   # fallback (created by install/symlink)
+}
+CLAUDE_BIN_DEFAULT="$(cma_resolve_claude_bin)"
 
 cma_log()  { printf '\033[36m[cma]\033[0m %s\n' "$*" >&2; }
 cma_warn() { printf '\033[33m[cma warn]\033[0m %s\n' "$*" >&2; }
