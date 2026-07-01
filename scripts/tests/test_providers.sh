@@ -553,4 +553,26 @@ grep -q "^CMA_PROVIDER_BASE_URL=''" "$_nf";  assert_eq 0 $? "null base_url norma
 _hasnull=0; grep -qE "CMA_PROVIDER_(MODEL|TRANSPORT|BASE_URL|FAST_MODEL|CONTEXT_LIMIT|MAX_OUTPUT)='null'" "$_nf" && _hasnull=1
 assert_eq 0 "$_hasnull" "no provider field contains the literal string 'null'"
 
+# noclobber regression: cma_run_provider is a FUNCTION that runs in the user's
+# interactive shell, which may have `set -o noclobber`. A bare `> "$tmp"` onto the
+# just-created mktemp file fails there ("cannot overwrite existing file"), silently
+# dropping the router-config update so EVERY router-transport provider breaks. The
+# emitted function must use the force-clobber operator `>|`.
+it "cma_run_provider router-config write is noclobber-safe (>| not bare >)"
+_prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+# shellcheck disable=SC2016  # literal $tmp intended: we grep the EMITTED code, not expand it
+printf '%s\n' "$_prov_body" | grep -q '>| "\$tmp"'; assert_eq 0 $? "router jq write uses force-clobber >|"
+_bare=0
+# shellcheck disable=SC2016
+printf '%s\n' "$_prov_body" | grep -qE '> "\$tmp"' && _bare=1
+assert_eq 0 "$_bare" "no bare '> \$tmp' write remains in cma_run_provider"
+
+it "noclobber proof: bare > is blocked on an existing mktemp file, >| succeeds"
+_nc_t="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+_blocked=0; ( set -o noclobber; echo x > "$_nc_t" ) 2>/dev/null || _blocked=1
+_forced=0;  ( set -o noclobber; echo y >| "$_nc_t" ) 2>/dev/null && _forced=1
+assert_eq 1 "$_blocked" "bare '>' blocked by noclobber"
+assert_eq 1 "$_forced"  "'>|' force-clobber works under noclobber"
+rm -f "$_nc_t"
+
 summary

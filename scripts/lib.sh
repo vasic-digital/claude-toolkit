@@ -405,19 +405,21 @@ EOF
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     local _prov_body
     _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+    # shellcheck disable=SC2016  # '>| "$tmp"' is a literal code marker grepped for, not a var to expand
     if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'claude-session' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'apply-color'; then
+       ! printf '%s\n' "$_prov_body" | grep -q 'apply-color' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
         /^cma_run_provider\(\) ?\{/ { skip=1 }
         skip && /^}/            { skip=0; next }
         !skip                   { print }
-      ' "$ALIAS_FILE" > "$tmp_prov"
+      ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset-safe keys)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -511,6 +513,10 @@ cma_run_provider() {
       local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"; chmod 600 "$tmp" 2>/dev/null || true
       # Pass the secret through the environment ($ENV.tok), never as a jq argv
       # argument — argv is visible in ps/proc to other local users.
+      # `>|` (force-clobber), NOT `>`: cma_run_provider runs in the user's
+      # interactive shell, which may have `set -o noclobber`. Plain `>` onto the
+      # just-created mktemp file fails there ("cannot overwrite existing file"),
+      # silently dropping the router-config update so EVERY router provider breaks.
       if CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
             --arg s "$CMA_PROVIDER_MODEL" --arg f "${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}" '
           .Providers = ([ .Providers[]? | select(.name != $n) ]
@@ -518,7 +524,7 @@ cma_run_provider() {
                 transformer:{use:["cleancache","streamoptions"]}}])
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
-        ' "$cfg" > "$tmp" 2>/dev/null; then
+        ' "$cfg" >| "$tmp" 2>/dev/null; then
         mv "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
         ccr restart >/dev/null 2>&1 || true
       else
