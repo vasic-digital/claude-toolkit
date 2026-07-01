@@ -2,6 +2,35 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.10.8 — 2026-07-01 — noclobber-safe router-provider config write
+
+### Fixed
+- **Every router-transport provider alias broke under `set -o noclobber`.**
+  `cma_run_provider` runs in the user's interactive shell; when that shell has
+  `noclobber` set, the router-config rewrite `jq … "$cfg" > "$tmp"` failed with
+  *"cannot overwrite existing file"* (the just-created mktemp target already
+  exists), silently dropping the update so claude-code-router launched with a
+  stale/empty config → API errors. Switched the write to the force-clobber
+  operator `>|`. (lib.sh)
+- **Existing installs self-heal**: added a regeneration trigger so
+  `cma_ensure_alias_file` rewrites an outdated `cma_run_provider` that lacks the
+  `>|` fix (plain function-body changes previously did not re-trigger on install).
+
+### Added (tests)
+- test_providers.sh: regression asserting the emitted `cma_run_provider` uses `>|`
+  (not a bare `>`) for the router-config write, plus a functional proof that `>`
+  is blocked by `noclobber` while `>|` succeeds.
+
+### Verified
+- Suite **18/18 green**; shellcheck 0. Root cause reproduced
+  (`set -C; echo > "$(mktemp)"` → "cannot overwrite"), fix deployed + confirmed on
+  the host (deployed alias write line = `>| "$tmp"`).
+
+### Note (not a toolkit bug)
+- A 46-alias provider sweep shows native providers reach their APIs and return
+  **account-side** errors (e.g. `402 Insufficient Balance`) — provider billing/key
+  state, not a toolkit fault.
+
 ## v1.10.7 — 2026-06-29 — Shared-items drift guard + audit closure
 
 ### Added (tests)
