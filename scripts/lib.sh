@@ -572,7 +572,10 @@ cma_run_provider() {
 EOF
   fi
   local rc src_line="source \"$ALIAS_FILE\""
-  for rc in "${CMA_RC_FILES[@]}"; do
+  # ${arr[@]+"${arr[@]}"} (not bare "${arr[@]}") so an EMPTY CMA_RC_FILES does not
+  # trip "unbound variable" under `set -u` on bash 3.2 (macOS ships 3.2; it errors
+  # on empty-array expansion where bash 4.4+ treats it as empty). LOAD-BEARING.
+  for rc in ${CMA_RC_FILES[@]+"${CMA_RC_FILES[@]}"}; do
     [[ -f "$rc" ]] || continue
     cma_prune_stale_alias_sources "$rc"   # self-heal: drop dangling aliases.sh source lines
     # Add the canonical source line only if no existing line already sources THIS
