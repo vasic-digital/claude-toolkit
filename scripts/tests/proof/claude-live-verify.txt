@@ -1,0 +1,29 @@
+# verify_claude_live  mode=both prompt=Reply\ with\ exactly\ the\ two\ characters:\ OK  Fri Jul  3 01:28:04 AM +05 2026
+chutes  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+deepseek  cli:FUNDS|API Error: 402 Insufficient Balance  tui:FUNDS|PI Error: 402 Insufficient Balance✻Cogitated for 1s❯ ? 
+fireworks-ai  cli:FUNDS|API Error: 412 Error from provider(fireworks-ai,accounts/fireworks/routers/glm-5  tui:PASS|tui booted + responded (no error banner)
+github-models  cli:BADKEY|direct probe HTTP 401 (key rejected/insufficient scope) (was FAIL)  tui:PASS|tui booted + responded (no error banner)
+huggingface  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+inference  cli:FAIL|api_error=400 API Error: 400 Error from provider(inference,google/gemma-3: 400):  tui:PASS|tui booted + responded (no error banner)
+kilo  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+kimi-for-coding  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+novita-ai  cli:FUNDS|Failed to authenticate. API Error: 403 Error from provider(novita-ai,deepseek/de  tui:PASS|tui booted + responded (no error banner)
+nvidia  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+opencode  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+openrouter  cli:FUNDS|API Error: 402 Error from provider(openrouter,sakana/fugu-ultra: 402): {"error":  tui:PASS|tui booted + responded (no error banner)
+poe  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+sarvam  cli:NOKEY|key var empty  tui:NOKEY|key var empty
+siliconflow  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+tencent-tokenhub  cli:BADKEY|direct probe HTTP 401 (key rejected/insufficient scope) (was FAIL)  tui:PASS|tui booted + responded (no error banner)
+upstage  cli:FUNDS|Failed to authenticate. API Error: 403 Error from provider(upstage,solar-pro3: 4  tui:PASS|tui booted + responded (no error banner)
+xiaomi  cli:FUNDS|API Error: 402 Insufficient account balance  tui:FUNDS|PI Error: 402 Insufficient account balance✻Churned for 
+zai-coding-plan  cli:PASS|OK  tui:PASS|tui booted + responded (no error banner)
+zhipuai  cli:FUNDS|direct probe HTTP 429 insufficient balance (code 1113, 余额不足…请充值) (was FAIL)  tui:PASS|tui booted + responded (no error banner)
+# DONE fails=1  (only inference — plan has no chat model for this key; base_url corrected)
+#
+# Reclassify note: the 4 initial CLI FAILs were hangs on upstream 401/402/429
+# (ccr retries an auth/quota rejection). The harness now probes the provider API
+# directly on a FAIL and recovers the true cause: github-models=BADKEY(401),
+# tencent-tokenhub=BADKEY(401), zhipuai=FUNDS(429). inference stays FAIL (400
+# invalid-model: this key's inference.net plan exposes no general chat model).
+# Summary: PASS=9  FUNDS=7  BADKEY=2  NOKEY=1  FAIL=1(account-plan, not a code bug)

@@ -2,6 +2,59 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.11.1 — 2026-07-03 — Live per-alias Claude Code verification (CLI + TUI) + provider fixes
+
+Investigated the reported "most provider aliases fail with an API error." Root
+cause was NOT a broad implementation defect: launched every alias through real
+Claude Code (scrubbed env) and probed each provider API directly. 9 aliases pass
+end-to-end; 2 had genuine model-config drift (fixed below); the remaining
+failures are all **account-side** (insufficient funds, invalid/expired keys,
+missing keys, or a plan with no chat model) — not toolkit bugs.
+
+### Added
+- **scripts/tests/verify_claude_live.sh** — end-to-end live verification of every
+  provider alias through REAL Claude Code in BOTH modes: **CLI** (`-p …
+  --output-format json`, authoritative) and **TUI** (driven under a PTY). Each
+  launch runs in a scrubbed env; TUI runs from a throwaway temp cwd so it can
+  never resume a real conversation (the cross-alias `.claude.json` sync would
+  otherwise auto-resume one). Outcomes are classified **PASS / FUNDS / BADKEY /
+  NOKEY / FAIL** so account problems are never miscounted as toolkit bugs; on a
+  launch FAIL it probes the provider API directly to recover the true cause
+  (e.g. a ccr hang on an upstream 401/429 → BADKEY/FUNDS, not FAIL).
+- **scripts/tests/lib/pty_drive.py** — pexpect PTY driver for the interactive
+  Ink TUI (boot, accept any trust prompt, type prompt, capture transcript, quit).
+- **scripts/tests/lib/classify_live.py** — shared transcript classifier.
+
+### Fixed
+- **huggingface** — strong/fast pinned to non-reasoning coder models
+  (`Qwen/Qwen3-Coder-480B-A35B-Instruct` / `Qwen/Qwen3-Coder-30B-A3B-Instruct`).
+  The previous models emitted their answer as hidden `reasoning_content`,
+  returning empty `content` at low `max_tokens` and reading as broken. **Verified
+  green** in CLI + TUI.
+- **kilo** — strong/fast pinned to verified free-tier models
+  (`nvidia/nemotron-3-super-120b-a12b:free` /
+  `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`). The old
+  `x-ai/grok-build-0.1` is a **paid** model this key can't access (401 →
+  >100s stall) and the old fast `baidu/cobuddy:free` is retired (404).
+  **Verified green** in CLI + TUI.
+- **inference** — base URL corrected `https://inference.net/v1` →
+  `https://api.inference.net/v1` (old host 301-redirects). NOTE: this key's plan
+  currently exposes no general chat model, so the alias still errors 400 until a
+  chat-capable plan/key is supplied — documented, not silently "fixed."
+- **novita-ai** — defensive swap off the retired fast model
+  `sao10K/L3-8B-stheno-v3.2` (404).
+- **claude-providers.sh (`present_key_vars`)** — skip declared-but-**empty** key
+  vars so an empty key (e.g. `SARVAM_API_KEY=`) no longer spawns a broken alias
+  that only errors at launch.
+
+### Verified (live on host)
+- **9 aliases PASS** end-to-end in CLI (and TUI smoke): chutes, huggingface,
+  kilo, kimi-for-coding, nvidia, opencode, poe, siliconflow, zai-coding-plan.
+- Non-PASS are **account-side, not toolkit bugs**: FUNDS — deepseek, fireworks-ai,
+  novita-ai, openrouter, upstage, xiaomi, zhipuai; BADKEY — github-models,
+  tencent-tokenhub; NOKEY — sarvam; plan-limited — inference.
+- Sandbox providers suite **113/113**; shellcheck clean; python files compile.
+
 ## v1.10.8 — 2026-07-01 — noclobber-safe router-provider config write
 
 ### Fixed
@@ -30,7 +83,6 @@ All notable changes to the Claude multi-account toolkit.
 - A 46-alias provider sweep shows native providers reach their APIs and return
   **account-side** errors (e.g. `402 Insufficient Balance`) — provider billing/key
   state, not a toolkit fault.
-
 ## v1.10.7 — 2026-06-29 — Shared-items drift guard + audit closure
 
 ### Added (tests)

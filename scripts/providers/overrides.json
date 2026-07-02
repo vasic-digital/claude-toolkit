@@ -32,5 +32,20 @@
     "base_url": "https://api.kimi.com/coding/",
     "strong_model": "kimi-for-coding",
     "fast_model": "kimi-for-coding"
+  },
+  "huggingface": {
+    "strong_model": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+    "fast_model": "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+  },
+  "kilo": {
+    "strong_model": "nvidia/nemotron-3-super-120b-a12b:free",
+    "fast_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+  },
+  "inference": {
+    "base_url": "https://api.inference.net/v1"
+  },
+  "novita-ai": {
+    "strong_model": "deepseek/deepseek-v3.2",
+    "fast_model": "qwen/qwen3.6-27b"
   }
 }

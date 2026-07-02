@@ -124,9 +124,23 @@ present_key_vars() {
   [[ -f "$CMA_KEYS_FILE" ]] || cma_die "keys file not found: $CMA_KEYS_FILE (pass --keys-file)"
   # `|| true`: a keys file with no assignments must yield an empty list, not a
   # grep exit-1 that aborts the script under `set -e`/pipefail.
-  { grep -oE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=' "$CMA_KEYS_FILE" || true; } \
+  local names
+  names="$( { grep -oE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=' "$CMA_KEYS_FILE" || true; } \
     | sed -E 's/^[[:space:]]*(export[[:space:]]+)?//; s/=$//' \
-    | sort -u
+    | sort -u )"
+  # Keep only vars whose VALUE is non-empty. A declared-but-empty key
+  # (e.g. `export SARVAM_API_KEY=`) must NOT spawn a provider alias — it would
+  # only fail at launch with "$VAR is empty (set it in ...)". Source the keys
+  # file in a subshell (it may `exit` at top level or carry set -u-hostile
+  # refs) and print just the NAMES (never values) that resolve to a value.
+  # shellcheck source=/dev/null  # $CMA_KEYS_FILE is the user's runtime keys file
+  ( set +e; set -a +u; . "$CMA_KEYS_FILE" >/dev/null 2>&1; set +a
+    while IFS= read -r _n; do
+      [[ -z "$_n" ]] && continue
+      eval "_v=\"\${$_n:-}\""
+      [[ -n "$_v" ]] && printf '%s\n' "$_n"
+    done <<< "$names"
+  ) | sort -u
 }
 
 # Validate that the catalog cache is parseable JSON.
