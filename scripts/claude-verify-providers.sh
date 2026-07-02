@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# claude-verify-providers.sh — verify provider models via the LLMsVerifier submodule.
+#
+# Drives submodules/LLMsVerifier's `code-verification` command: it builds the Go
+# binary (cached), feeds it the toolkit's provider API keys from the environment,
+# and runs the mandatory "Do you see my code?" verification, emitting per-model
+# verdicts (score / code_visibility / status). This is the toolkit's single,
+# reliable path for models+providers testing — replacing ad-hoc `-p` sweeps whose
+# output is polluted by Claude's own startup noise.
+#
+# Keys: read from the environment. `source ~/api_keys.sh` first, or point LV_KEYS
+# at a file to source (its values are never printed by this script).
+#
+# Env knobs: LLMSVERIFIER_DIR (submodule path), LV_CONFIG (verification config),
+# LV_BIN (cached binary path), LV_KEYS (a shell file of API-key exports to source).
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+LV_DIR="${LLMSVERIFIER_DIR:-$REPO_ROOT/submodules/LLMsVerifier}"
+LV_MOD="$LV_DIR/llm-verifier"
+CONFIG="${LV_CONFIG:-$LV_DIR/code_verification_config.json}"
+BIN="${LV_BIN:-$REPO_ROOT/.local-cache/code-verification}"
+
+usage() {
+  cat <<'EOF'
+Usage: claude-verify-providers [--providers p1,p2,...] [--models m1,...]
+                               [--concurrency N] [--timeout N] [--format json]
+Verify provider models via the LLMsVerifier submodule (submodules/LLMsVerifier).
+
+Provider API keys are read from the ENVIRONMENT. Source them first, e.g.:
+    set -a; . ~/api_keys.sh; set +a
+or point LV_KEYS at a file to source.
+
+Env: LLMSVERIFIER_DIR  LV_CONFIG  LV_BIN  LV_KEYS
+EOF
+}
+
+case "${1:-}" in -h|--help) usage; exit 0 ;; esac
+
+# --- preconditions -----------------------------------------------------------
+if [ ! -d "$LV_MOD" ]; then
+  echo "error: LLMsVerifier submodule not initialized." >&2
+  echo "  run: git submodule update --init submodules/LLMsVerifier" >&2
+  exit 3
+fi
+if ! command -v go >/dev/null 2>&1; then
+  echo "error: the Go toolchain (go 1.21+) is required to build the verifier." >&2
+  exit 4
+fi
+
+# Optionally source a keys file (values are used as env, never echoed).
+if [ -n "${LV_KEYS:-}" ] && [ -f "$LV_KEYS" ]; then
+  set -a; . "$LV_KEYS"; set +a
+fi
+
+# --- build the verifier binary (cached; rebuild if source is newer) ----------
+if [ ! -x "$BIN" ] || [ "$LV_MOD/cmd/code-verification/main.go" -nt "$BIN" ]; then
+  mkdir -p "$(dirname "$BIN")"
+  echo "building code-verification (go build)…" >&2
+  ( cd "$LV_MOD" && go build -o "$BIN" ./cmd/code-verification/ ) \
+    || { echo "error: verifier build failed" >&2; exit 5; }
+fi
+
+# --- run: pass the operator's flags through, injecting --config --------------
+exec "$BIN" --config "$CONFIG" "$@"
