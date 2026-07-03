@@ -304,17 +304,20 @@ EOF
   # function entirely. Literal `()` matches only the real cma_run() header.
   # Regenerate cma_run if its body is missing ANY current marker:
   #   * 'unset ANTHROPIC_' — provider-env isolation (native must not inherit a
-  #     provider endpoint left exported in the shell), and
-  #   * 'claude-session'   — the per-project auto-session naming integration.
-  # A stale wrapper lacking EITHER would silently misbehave (wrong endpoint, or
-  # unnamed sessions) and must self-heal on the next install/ensure. The earlier
-  # bug checked only the first marker, so wrappers predating auto-session never
-  # regained it.
+  #     provider endpoint left exported in the shell),
+  #   * 'claude-session'   — the per-project auto-session naming integration, and
+  #   * 'claude-cwd-hook'  — the optional project-agnostic pre-launch working-dir
+  #     hook (lets a consuming project bind each alias to its own checkout).
+  # A stale wrapper lacking ANY would silently misbehave (wrong endpoint,
+  # unnamed sessions, or no per-alias cwd) and must self-heal on the next
+  # install/ensure. The earlier bug checked only the first marker, so wrappers
+  # predating auto-session never regained it.
   local _cma_run_body
   _cma_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" 2>/dev/null)"
   if grep -q '^cma_run()' "$ALIAS_FILE" \
      && { ! printf '%s\n' "$_cma_run_body" | grep -q 'unset ANTHROPIC_' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-cwd-hook' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
@@ -341,6 +344,19 @@ cma_run() {
   # those persist and would otherwise leak into this native launch (claude1
   # silently using a provider's endpoint). Clear them so native is always clean.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  # Optional project-agnostic working-dir hook (opt-in; no-op when absent). A
+  # consuming project can bind each alias to its own checkout (e.g. one git
+  # worktree per track) so parallel aliases don't contend on a single shared
+  # tree. The toolkit knows NOTHING about what the hook resolves — it only cd's
+  # into a real directory the hook prints on stdout (nothing printed => stay put).
+  # Runs before claude-session below so the auto-session keys to the worktree
+  # root. Escape hatch: MULTITRACK_DISABLE=1 (honored inside the hook itself).
+  local _cma_cwd_hook="${CMA_CWD_HOOK:-$HOME/.local/bin/claude-cwd-hook}" _cma_cwd_label _cma_cwd_target
+  if [[ -x "$_cma_cwd_hook" ]]; then
+    _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
+    _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"
+    if [[ -n "$_cma_cwd_target" && -d "$_cma_cwd_target" ]]; then cd "$_cma_cwd_target" 2>/dev/null || true; fi
+  fi
   if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
     "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
   fi
