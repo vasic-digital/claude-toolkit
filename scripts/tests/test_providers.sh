@@ -516,6 +516,55 @@ assert_eq 1 "$mig_alias" "claudeN alias preserved through migration"
 assert_eq 1 "$mig_unset" "regenerated cma_run carries the env-isolation fix"
 rm -f "$_mig"
 
+# --- input-context token-limit guard (CLAUDE_CODE_AUTO_COMPACT_WINDOW) --------
+# Fixes "400 exceeded model token limit: 262144 (requested: 311786)": the
+# emitted cma_run_provider must export CLAUDE_CODE_AUTO_COMPACT_WINDOW from the
+# provider's resolved CMA_PROVIDER_CONTEXT_LIMIT so Claude Code auto-compacts
+# before overflowing a smaller provider's input window. The export is guarded so
+# an unknown/empty limit is NOT exported, and sits BEFORE the transport branch
+# so it applies to both native and router transports.
+it "emitted cma_run_provider exports CLAUDE_CODE_AUTO_COMPACT_WINDOW from CMA_PROVIDER_CONTEXT_LIMIT (input token-limit guard)"
+_acw_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+# shellcheck disable=SC2016  # literal EMITTED code, not for expansion here
+printf '%s\n' "$_acw_body" | grep -qF 'CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"'
+assert_eq 0 $? "auto-compact-window exported from CMA_PROVIDER_CONTEXT_LIMIT"
+# shellcheck disable=SC2016
+printf '%s\n' "$_acw_body" | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
+assert_eq 0 $? "export is guarded by [[ -n \${CMA_PROVIDER_CONTEXT_LIMIT:-} ]]"
+
+it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT is empty/unknown"
+# Static-body check: the export line is conditional — immediately preceded by
+# the [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] guard — so an empty/unknown
+# limit never exports a bogus window.
+# shellcheck disable=SC2016
+printf '%s\n' "$_acw_body" | grep -B1 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
+assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is guarded on the preceding line"
+
+it "migration regenerates an outdated cma_run_provider that lacks the auto-compact-window guard"
+# Mirror the cma_run migration regression above, for the new marker. Build an
+# OLD-format alias file whose cma_run_provider carries ALL other current markers
+# (claude-sync-state, set -a +u, claude-session, apply-color, '>| "$tmp"') but is
+# MISSING CLAUDE_CODE_AUTO_COMPACT_WINDOW. Rather than hand-write the body, take
+# the CURRENT emitted body and strip only the two auto-compact lines (the export
+# plus its guard continuation) so the body stays valid bash and migration fires
+# solely on the absent marker.
+_mig2="$ALIAS_FILE.migtest2"
+{
+  printf 'export CLAUDE_BIN="/usr/bin/true"\n\n'
+  printf '%s\n' "$_acw_body" | grep -v 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' | grep -v 'CMA_PROVIDER_CONTEXT_LIMIT:-'
+  printf '\nalias kimi-for-coding="cma_run_provider kimi-for-coding"\n'
+} > "$_mig2"
+bash -n "$_mig2"; assert_eq 0 $? "old-format alias file parses (bash -n)"
+grep -q 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' "$_mig2"; assert_eq 1 $? "old body lacks auto-compact-window marker (pre-migration)"
+( ALIAS_FILE="$_mig2" cma_ensure_alias_file ) >/dev/null 2>&1
+mig2_prov="$(grep -c '^cma_run_provider()' "$_mig2")"
+mig2_alias="$(grep -c '^alias kimi-for-coding=' "$_mig2")"
+mig2_acw="$(printf '%s\n' "$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig2")" | grep -c 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW')"
+assert_eq 1 "$mig2_prov"  "exactly one cma_run_provider() after migration"
+assert_eq 1 "$mig2_alias" "kimi-for-coding alias preserved through migration"
+assert_eq 1 "$mig2_acw"   "regenerated cma_run_provider now exports auto-compact-window"
+rm -f "$_mig2"
+
 # --- set -e/pipefail guard: a provider whose alias line is absent ------------
 # claude-providers.sh runs `set -euo pipefail`. cmd_list/cmd_remove resolve the
 # alias name via `grep ... | sed | head -1`; under pipefail a no-match grep

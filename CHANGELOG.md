@@ -2,6 +2,69 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.11.2 — 2026-07-03 — Token-limit guard + re-enabled provider proxies + Poe tool cap
+
+Ran every provider alias through REAL Claude Code executing `/using-superpowers`
+(the user's reproducing prompt), in CLI mode with scrubbed env, and root-caused
+every genuine failure. Three real toolkit bugs fixed (below); all remaining
+non-passes are account-side (insufficient funds, rejected/absent keys, or a key
+with no chat entitlement) — not toolkit defects.
+
+### Fixed
+- **Input token-limit 400** — `scripts/lib.sh (cma_run_provider)` now exports
+  `CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"` before the
+  transport branch, so Claude Code knows each provider's real input window and
+  auto-compacts (at `window − 13000`) before a request overshoots it. Fixes the
+  user-reported `400 … exceeded model token limit: 262144 (requested: 311786)`
+  on `kimi-for-coding` and any provider whose window is smaller than the ~1M
+  Claude Code assumes for Anthropic's endpoint. Fully dynamic/parametrized: the
+  value is the per-model `limit.context` from the models.dev catalog, persisted
+  in each provider `.env`. Guarded by `[[ -n … ]]`; applies to **both**
+  transports. (`CLAUDE_CODE_MAX_OUTPUT_TOKENS` only ever capped **output** — it
+  could not fix an **input** overflow.) Verified live: kimi's `/using-superpowers`
+  now compacts and succeeds.
+- **All provider proxies were silently disabled** — `cma_run_provider` resolved
+  compatibility proxies via `$LIB_DIR/proxy/…`, but `LIB_DIR` is a repo-only
+  variable that does not exist in the self-contained alias file, so it expanded
+  empty and **no proxy ever started** (Poe, etc.). Now resolves against the
+  installed location `${SHARED_DIR:-$HOME/.claude-shared}/proxy` (where
+  `install.sh` copies `scripts/proxy/*.py`). This is why Poe returned
+  `400 Invalid 'tools': Field required` — its request never went through the
+  proxy that injects the required `parameters` field.
+- **Poe tool-count limit** — Poe rejects requests carrying more than ~216 tool
+  definitions with the same misleading `400 Invalid 'tools': Field required`
+  (verified count-based: 215 accepted, 220 rejected, independent of payload
+  size). On this host Claude Code's large MCP-plugin load emits 400+ tools.
+  `scripts/proxy/poe_proxy.py` now caps the tool list to `POE_MAX_TOOLS`
+  (default 200), dropping only overflow `mcp__…` tools so **every** built-in
+  Claude Code tool is preserved. Parametrized via the `POE_MAX_TOOLS` env var.
+  Verified live: Poe's `/using-superpowers` now returns a successful result.
+
+### Changed
+- **`cma_ensure_alias_file` migration** — added `CLAUDE_CODE_AUTO_COMPACT_WINDOW`
+  and `_cma_proxy_dir` as regeneration markers, so an already-installed
+  `cma_run_provider` predating either fix is transparently regenerated on the
+  next alias-file touch.
+- **scripts/tests/verify_claude_live.sh** — `reclassify_fail` now maps a direct
+  `400` whose body says the model is unknown/invalid to **BADKEY** (an account
+  that can list models but not invoke them — e.g. `inference` here), while a
+  `400` with no model-rejection marker (a real launch-layer defect) stays FAIL
+  and is never masked.
+- Corrected misleading comments that claimed the output-token cap fixed the
+  input token-limit error; documented the two guards as independent halves.
+
+### Added
+- **scripts/tests/test_poe_proxy.sh** — hermetic tests for the Poe proxy:
+  `parameters` injection, the tool-count cap, built-in-tool preservation, the
+  `POE_MAX_TOOLS` override, and end-to-end `fix_request`.
+- **scripts/tests/test_providers.sh** — hermetic regression tests: the emitted
+  `cma_run_provider` exports the auto-compact window from
+  `CMA_PROVIDER_CONTEXT_LIMIT` only when non-empty; the migration regenerates an
+  outdated wrapper lacking the guard while preserving surrounding alias lines.
+- **scripts/tests/proof/claude-live-superpowers-cli.txt** — evidence matrix:
+  every provider alias launched through REAL Claude Code running
+  `/using-superpowers`, classified PASS / FUNDS / BADKEY / NOKEY / FAIL.
+
 ## v1.11.1 — 2026-07-03 — Live per-alias Claude Code verification (CLI + TUI) + provider fixes
 
 Investigated the reported "most provider aliases fail with an API error." Root

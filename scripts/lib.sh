@@ -399,9 +399,12 @@ EOF
   # brace) and match the bare command name, which is quote/space agnostic.
   # Regenerate when the installed function predates ANY of these: the
   # cross-provider sync-state calls ('claude-sync-state'), the nounset-safe
-  # keys sourcing ('set -a +u'), or the per-project auto-session integration
-  # ('claude-session'). Each marker lives only in the current heredoc, so once
-  # regenerated the function stops re-triggering.
+  # keys sourcing ('set -a +u'), the per-project auto-session integration
+  # ('claude-session'), the input-context token-limit guard
+  # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), or the SHARED_DIR-based proxy resolution
+  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies).
+  # Each marker lives only in the current heredoc, so once regenerated the
+  # function stops re-triggering.
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     local _prov_body
     _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
@@ -410,6 +413,9 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'claude-session' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'apply-color' || \
+       ! printf '%s\n' "$_prov_body" | grep -q 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' || \
+       ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
@@ -419,7 +425,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -460,6 +466,18 @@ cma_run_provider() {
     return 1
   fi
   export CLAUDE_CONFIG_DIR="$CMA_PROVIDER_CONFIG_DIR"
+  # Input-context guard (fixes "400 exceeded model token limit: 262144
+  # (requested: 311786)"): tell Claude Code this provider's REAL context window
+  # so it auto-compacts (at window-13000) before a request overshoots the
+  # provider's hard input limit. Without this, Claude Code assumes Anthropic's
+  # own large (~1M) window and lets the prompt grow past a smaller provider's
+  # cap. Fully dynamic — the value is CMA_PROVIDER_CONTEXT_LIMIT, resolved from
+  # the models.dev catalog (limit.context) per selected model. Applies to BOTH
+  # transports (native + router), so every provider alias is protected.
+  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below on
+  # the native path) caps OUTPUT — the two are independent halves of the guard.
+  [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] && \
+    export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
   # Pull merged state before launch; push post-session state after exit.
@@ -490,12 +508,19 @@ cma_run_provider() {
     # Start compatibility proxy if the provider needs one (e.g. Poe requires
     # `parameters` in tool definitions; Claude Code sometimes omits it).
     # Check for provider-specific proxy or base proxy (poe2 -> poe_proxy).
+    # Proxies live in the INSTALLED share dir (install.sh copies scripts/proxy/*.py
+    # to $SHARED_DIR/proxy). This wrapper is self-contained in the alias file and
+    # has NO $LIB_DIR (that is a repo-only var), so resolve against SHARED_DIR with
+    # the same default lib.sh uses. Using $LIB_DIR here silently disabled EVERY
+    # proxy (e.g. Poe 400 "Invalid 'tools': Field required" when Claude Code emits
+    # a tool with no `parameters` — the poe_proxy injects it).
+    local _cma_proxy_dir="${SHARED_DIR:-$HOME/.claude-shared}/proxy"
     local _base_id="${CMA_PROVIDER_ID%%[0-9]*}"
     local _proxy_script=""
-    if [[ -x "$LIB_DIR/proxy/${CMA_PROVIDER_ID}_proxy.py" ]]; then
-      _proxy_script="$LIB_DIR/proxy/${CMA_PROVIDER_ID}_proxy.py"
-    elif [[ -x "$LIB_DIR/proxy/${_base_id}_proxy.py" ]]; then
-      _proxy_script="$LIB_DIR/proxy/${_base_id}_proxy.py"
+    if [[ -x "$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py" ]]; then
+      _proxy_script="$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py"
+    elif [[ -x "$_cma_proxy_dir/${_base_id}_proxy.py" ]]; then
+      _proxy_script="$_cma_proxy_dir/${_base_id}_proxy.py"
     fi
     if [[ -n "$_proxy_script" ]]; then
       local _proxy_port=3457
@@ -507,7 +532,10 @@ cma_run_provider() {
         _waited=$((_waited + 1))
       done
       base="http://127.0.0.1:${_proxy_port}/v1/chat/completions"
-      cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)"
+      # cma_log is a lib.sh helper; the self-contained alias file has no such
+      # function, so guard the call to avoid a 'cma_log: command not found' on
+      # every proxied launch.
+      command -v cma_log >/dev/null 2>&1 && cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)" || true
     fi
     if command -v jq >/dev/null 2>&1; then
       local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"; chmod 600 "$tmp" 2>/dev/null || true
@@ -535,17 +563,18 @@ cma_run_provider() {
     # Stop proxy if we started one
     if [[ -n "$_proxy_pid" ]]; then
       kill "$_proxy_pid" 2>/dev/null || true
-      cma_log "stopped proxy for $CMA_PROVIDER_ID (pid=$_proxy_pid)"
+      command -v cma_log >/dev/null 2>&1 && cma_log "stopped proxy for $CMA_PROVIDER_ID (pid=$_proxy_pid)" || true
     fi
   else
     export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
     export ANTHROPIC_AUTH_TOKEN="$token"
     export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
     [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
-    # Token-limit guard (fixes "400 exceeded model token limit: 262144"):
-    # cap Claude Code's output at the provider model's real max so a request
-    # never overshoots the provider's hard context window. CMA_PROVIDER_MAX_OUTPUT
-    # comes from the catalog (limit.output) via cma_provider_write_env.
+    # Output-token guard: cap Claude Code's output at the provider model's real
+    # max (limit.output). This is the OUTPUT half of the token-limit guard; the
+    # INPUT half (CLAUDE_CODE_AUTO_COMPACT_WINDOW) is set above for both
+    # transports. CMA_PROVIDER_MAX_OUTPUT comes from the catalog via
+    # cma_provider_write_env.
     [[ -n "${CMA_PROVIDER_MAX_OUTPUT:-}" ]] && export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$CMA_PROVIDER_MAX_OUTPUT"
     # Auto session-per-project (bare launch only — explicit args win verbatim).
     if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
@@ -697,9 +726,10 @@ cma_enable_plugins() {
 # Write the non-secret per-provider env file consumed by cma_run_provider.
 # Args: id keyvar transport base_url model fast_model config_dir [context_limit [max_output]]
 # context_limit and max_output are optional trailing args (default empty).
-# cma_run_provider reads CMA_PROVIDER_MAX_OUTPUT and exports it as
-# CLAUDE_CODE_MAX_OUTPUT_TOKENS so Claude Code never overshoots the provider's
-# real output-token cap (see the 400 "exceeded model token limit" error).
+# cma_run_provider consumes both catalog limits to avoid the 400 "exceeded
+# model token limit" error: CMA_PROVIDER_CONTEXT_LIMIT -> CLAUDE_CODE_AUTO_COMPACT_WINDOW
+# (INPUT: compact before the prompt overshoots the provider's window) and
+# CMA_PROVIDER_MAX_OUTPUT -> CLAUDE_CODE_MAX_OUTPUT_TOKENS (OUTPUT cap).
 cma_provider_write_env() {
   local id="$1" keyvar="$2" transport="$3" base="$4" model="$5" fast="$6" cdir="$7"
   local context_limit="${8:-}" max_output="${9:-}"
@@ -741,9 +771,9 @@ CMA_PROVIDER_FAST_MODEL=$(_cma_q "$fast")
 CMA_PROVIDER_CONFIG_DIR=$(_cma_q "$cdir")
 # Context-window limits from the models.dev catalog for the selected strong model.
 # CMA_PROVIDER_CONTEXT_LIMIT: input context window (tokens); empty = unknown.
+#   -> exported as CLAUDE_CODE_AUTO_COMPACT_WINDOW (input-side guard).
 # CMA_PROVIDER_MAX_OUTPUT:    maximum output tokens; empty = unknown.
-# Consumer: cma_run_provider exports CLAUDE_CODE_MAX_OUTPUT_TOKENS from
-# CMA_PROVIDER_MAX_OUTPUT to prevent overshooting the provider's real limit.
+#   -> exported as CLAUDE_CODE_MAX_OUTPUT_TOKENS (output-side guard).
 CMA_PROVIDER_CONTEXT_LIMIT=$(_cma_q "$context_limit")
 CMA_PROVIDER_MAX_OUTPUT=$(_cma_q "$max_output")
 EOF

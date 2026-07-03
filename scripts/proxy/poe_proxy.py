@@ -15,6 +15,7 @@ ccr config should point to this proxy instead of directly to Poe:
 import argparse
 import gzip
 import json
+import os
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
@@ -22,6 +23,18 @@ from urllib.error import HTTPError
 
 POE_URL = "https://api.poe.com/v1"
 DEFAULT_PORT = 3457
+
+# Poe rejects requests carrying too many tool definitions with a misleading
+# `400 Invalid 'tools': Field required`. Empirically the cutoff is ~216 tools
+# (215 accepted, 220 rejected; verified count-based, not payload-size-based).
+# On hosts with a large MCP-plugin load Claude Code can emit 400+ tools, which
+# always trips this. We cap the tool list below Poe's limit, dropping only
+# overflow MCP tools (`mcp__…`) so every built-in Claude Code tool is preserved.
+# Parametrized via POE_MAX_TOOLS (default 200 — safe margin under ~216).
+try:
+    POE_MAX_TOOLS = int(os.environ.get("POE_MAX_TOOLS", "200"))
+except (TypeError, ValueError):
+    POE_MAX_TOOLS = 200
 
 
 def resolve_refs(obj, defs, _depth=0):
@@ -72,6 +85,36 @@ def fix_tools(tools):
     return fixed
 
 
+def _tool_name(tool):
+    """Best-effort tool name for prioritization (empty string if unknown)."""
+    if isinstance(tool, dict):
+        f = tool.get("function")
+        if isinstance(f, dict):
+            return f.get("name") or ""
+    return ""
+
+
+def cap_tools(tools, limit=None):
+    """Cap the tool list to Poe's limit, preserving built-in tools first.
+
+    Poe rejects >~216 tools. When over the limit we keep every non-MCP
+    (built-in Claude Code) tool, then fill the remaining slots with MCP tools
+    (`mcp__…`) in their original order. Order among kept tools is preserved.
+    Returns (capped_tools, dropped_count).
+    """
+    if limit is None:
+        limit = POE_MAX_TOOLS
+    if not isinstance(tools, list) or limit <= 0 or len(tools) <= limit:
+        return tools, 0
+    builtin = [t for t in tools if not _tool_name(t).startswith("mcp__")]
+    mcp = [t for t in tools if _tool_name(t).startswith("mcp__")]
+    if len(builtin) >= limit:
+        kept = builtin[:limit]
+    else:
+        kept = builtin + mcp[: limit - len(builtin)]
+    return kept, len(tools) - len(kept)
+
+
 def strip_cache_control(obj):
     """Recursively remove cache_control from nested objects."""
     if isinstance(obj, dict):
@@ -83,9 +126,14 @@ def strip_cache_control(obj):
 
 def fix_request(body):
     """Apply all fixes to request body."""
-    # Fix tools
+    # Fix tools (inject missing `parameters`, resolve $ref) then cap the count.
     if "tools" in body:
         body["tools"] = fix_tools(body["tools"])
+        body["tools"], dropped = cap_tools(body["tools"])
+        if dropped:
+            print(f"poe_proxy: capped tools to {POE_MAX_TOOLS} "
+                  f"(dropped {dropped} overflow MCP tools to stay under Poe's limit)",
+                  file=sys.stderr)
     # Strip cache_control from messages
     if "messages" in body:
         body["messages"] = strip_cache_control(body["messages"])

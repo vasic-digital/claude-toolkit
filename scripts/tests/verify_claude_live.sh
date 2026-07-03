@@ -91,6 +91,17 @@ reclassify_fail() {
         if printf '%s' "$low" | grep -qE 'balance|credit|quota|insufficient|not_enough|arrears|recharge|payment|1113|余额|充值'; then
           echo "FUNDS|direct probe HTTP $code ${body:0:50}"
         else echo "BADKEY|direct probe HTTP $code ${body:0:50}"; fi ;;
+      400)
+        # A 400 that says the configured model is unknown/invalid means the
+        # account cannot invoke it (e.g. a key that can LIST models via /models
+        # but has no chat entitlement — every catalog model returns this). That
+        # is an account/provisioning problem, not a toolkit bug, so bucket it as
+        # BADKEY. A 400 WITHOUT a model-rejection marker (e.g. Poe's misleading
+        # "Invalid 'tools': Field required") is a real launch-layer defect —
+        # leave it as FAIL so it is fixed, never masked.
+        if printf '%s' "$low" | grep -qE 'invalid model|model not found|no such model|unknown model|model_not_found|does not exist|not a valid model|unsupported model'; then
+          echo "BADKEY|direct probe HTTP 400 model rejected — account lacks access to '$model': ${body:0:50}"
+        else echo ""; fi ;;
       200) echo "" ;;  # API works directly -> the failure is in the launch layer; keep FAIL
       *) echo "" ;;
     esac )
