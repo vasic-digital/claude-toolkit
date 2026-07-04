@@ -86,7 +86,7 @@ fi
 # generate a genuine negative-case transcript). The DEFINITIVE live check --
 # real claude, superpowers NOT engaging, must NOT PASS -- is deferred to
 # Task 5's Tier-B test.
-if printf '%s' "$out" | grep -qiE 'using superpowers:[a-z0-9_-]+|systematic-debugging|brainstorming'; then
+if printf '%s' "$out" | grep -qiE 'superpowers:[a-z0-9_-]+'; then
   echo "PASS: superpowers engaged, no trust/overwrite prompt"; echo "# PASS" >> "$OUT"; exit 0
 fi
 echo "FAIL: session ran but superpowers did not engage"; echo "# FAIL: no-engagement" >> "$OUT"; exit 1

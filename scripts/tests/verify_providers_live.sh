@@ -167,7 +167,7 @@ if [[ -n "$first_id" && -n "$CB" && "$CB" != "/usr/bin/true" && "$(basename "$CB
   _redact "$neg_ev"
   if (( neg_rc == 124 )); then
     echo "SKIP: negative-case launch via '$first_id' timed out (network/precondition absent) — not a classifier finding" >> "$EV"
-  elif printf '%s' "$neg_out" | grep -qiE 'using superpowers:[a-z0-9_-]+|systematic-debugging|brainstorming'; then
+  elif printf '%s' "$neg_out" | grep -qiE 'superpowers:[a-z0-9_-]+'; then
     _fail "layer-4 classifier honesty" "engagement marker matched on a NEUTRAL prompt via '$first_id' — false-PASS risk (evidence: $neg_ev)"
   else
     _pass "layer-4 classifier honesty: neutral prompt via '$first_id' correctly did NOT match the engagement marker"

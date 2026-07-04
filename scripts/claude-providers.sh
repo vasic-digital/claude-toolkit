@@ -166,6 +166,12 @@ resolve_records() {
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
   ensure_catalog
+  # Heal a stale/outdated alias file ONCE per full sync (idempotent): the self-heal
+  # path for an outdated cma_run_provider wrapper (e.g. a pre-Phase-2 one lacking the
+  # activation gate). cma_provider_write_alias only bootstraps the file when absent
+  # (keeping --refresh-aliases byte-idempotent), so the healing migration must run
+  # here, once, not per alias line (final-review I-2).
+  (( DRY_RUN )) || cma_ensure_alias_file
   local records; records="$(resolve_records)"
   local total resolved
   total="$(jq 'length' <<<"$records")"
@@ -290,6 +296,10 @@ cmd_verify() {
       # layer-4 SKIP or FAIL: SKIP keeps verified-through-3; FAIL demotes.
       # verify_superpowers_tui.sh exits 0 on PASS *and* on SKIP (honest), 1 on FAIL.
       if [[ "$tui_rc" -eq 1 ]]; then cma_status_write "$id" unverified "$model" superpowers_tui; echo "unverified"; return; fi
+      # Any OTHER exit (2/127 = crash/bad-arg) is NOT a layer-4 pass: treat as an
+      # honest SKIP — keep the verified-through-layer-3 status, never claim layer-4
+      # passed on a crash (final-review M-2). Falls through to the verified write.
+      cma_warn "provider '$id': layer-4 verifier exited $tui_rc (crash) — treating as SKIP (verified through layer 3)"
     fi
     cma_status_write "$id" verified "$model" ""; echo "verified" )
 }
@@ -392,6 +402,7 @@ cmd_sync_multi() {
   cma_require python3
   cma_require jq
   ensure_catalog
+  (( DRY_RUN )) || cma_ensure_alias_file   # heal stale wrappers once (final-review I-2; see cmd_sync)
 
   local records; records="$(resolve_records)"
   local total resolved

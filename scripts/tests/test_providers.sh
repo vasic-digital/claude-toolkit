@@ -293,6 +293,19 @@ sync_rc=$?
 it "sync exits cleanly"
 assert_eq 0 "$sync_rc" "sync rc"
 
+it "cmd_sync heals a stale/outdated cma_run_provider wrapper (final-review I-2)"
+# Simulate a pre-Phase-2 alias file whose wrapper lacks the activation-gate marker
+# (_cma_force). cma_provider_write_alias only bootstraps when the file is ABSENT
+# (to keep --refresh-aliases byte-idempotent), so the heal must come from cmd_sync's
+# one-time cma_ensure_alias_file. Corrupt the wrapper, re-sync, assert it regenerated.
+awk '/^cma_run_provider\(\) ?\{/{print "cma_run_provider() {"; print "  echo STALE-NO-GATE"; print "}"; s=1; next} s&&/^}/{s=0; next} !s{print}' "$ALIAS_FILE" > "$ALIAS_FILE.x" && mv "$ALIAS_FILE.x" "$ALIAS_FILE"
+grep -q '_cma_force' "$ALIAS_FILE" && _pre=1 || _pre=0
+assert_eq 0 "$_pre" "wrapper is stale before re-sync (no _cma_force)"
+bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+grep -q '_cma_force' "$ALIAS_FILE"; assert_eq 0 $? "cmd_sync healed the stale wrapper (_cma_force restored)"
+# (refresh-vs-refresh byte-idempotence is covered separately by the "--refresh-aliases
+#  is idempotent" test; cmd_sync output need not equal refresh(cmd_sync output).)
+
 it "sync persists per-provider verification status (--no-verify -> unverified)"
 # With --no-verify, vstatus defaults to 'unverified' for every resolved
 # provider, and cmd_sync must record it in the status cache so the list family
