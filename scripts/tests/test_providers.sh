@@ -899,4 +899,81 @@ BETA_API_KEY=sk-test \
   bash "$PROVIDERS_SH" sync --keys-file <(echo 'export BETA_API_KEY=sk-test') >/dev/null 2>&1
 assert_eq "verified" "$(cma_status_read beta)" "semantic skip does not downgrade verified"
 
+it "cmd_sync: existence=unverified (inconclusive) -> failing_layer=existence (NOT semantic), semantic never invoked"
+# Regression guard for the Task-2 fix: the OLD buggy code labeled failing_layer
+# "semantic" whenever verification did not end in "verified", even when the
+# semantic (layer-3) probe was never reached because existence itself was the
+# layer that failed. CMA_PROVIDERS_SEMANTIC below drops a marker file if it is
+# ever invoked, so an accidental future call into layer-3 from the
+# existence-inconclusive path is caught even if the failing_layer text happens
+# to still read correctly.
+cat > "$HOME/fakebin/verify-unverified" <<'EOF'
+#!/usr/bin/env bash
+echo unverified
+EOF
+chmod +x "$HOME/fakebin/verify-unverified"
+rm -f "$HOME/sem-marker-fired"
+cat > "$HOME/fakebin/semantic-marker" <<EOF
+#!/usr/bin/env bash
+touch "$HOME/sem-marker-fired"
+echo verified
+EOF
+chmod +x "$HOME/fakebin/semantic-marker"
+
+CMA_PROVIDERS_VERIFY="$HOME/fakebin/verify-unverified" \
+CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-marker" \
+BETA_API_KEY=sk-test \
+  bash "$PROVIDERS_SH" sync --keys-file <(echo 'export BETA_API_KEY=sk-test') >/dev/null 2>&1
+assert_eq "unverified" "$(cma_status_read beta)" "existence-inconclusive -> status unverified"
+assert_jq "$(cma_status_cache)" '.beta.failing_layer' "existence" "failing layer = existence, not semantic"
+cond=0; [[ -f "$HOME/sem-marker-fired" ]] && cond=1
+assert_eq 0 "$cond" "semantic layer not invoked when existence is inconclusive"
+
+# ---------------------------------------------------------------------------
+# Section — cmd_verify subcommand (Task 2 review Gap 1). Seeds one provider
+# env file directly (no sync needed) and stubs the existence (layer-1) and
+# semantic (layer-3) drivers via the same CMA_PROVIDERS_VERIFY /
+# CMA_PROVIDERS_SEMANTIC overrides cmd_sync already uses above. --deep
+# (layer-4, superpowers TUI) is NOT covered here: verify_superpowers_tui.sh
+# does not exist yet (Task 3).
+# ---------------------------------------------------------------------------
+cma_provider_write_env "gamma" "GAMMA_API_KEY" "router" "https://api.gamma.ai/v1" \
+  "gamma-x" "" "$HOME/.claude-prov-gamma" "" "" "gamma"
+
+cat > "$HOME/fakebin/verify-fail" <<'EOF'
+#!/usr/bin/env bash
+echo failed
+EOF
+cat > "$HOME/fakebin/semantic-ok" <<'EOF'
+#!/usr/bin/env bash
+echo verified
+EOF
+chmod +x "$HOME/fakebin/verify-fail" "$HOME/fakebin/semantic-ok"
+
+it "cmd_verify: existence=verified + semantic=verified -> prints verified, persists verified with empty failing_layer"
+out="$(CMA_PROVIDERS_VERIFY="$HOME/fakebin/verify-ok" CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-ok" \
+       bash "$PROVIDERS_SH" verify gamma 2>/dev/null)"
+assert_eq "verified" "$out" "cmd_verify stdout: verified"
+assert_eq "verified" "$(cma_status_read gamma)" "cmd_verify persists status verified"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "" "cmd_verify verified -> failing_layer empty"
+
+it "cmd_verify: existence probe returns failed -> prints failed, persists failed/existence"
+out="$(CMA_PROVIDERS_VERIFY="$HOME/fakebin/verify-fail" CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-ok" \
+       bash "$PROVIDERS_SH" verify gamma 2>/dev/null)"
+assert_eq "failed" "$out" "cmd_verify stdout: failed"
+assert_eq "failed" "$(cma_status_read gamma)" "cmd_verify persists status failed"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "existence" "cmd_verify failed -> failing_layer existence"
+
+it "cmd_verify: existence=verified + semantic=unverified -> prints unverified, persists unverified/semantic"
+out="$(CMA_PROVIDERS_VERIFY="$HOME/fakebin/verify-ok" CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-fail" \
+       bash "$PROVIDERS_SH" verify gamma 2>/dev/null)"
+assert_eq "unverified" "$out" "cmd_verify stdout: unverified"
+assert_eq "unverified" "$(cma_status_read gamma)" "cmd_verify persists status unverified"
+assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "semantic" "cmd_verify semantic-fail -> failing_layer semantic"
+
+it "cmd_verify: unknown provider id dies with non-zero exit + message"
+out="$(bash "$PROVIDERS_SH" verify no-such-provider-xyz 2>&1)"; rc=$?
+assert_eq 1 "$rc" "cmd_verify unknown id exits 1"
+printf '%s\n' "$out" | grep -q "unknown provider" ; assert_eq 0 $? "cmd_verify unknown id emits a die message"
+
 summary
