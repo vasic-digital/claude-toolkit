@@ -50,6 +50,7 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
+REFRESH_ALIASES=0 QUIET=0
 MAX_ALIASES=5 MIN_SCORE=25 VERIFY_CONCURRENCY=5
 
 usage() {
@@ -212,7 +213,7 @@ cmd_sync() {
     fi
 
     cma_link_shared_items "$cdir"
-    cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir" "$ctx_limit" "$max_out"
+    cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir" "$ctx_limit" "$max_out" "$alias"
     cma_provider_write_alias "$alias" "$pid"
     # Persist status. 'verified' means the existence/tool-call layer confirmed;
     # a non-"verified" here (e.g. 'unverified') means existence passed but a
@@ -439,7 +440,7 @@ cmd_sync_multi() {
       local alias_ctx; alias_ctx="$(jq -r ".aliases[$i].context_limit // empty" "$manifest_out")"
       local alias_max; alias_max="$(jq -r ".aliases[$i].max_output // empty" "$manifest_out")"
 
-      cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir" "$alias_ctx" "$alias_max"
+      cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir" "$alias_ctx" "$alias_max" "$aname"
       cma_provider_write_alias "$aname" "$aname"
 
       cma_log "  alias '$aname': strong=$strong fast=$ffast [$alias_transport]"
@@ -467,6 +468,8 @@ while (( $# )); do
     --no-verify) NO_VERIFY=1; shift ;;
     --offline) OFFLINE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --refresh-aliases) REFRESH_ALIASES=1; shift ;;
+    --quiet) QUIET=1; shift ;;
     --multi) MULTI=1; shift ;;
     --max-aliases) MAX_ALIASES="$2"; shift 2 ;;
     --min-score) MIN_SCORE="$2"; shift 2 ;;
@@ -476,6 +479,27 @@ while (( $# )); do
     *) POSITIONAL+=("$1"); shift ;;
   esac
 done
+
+# --refresh-aliases: rebuild every provider's alias shell line from its cached
+# env file — NO network, NO probe. This is the session hook's fast path (run on
+# each interactive shell start). Runs before dispatch so `list --refresh-aliases`
+# refreshes then exits without printing the (verified-only) list.
+if (( REFRESH_ALIASES )); then
+  _rpdir="$(cma_providers_dir)"
+  if [[ -d "$_rpdir" ]] && compgen -G "$_rpdir/*.env" >/dev/null; then
+    for _rf in "$_rpdir"/*.env; do
+      # shellcheck disable=SC1090
+      _rid="$( ( set -a; . "$_rf"; set +a; printf '%s' "${CMA_PROVIDER_ID:-}" ) )"
+      # shellcheck disable=SC1090
+      _ral="$( ( set -a; . "$_rf"; set +a; printf '%s' "${CMA_PROVIDER_ALIAS:-}" ) )"
+      [[ -n "$_rid" ]] || continue
+      [[ -n "$_ral" ]] || _ral="$_rid"
+      cma_provider_write_alias "$_ral" "$_rid" 2>/dev/null || true
+    done
+  fi
+  (( QUIET )) || cma_log "refreshed provider aliases from cache (no network)"
+  exit 0
+fi
 
 case "$SUBCMD" in
   sync)        if (( MULTI )); then cmd_sync_multi; else cmd_sync; fi ;;

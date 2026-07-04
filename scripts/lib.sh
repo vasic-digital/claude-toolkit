@@ -897,7 +897,7 @@ cma_enable_plugins() {
 # CMA_PROVIDER_MAX_OUTPUT -> CLAUDE_CODE_MAX_OUTPUT_TOKENS (OUTPUT cap).
 cma_provider_write_env() {
   local id="$1" keyvar="$2" transport="$3" base="$4" model="$5" fast="$6" cdir="$7"
-  local context_limit="${8:-}" max_output="${9:-}"
+  local context_limit="${8:-}" max_output="${9:-}" alias_name="${10:-}"
   # Normalize the literal "null" (from a missing JSON field) to empty so it
   # never leaks into the wrapper as a bogus value. transport+model were missed
   # originally — a null strong_model/transport wrote CMA_PROVIDER_MODEL='null'
@@ -908,6 +908,7 @@ cma_provider_write_env() {
   [[ "$fast" == "null" ]] && fast=""
   [[ "$context_limit" == "null" ]] && context_limit=""
   [[ "$max_output" == "null" ]] && max_output=""
+  [[ "$alias_name" == "null" ]] && alias_name=""
   local pdir; pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
   # Values are single-quoted (with embedded-quote escaping) so sourcing the file
   # in the user's shell is safe regardless of characters in URLs/model ids.
@@ -941,6 +942,10 @@ CMA_PROVIDER_CONFIG_DIR=$(_cma_q "$cdir")
 #   -> exported as CLAUDE_CODE_MAX_OUTPUT_TOKENS (output-side guard).
 CMA_PROVIDER_CONTEXT_LIMIT=$(_cma_q "$context_limit")
 CMA_PROVIDER_MAX_OUTPUT=$(_cma_q "$max_output")
+# Alias name for this provider (used by 'list --refresh-aliases' to rebuild the
+# alias shell line with NO network — the session hook's fast path). Empty is OK;
+# refresh falls back to the provider id as the alias name.
+CMA_PROVIDER_ALIAS=$(_cma_q "$alias_name")
 EOF
   unset -f _cma_q
 }

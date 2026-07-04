@@ -730,4 +730,32 @@ printf '%s\n' "$_gate_body" | grep -qF '_cma_force'; assert_eq 0 $? "emitted bod
 
 rm -f "$(cma_status_cache)"
 
+# ---------------------------------------------------------------------------
+# Section 8 — 'list --refresh-aliases --quiet': rebuild alias lines from the
+# cached env files with NO network (the session hook's fast path). Requires the
+# env file to persist CMA_PROVIDER_ALIAS (written by cma_provider_write_env).
+# ---------------------------------------------------------------------------
+
+it "env files persist CMA_PROVIDER_ALIAS (the no-network refresh source)"
+assert_file_contains "$PDIR/acme.env" "CMA_PROVIDER_ALIAS='acme'" "acme env carries its alias name"
+
+it "--refresh-aliases rebuilds a removed alias line from cache (no network)"
+cma_remove_alias acme
+grep -q '^alias acme="cma_run_provider acme"' "$ALIAS_FILE" && _pre=1 || _pre=0
+assert_eq 0 "$_pre" "acme alias line removed (precondition)"
+bash "$PROVIDERS_SH" list --refresh-aliases --quiet >/dev/null 2>&1
+grep -q '^alias acme="cma_run_provider acme"' "$ALIAS_FILE"; assert_eq 0 $? "acme alias restored by refresh"
+
+it "--refresh-aliases is idempotent"
+_rb="$(cat "$ALIAS_FILE")"
+bash "$PROVIDERS_SH" list --refresh-aliases --quiet >/dev/null 2>&1
+assert_eq "$_rb" "$(cat "$ALIAS_FILE")" "second refresh yields an identical alias file"
+
+it "--quiet suppresses the refresh log line (non-quiet emits it)"
+_noisy="$(bash "$PROVIDERS_SH" list --refresh-aliases 2>&1 >/dev/null)"
+printf '%s' "$_noisy" | grep -q refreshed; assert_eq 0 $? "non-quiet refresh logs 'refreshed'"
+_quiet="$(bash "$PROVIDERS_SH" list --refresh-aliases --quiet 2>&1 >/dev/null)"
+printf '%s' "$_quiet" | grep -q refreshed && _q=1 || _q=0
+assert_eq 0 "$_q" "quiet refresh suppresses the log"
+
 summary
