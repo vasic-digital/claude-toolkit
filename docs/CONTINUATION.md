@@ -1,8 +1,8 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-04
-**Last HEAD:** (pending — Phase 1 implementation plan written)
-**Working tree:** modified (implementation plan + this file)
+**Last HEAD:** (pending — Phase 1 toolkit-side COMPLETE, 8/8 tasks)
+**Working tree:** modified (investigation doc + this file)
 **Active branch:** `main`
 
 ## 0. Out-of-the-box resumption
@@ -48,9 +48,24 @@ Decompose into sub-projects; extend LLMsVerifier generically (project-not-aware,
 
 ### Implementation phases (from the plan's decomposition)
 
-- ⏳ **Phase 1 (toolkit-side)** — IN PROGRESS. 8 tasks: status cache helpers, cmd_sync persists status, list/list-all/list-faulty split, activation gate, --refresh-aliases, install.sh session-sync hook, config-overwrite-prompt root-cause, suite-green. Fully coded in the plan; TDD per task.
-- ⏸ **Phase 2 (semantic + live)** — separate plan: LLMsVerifier `semantic-code-visibility` Go command (submodule at `submodules/LLMsVerifier/llm-verifier/cmd/`, module `digital.vasic.llmsverifier`, follows `cmd/code-verification/main.go` pattern) + `model_verify.py` semantic-layer wiring + live superpowers-TUI test + xAI special-case + Tier-B live verifier.
+- ✅ **Phase 1 (toolkit-side)** — COMPLETE (8/8). Commits: `249400b` T1 status cache, `49932bc` T2 cmd_sync persists status, `e6c881b` T3 list/list-all/list-faulty, `09d4618` T4 activation gate, `0d958e3` T5 --refresh-aliases/--quiet, `0323ea2` T6 install.sh session hook, T7 config-overwrite investigation (this commit — no code change, already fixed), T8 suite-green + CONTINUATION. Full suite 20/20 green throughout.
+- ⏸ **Phase 2 (semantic + live)** — separate plan (next). LLMsVerifier `semantic-code-visibility` Go command + `model_verify.py` semantic-layer wiring + live superpowers-TUI test + xAI + Tier-B live verifier. **DE-RISKED by parallel research** (`docs/research/2026-07-04-llmsverifier-go-internals.md`): build it as a **standalone stdlib-only** `cmd/semantic-code-visibility/main.go` (flag/os/net/http/encoding/json) — NOT reusing the chat clients (they transitively import the sqlite3 cgo `database` pkg). Keeps the submodule command CONST-051-decoupled + cgo-free. Toolkit-owned seam already scaffolded: `scripts/providers/fixture/{code-visibility.md,prompt-template.txt}` + `rubric/code-visibility-rubric.json` (sentinel `ZETA-9-ORANGE-7f3a`).
 - ⏸ **Phase 3 (docs + release)** — separate plan: manual/FAQ/diagrams/templates + CONST-052 + v1.12.0 release across main repo + LLMsVerifier submodule via gh+glab, `<prefix>/v1.12.0` (§11.4.151), no force-push (§11.4.113).
+
+### Corrections discovered during Phase 1 (MUST apply in Phase 2/3 — do not re-derive)
+
+Source: `docs/research/2026-07-04-provider-api-endpoints.md` (§11.4.99 latest-source, verified 2026-07-04):
+- **xAI premise CONTRADICTED.** Spec §4.6 said "xAI has no /models endpoint" — WRONG. xAI **does** expose `GET https://api.x.ai/v1/models` (OpenAI-shaped `{"object":"list","data":[...]}`, has `context_length`) + native `/v1/language-models`. Its docs pages point to a console table and `/v1/models` returns alias ids ("latest"), so it reads "special" per docs page — but the endpoint exists. Phase 2: treat xAI like the others (real /models), drop the "no endpoint / scrape docs" special-case; the nuance is alias-id handling, not endpoint absence.
+- **OpenRouter is the real deviation** (not xAI): `GET https://openrouter.ai/api/v1/models` is PUBLIC (no auth), returns bare `{"data":[...]}` with NO `"object":"list"`. DeepSeek/Groq/Mistral are exact OpenAI `{"object":"list",...}`. models.dev shape confirmed (keyed by provider id; `limit.{context,output}`, `cost`, `reasoning`, `tool_call`, `release_date`; no documented TTL).
+- **File-forwarding premise is STRONGER than "unconfirmed."** Anthropic's gateway-protocol docs document that the FULL Anthropic-Messages request body is POSTed to `ANTHROPIC_BASE_URL/v1/messages` (and warns gateways not to redact bodies); Read output rides in `tool_result` blocks by construction. So frame it as "documented full-body forwarding from which file-content forwarding follows" — NOT "unconfirmed." The two-round test still empirically confirms per-provider.
+
+### Config-overwrite prompt — ROOT-CAUSED (Task 7)
+
+`docs/investigations/2026-07-04-config-overwrite-prompt.md`: the prompt is Claude Code's per-workspace **trust dialog**, NOT a shared-settings-symlink overwrite. Already fixed by `c6fe153` (sticky-trust merge) + `cma_trust_project` (per-alias owned `.claude.json` + pre-launch trust seeding) + owned `settings.json` (`CMA_SHARED_ITEMS` excludes it). Tested: `test_session.sh:199-220`, `test_unify.sh`. No code change (§11.4.124). Phase-3: annotate spec §6 to reflect "already the state of the tree."
+
+### Phase-3 release blocker (from `docs/qa/2026-07-04-constitution-audit/report.md`)
+
+§11.4.157 GEMINI.md lockstep NEEDS-FIX: only `CLAUDE.md` (9749 B) at root; `AGENTS.md`, `QWEN.md`, `GEMINI.md` MISSING. Create all three in lockstep before the release tag. All other audited gates PASS (CONST-051 decoupling PASS — zero consumer names in LLMsVerifier source; no force-push/CI; prefix=`claude_toolkit`).
 
 ### KEY DISCOVERY (recorded so it's not re-derived)
 
