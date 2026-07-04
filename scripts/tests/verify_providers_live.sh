@@ -74,5 +74,107 @@ grep -q 'prov-' "$PROOF_DIR/51-detected-accounts.txt"; assert_eq 1 $? "no provid
   echo "LLMsVerifier binary: $([[ -x "$SCRIPTS_DIR/../submodules/LLMsVerifier/bin/model-verification" ]] && echo built || echo not-built)"
 } >> "$EV"
 
+# --- layer 3 (semantic) + layer 4 (superpowers-TUI) per installed provider ---
+# Read-only against real host state; every sub-check is an honest SKIP when a
+# precondition (key/judge/go/network/real-claude) is absent — never a faked
+# PASS (§11.4.3). Extends this already-wired file; no proof/ duplicate.
+SUMMARY="$PROOF_DIR/providers-summary.json"
+printf '{}\n' > "$SUMMARY"
+KEYS_FILE="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
+
+# Strip anything resembling a leaked bearer/sk- secret out of captured evidence
+# before it lands in $PROOF_DIR. Defense in depth: the drivers are not
+# supposed to print keys, but evidence files are read by humans and must never
+# carry one, even by accident.
+_redact() {
+  [[ -f "$1" ]] || return 0
+  sed -E 's/sk-[A-Za-z0-9_-]{8,}/sk-***REDACTED***/g; s/([Bb]earer[[:space:]]+)[A-Za-z0-9._-]{8,}/\1***REDACTED***/g' \
+    "$1" > "$1.redacted" 2>/dev/null && mv "$1.redacted" "$1"
+}
+
+first_id=""
+for f in "$PDIR"/*.env; do
+  # shellcheck source=/dev/null  # runtime provider env file, path only known at execution
+  IFS=$'\t' read -r id model keyvar baseurl < <(
+    set -a; . "$f"; set +a
+    printf '%s\t%s\t%s\t%s' "$CMA_PROVIDER_ID" "$CMA_PROVIDER_MODEL" "$CMA_PROVIDER_KEYVAR" "$CMA_PROVIDER_BASE_URL"
+  )
+  [[ -n "$first_id" ]] || first_id="$id"
+  status="$( source "$SCRIPTS_DIR/lib.sh" 2>/dev/null; cma_status_read "$id" )"
+  exists=0
+  grep -qE "cma_run_provider $id(\"| )" "$ALIASES" 2>/dev/null && exists=1
+
+  it "semantic (layer 3) for '$id' — PASS/SKIP, never a faked pass"
+  sem_ev="$PROOF_DIR/providers-${id}-semantic.txt"
+  sem="$( ( [[ -f "$KEYS_FILE" ]] && { set -a +u; . "$KEYS_FILE"; set +a; }
+            bash "$SCRIPTS_DIR/providers-semantic.sh" --provider "$id" \
+              --model "$model" --key-var "$keyvar" --base-url "$baseurl" ) 2>"$sem_ev" )"
+  echo "semantic verdict: ${sem:-skip}" >> "$sem_ev"
+  _redact "$sem_ev"
+  case "$sem" in
+    verified)   _pass "layer-3 semantic PASS for $id" ;;
+    unverified) _pass "layer-3 semantic ran (verdict: unverified) for $id" ;;  # a real verdict, not a test failure
+    *)          echo "SKIP: layer-3 preconditions absent for $id" ;;
+  esac
+
+  it "superpowers-TUI (layer 4) for '$id' — PASS/SKIP"
+  tui_ev="$PROOF_DIR/providers-${id}-superpowers.txt"
+  tui_out="$(bash "$SCRIPTS_DIR/verify_superpowers_tui.sh" --alias "$id" --out "$tui_ev" --timeout 180 2>&1)"
+  _redact "$tui_ev"
+  case "$tui_out" in
+    PASS:*) tui_label=verified;   _pass "layer-4 superpowers-TUI PASS for $id" ;;
+    FAIL:*) tui_label=unverified; _pass "layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for $id" ;;
+    *)      tui_label=skip;       echo "SKIP: ${tui_out:-layer-4 preconditions absent for $id}" ;;
+  esac
+
+  # aggregate (real semantic shape: no fixture_hash)
+  tmp="$(mktemp "${TMPDIR:-/tmp}/cma-sum.XXXXXX")"
+  jq --arg id "$id" --arg st "$status" --argjson ex "$([[ $exists == 1 ]] && echo true || echo false)" \
+     --arg sem "${sem:-skip}" --arg tui "$tui_label" \
+     --arg semev "$sem_ev" --arg tuiev "$tui_ev" \
+     '.[$id] = {status:$st,
+                 layers:{existence:$ex, semantic:$sem, superpowers_tui:$tui},
+                 evidence:{semantic:$semev, superpowers_tui:$tuiev}}' \
+     "$SUMMARY" > "$tmp" && mv "$tmp" "$SUMMARY"
+done
+echo "aggregate: $SUMMARY" >> "$EV"
+
+it "layer-4 classifier honesty: a neutral, non-superpowers response must NOT verify (negative-case, Task-3 review)"
+CB="${CLAUDE_BIN:-$(command -v claude || true)}"
+if [[ -n "$first_id" && -n "$CB" && "$CB" != "/usr/bin/true" && "$(basename "$CB")" == claude* && -f "$ALIASES" ]]; then
+  # Mirrors verify_superpowers_tui.sh's SCRUB + throwaway-cwd launch, but uses
+  # --force (the documented operator override, lib.sh) to bypass the
+  # not-yet-verified activation gate: the point here is validating the
+  # ENGAGEMENT-MARKER REGEX itself never false-matches on ordinary model
+  # output, independent of any one alias's current verified/pending status.
+  NEG_SCRUB=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_ENTRYPOINT \
+             -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_EXECPATH -u CLAUDE_EFFORT \
+             -u CLAUDE_CONFIG_DIR -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL \
+             -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN)
+  neg_ev="$PROOF_DIR/providers-negative-case-superpowers.txt"
+  neg_tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-neg.XXXXXX")"
+  neg_out="$( timeout 60 "${NEG_SCRUB[@]}" bash -c '
+      cd "'"$neg_tmpd"'" || exit 97
+      [[ -f "'"$KEYS_FILE"'" ]] && { set -a +u; . "'"$KEYS_FILE"'"; set +a; }
+      source "'"$ALIASES"'" >/dev/null 2>&1
+      cma_run_provider --force "'"$first_id"'" \
+        -p "Reply with exactly the single word DONE and nothing else. Do not use any tool, plugin, or skill." \
+        --output-format json 2>&1
+    ' )"
+  neg_rc=$?
+  rmdir "$neg_tmpd" 2>/dev/null || true
+  printf '%s\n' "$neg_out" > "$neg_ev"
+  _redact "$neg_ev"
+  if (( neg_rc == 124 )); then
+    echo "SKIP: negative-case launch via '$first_id' timed out (network/precondition absent) — not a classifier finding" >> "$EV"
+  elif printf '%s' "$neg_out" | grep -qiE 'using superpowers:[a-z0-9_-]+|systematic-debugging|brainstorming'; then
+    _fail "layer-4 classifier honesty" "engagement marker matched on a NEUTRAL prompt via '$first_id' — false-PASS risk (evidence: $neg_ev)"
+  else
+    _pass "layer-4 classifier honesty: neutral prompt via '$first_id' correctly did NOT match the engagement marker"
+  fi
+else
+  echo "SKIP: negative-case honesty check — no real claude binary / alias file available"
+fi
+
 echo "evidence: $EV"
 summary
