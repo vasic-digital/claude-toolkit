@@ -32,7 +32,15 @@ assert_eq 0 "$rc" "exit 0"
 new_dir="$HOME/.claude-claude3"
 assert_dir "$new_dir" "config dir created"
 assert_symlink_to "$new_dir/projects" "$SHARED_DIR/projects" "projects linked"
-assert_symlink_to "$new_dir/settings.json" "$SHARED_DIR/settings.json" "settings linked"
+# §11.4 own-settings: settings.json is each dir's OWN real file (NOT a shared
+# symlink) so per-alias permissions/model/hooks never leak. It is seeded from
+# the shared template, so it carries the enabledPlugins map. Meanwhile the plugin
+# CACHE (plugins/) and history stay SHARED symlinks.
+assert_not_symlink "$new_dir/settings.json" "settings.json is OWN (not a shared symlink)"
+assert_file "$new_dir/settings.json" "own real settings.json exists"
+assert_jq "$new_dir/settings.json" 'has("enabledPlugins")' "true" "own settings.json carries enabledPlugins (seeded from template)"
+assert_symlink_to "$new_dir/plugins" "$SHARED_DIR/plugins" "plugins (cache) still shared"
+assert_symlink_to "$new_dir/history.jsonl" "$SHARED_DIR/history.jsonl" "history.jsonl still shared"
 assert_symlink_to "$new_dir/CLAUDE.md" "$SHARED_DIR/CLAUDE.md" "CLAUDE.md linked"
 assert_file_contains "$ALIAS_FILE" "alias claude3=" "alias line written"
 assert_file_contains "$ALIAS_FILE" "CLAUDE_CONFIG_DIR=$new_dir" "alias points at new dir"

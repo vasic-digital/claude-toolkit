@@ -61,9 +61,17 @@ SHARED_ITEMS=(
   cache
   stats-cache.json
   history.jsonl
-  settings.json
   plugins
 )
+# NOTE (§11.4 own-settings): settings.json is DELIBERATELY NOT in SHARED_ITEMS,
+# so it is never symlinked into an account dir. Unify does NOT blanket-merge full
+# account settings into the shared store (that re-leaks per-alias permissions/
+# model/hooks to shared and thence to every dir). Instead it ONLY unions the
+# enabledPlugins map into the shared TEMPLATE (union_enabled_plugins_into_template)
+# and then re-seeds each dir's OWN settings.json from it (seed_own_settings) so
+# newly-enabled plugins propagate while every other per-alias key stays local.
+# This list MUST stay == CMA_SHARED_ITEMS (lib.sh) minus the CLAUDE.md special-
+# case (enforced by the drift-guard test in test_unify.sh).
 
 PRIVATE_ITEMS=(
   .credentials.json
@@ -160,10 +168,17 @@ merge_history_jsonl() {
   return 0
 }
 
-merge_settings_json() {
-  local acct files=() resolved
+# §11.4 own-settings: unify NEVER blanket-merges full account settings into the
+# shared store — that would re-leak each alias's permissions/model/hooks to
+# shared and, through the shared symlink, to every other alias. Instead it ONLY
+# extracts the enabledPlugins map from every account's OWN settings.json and
+# UNIONs it (any-true) into the shared TEMPLATE's enabledPlugins, leaving every
+# other key of the template — and every key of each dir's OWN settings.json —
+# untouched. seed_own_settings then propagates that union back into each dir.
+union_enabled_plugins_into_template() {
+  local acct files=() resolved f tmpl="$SHARED_DIR/settings.json"
   for acct in "${ACCOUNTS[@]}"; do
-    local f="$acct/settings.json"
+    f="$acct/settings.json"
     if [[ -L "$f" ]]; then
       resolved="$(cma_realpath "$f")"  # readlink -f is unavailable on BSD/macOS
       if [[ -f "$resolved" ]]; then files+=("$resolved"); fi
@@ -171,56 +186,67 @@ merge_settings_json() {
       files+=("$f")
     fi
   done
-  # De-duplicate. On re-runs both account symlinks resolve to the same
-  # shared file, and passing the same path twice plus redirecting back to
-  # it truncates the file before jq reads it.
+  # Include the existing template so a plugin enabled on a prior run (any-true)
+  # persists even if no current account carries it.
+  [[ -f "$tmpl" ]] && files+=("$tmpl")
+  # De-duplicate. On re-runs two account paths can resolve to the same file, and
+  # passing the same path twice would double-count (harmless for a union, but we
+  # keep the set clean).
   if (( ${#files[@]} > 1 )); then
     mapfile -t files < <(printf '%s\n' "${files[@]}" | awk '!seen[$0]++')
   fi
   # Drop any file that is not valid JSON so one hand-edited/corrupt account
-  # settings.json can't sink the whole merge — jq -s slurps every file and fails
-  # wholesale on a single parse error. Keeping every VALID file means good
-  # accounts still merge AND link_to_shared's target always exists (no dangling
-  # link silently replacing a valid account's live config). See test R3.
+  # settings.json can't sink the whole union — jq -s slurps every file and fails
+  # wholesale on a single parse error. See test R3.
   local validf=()
   for f in ${files[@]+"${files[@]}"}; do
     if jq empty "$f" 2>/dev/null; then
       validf+=("$f")
     else
-      cma_warn "settings.json in $(dirname "$f") is not valid JSON — excluded from merge"
+      cma_warn "settings.json in $(dirname "$f") is not valid JSON — excluded from enabledPlugins union"
     fi
   done
   files=(${validf[@]+"${validf[@]}"})
-  case "${#files[@]}" in
-    0) return 0 ;;
-    1) cp -p "${files[0]}" "$SHARED_DIR/settings.json.tmp"
-       mv "$SHARED_DIR/settings.json.tmp" "$SHARED_DIR/settings.json" ;;
-    *)
-      # Right-most file's top-level keys win, except enabledPlugins which
-      # is the union across all accounts (any "true" survives).
-      # We bind the slurped array to $all so the inner reductions don't
-      # iterate over the values of the partially-merged outer object.
-      # Write to a temp file first so we never truncate-then-read shared.
-      # enabledPlugins is an "any true survives" union: a plugin enabled in ANY
-      # account stays enabled, regardless of account order. A plain `+`/`*` merge
-      # would let the lexically-last account's `false` clobber an earlier `true`.
-      # Guard the jq so a single malformed account settings.json warns + skips
-      # instead of aborting the whole unify under `set -e` (it is item 15 of 16).
-      if jq -s '
-        . as $all
-        | (reduce $all[] as $x ({}; . * $x))
-        | .enabledPlugins = (reduce $all[] as $x ({};
-            reduce ($x.enabledPlugins // {} | to_entries[]) as $e (.;
-              .[$e.key] = ((.[$e.key] // false) or $e.value))))
-      ' "${files[@]}" > "$SHARED_DIR/settings.json.tmp" 2>/dev/null; then
-        mv "$SHARED_DIR/settings.json.tmp" "$SHARED_DIR/settings.json"
-      else
-        rm -f "$SHARED_DIR/settings.json.tmp"
-        cma_warn "settings.json: one or more account files are invalid JSON; merge skipped"
-      fi
-      ;;
-  esac
+  (( ${#files[@]} )) || return 0
+  mkdir -p "$SHARED_DIR"
+  [[ -f "$tmpl" ]] || printf '{}\n' > "$tmpl"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  # Two-step so the shared template's OWN non-plugin keys (if any) survive and no
+  # per-account non-plugin key ever enters shared:
+  #   1. build the any-true union of enabledPlugins across every valid file,
+  #      with keys SORTED so the template is byte-stable across re-runs
+  #      regardless of per-account key order (idempotency, test line ~93);
+  #   2. set ONLY .enabledPlugins on the existing template to that union.
+  local union
+  if union="$(jq -s '
+        reduce .[] as $x ({};
+          reduce (($x.enabledPlugins // {}) | to_entries[]) as $e (.;
+            .[$e.key] = ((.[$e.key] // false) or $e.value)))
+        | to_entries | sort_by(.key) | from_entries
+      ' "${files[@]}" 2>/dev/null)" \
+     && printf '%s' "$union" | jq empty 2>/dev/null \
+     && jq --argjson u "$union" '.enabledPlugins = $u' "$tmpl" > "$tmp" 2>/dev/null \
+     && jq -e . "$tmp" >/dev/null 2>&1; then
+    mv "$tmp" "$tmpl"
+  else
+    rm -f "$tmp"
+    cma_warn "settings.json: enabledPlugins union skipped (jq error)"
+  fi
   return 0
+}
+
+# Give every account dir its OWN real settings.json (§11.4 own-settings): seed
+# from the shared TEMPLATE when absent/legacy-symlink, else additively merge the
+# template's enabledPlugins in (own keys always win). Per-alias non-plugin keys
+# stay local — they never leak to shared or to a sibling dir. Delegates to the
+# single canonical seeder in lib.sh so unify/add-account/providers/bootstrap all
+# agree.
+seed_own_settings() {
+  local acct
+  for acct in "${ACCOUNTS[@]}"; do
+    [[ -d "$acct" ]] || continue
+    cma_own_settings_seed "$acct"
+  done
 }
 
 merge_file_into_shared() {
@@ -386,7 +412,6 @@ absorb_default_plugins
 for item in "${SHARED_ITEMS[@]}"; do
   case "$item" in
     history.jsonl)    merge_history_jsonl ;;
-    settings.json)    merge_settings_json ;;
     stats-cache.json) merge_file_into_shared "$item" ;;
     *)                merge_dir_into_shared "$item" ;;
   esac
@@ -394,6 +419,13 @@ for item in "${SHARED_ITEMS[@]}"; do
   link_to_shared "$item"
   cma_log "ok: $item"
 done
+
+# §11.4 own-settings: settings.json is NOT a shared symlink. Union each account's
+# enabledPlugins into the shared template, then re-seed every dir's OWN copy so
+# the union propagates while per-alias non-plugin keys stay local.
+union_enabled_plugins_into_template
+seed_own_settings
+cma_log "ok: settings.json (per-dir OWN copy; enabledPlugins union propagated; per-alias keys kept local)"
 
 link_default_plugin_subdirs
 sync_claude_md

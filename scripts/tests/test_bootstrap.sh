@@ -87,10 +87,21 @@ assert_dir "$d2" "account 2 dir created"
 
 # Shared items are symlinked into each account dir.
 assert_symlink_to "$d1/projects" "$SHARED_DIR/projects" "claude1 projects linked"
-assert_symlink_to "$d1/settings.json" "$SHARED_DIR/settings.json" "claude1 settings linked"
 assert_symlink_to "$d1/CLAUDE.md" "$SHARED_DIR/CLAUDE.md" "claude1 CLAUDE.md linked"
 assert_symlink_to "$d2/projects" "$SHARED_DIR/projects" "claude2 projects linked"
 assert_symlink_to "$d2/todos" "$SHARED_DIR/todos" "claude2 todos linked"
+
+# §11.4 own-settings: settings.json is each dir's OWN real file (NOT a shared
+# symlink) — per-alias permissions/model/hooks never leak across aliases. It is
+# seeded from the shared template (empty {} on a fresh bootstrap). The plugin
+# CACHE (plugins/) and history stay SHARED symlinks so plugins/history are one
+# store across all aliases.
+assert_not_symlink "$d1/settings.json" "claude1 settings.json is OWN (not a shared symlink)"
+assert_file "$d1/settings.json" "claude1 has own real settings.json"
+assert_jq "$d1/settings.json" 'type' "object" "claude1 own settings.json is valid JSON object"
+assert_symlink_to "$d1/plugins" "$SHARED_DIR/plugins" "claude1 plugins (cache) still shared"
+assert_symlink_to "$d1/history.jsonl" "$SHARED_DIR/history.jsonl" "claude1 history.jsonl still shared"
+assert_not_symlink "$d2/settings.json" "claude2 settings.json is OWN (not a shared symlink)"
 
 # Private files are real (per-account), NOT symlinks into shared.
 assert_file "$d1/.claude.json" "claude1 has private .claude.json"

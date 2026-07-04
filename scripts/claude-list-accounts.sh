@@ -33,8 +33,11 @@ if [[ -f "$ALIAS_FILE" ]]; then
   done < "$ALIAS_FILE"
 fi
 
-# Items we expect to be symlinks pointing into $SHARED_DIR.
-CHECK_LINKS=(projects history.jsonl settings.json plugins todos CLAUDE.md)
+# Items we expect to be symlinks pointing into $SHARED_DIR. NOTE (§11.4
+# own-settings): settings.json is DELIBERATELY excluded — each dir has its OWN
+# real settings.json (per-alias keys stay local), so it is not a shared symlink
+# and must not be reported as "not linked".
+CHECK_LINKS=(projects history.jsonl plugins todos CLAUDE.md)
 
 printf '%-12s  %-45s  %-6s  %-5s  %s\n' \
   "ALIAS" "CONFIG DIR" "CREDS" "LINKS" "NOTES"

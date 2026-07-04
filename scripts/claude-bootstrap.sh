@@ -192,8 +192,17 @@ for a in "${ALIASES[@]}"; do
   d="${CONFIG_DIR_OF[$a]}"
   mkdir -p "$d"
   for item in "${SHARED_DIRS[@]}" "${SHARED_FILES[@]}"; do
+    # §11.4 own-settings: settings.json is NOT a per-dir symlink. Each dir gets
+    # its OWN real settings.json (seeded below from the shared TEMPLATE) so
+    # per-alias permissions/model/hooks never leak across aliases, while
+    # plugins/ (cache), history.jsonl, CLAUDE.md (memory) and sessions stay
+    # shared symlinks.
+    [[ "$item" == "settings.json" ]] && continue
     ln -s "$SHARED_DIR/$item" "$d/$item"
   done
+  # Seed this dir's OWN settings.json from the shared template (enabledPlugins +
+  # theme) via the single canonical seeder in lib.sh.
+  cma_own_settings_seed "$d"
   # Touch the three private files so the account dir is shaped correctly
   # before `claude /login` populates them. .credentials.json gets a
   # placeholder JSON object so list-accounts reports CREDS:yes once the

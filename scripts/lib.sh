@@ -93,6 +93,31 @@ cma_merge_claude_json() {
     prev="$next"
   done
 
+  # Sticky-true TRUST preservation (§11.4 anti-bluff config hygiene): the jq `*`
+  # merge above is last-writer-wins on scalars, so a per-project
+  # `projects[<path>].hasTrustDialogAccepted` bit trusted under one alias could be
+  # DEMOTED true->false by a later account that lacks it — which made Claude Code's
+  # per-workspace trust dialog ("read, edit, and execute files here") reappear on
+  # every provider alias. Fix: OR the trust bit across all accounts — once a
+  # project path is trusted anywhere, it stays trusted in the merged portion.
+  local _tr_files=() _tr_acct
+  for _tr_acct in "${accts[@]}"; do [[ -s "$_tr_acct/.claude.json" ]] && _tr_files+=("$_tr_acct/.claude.json"); done
+  if (( ${#_tr_files[@]} >= 1 )); then
+    local _trusted
+    _trusted="$(jq -s '[ .[] | (.projects // {}) | to_entries[]
+                        | select(.value.hasTrustDialogAccepted == true) | .key ] | unique' \
+                "${_tr_files[@]}" 2>/dev/null || printf '[]')"
+    if [[ -n "$_trusted" && "$_trusted" != "[]" ]]; then
+      local _tt; _tt="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+      if jq --argjson trusted "$_trusted" '
+            .projects //= {}
+            | reduce ($trusted[]) as $p (.; .projects[$p].hasTrustDialogAccepted = true)
+          ' "$prev" > "$_tt" 2>/dev/null && jq -e . "$_tt" >/dev/null 2>&1; then
+        mv "$_tt" "$prev"
+      else rm -f "$_tt"; fi
+    fi
+  fi
+
   # Now $prev holds the merged shared portion. Write each account's file with
   # its own private keys overlaid on top of the shared portion.
   for acct in "${accts[@]}"; do
@@ -686,8 +711,16 @@ cma_remove_alias() {
 CMA_SHARED_ITEMS=(
   projects todos tasks plans file-history paste-cache shell-snapshots
   session-env telemetry sessions backups cache plugins
-  stats-cache.json history.jsonl settings.json CLAUDE.md
+  stats-cache.json history.jsonl CLAUDE.md
 )
+# NOTE (§11.4 own-settings): settings.json is DELIBERATELY NOT in the shared set.
+# Each config dir gets its OWN settings.json so per-alias permissions/model/hooks
+# never leak across aliases/providers, while the plugin CACHE (`plugins`),
+# history (`history.jsonl`), memory (`CLAUDE.md`) and sessions stay shared. Each
+# dir's own settings.json is seeded from + kept enabledPlugins-synced with the
+# shared template $SHARED_DIR/settings.json by cma_own_settings_seed (so
+# superpowers et al. stay enabled everywhere). See cma_link_shared_items +
+# cma_enable_plugins below.
 
 cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
 
@@ -707,6 +740,46 @@ cma_link_shared_items() {
     fi
     [[ -e "$tgt" || -L "$tgt" ]] || ln -s "$src" "$tgt"
   done
+  # §11.4 own-settings: settings.json is NOT symlinked — give this dir its OWN copy.
+  cma_own_settings_seed "$cdir"
+}
+
+# List all toolkit-managed config dirs (native accounts + providers). Used to
+# fan out per-dir OWN settings.json enabledPlugins-sync.
+cma_all_config_dirs() {
+  local d
+  for d in "$HOME"/.claude-claude* "$HOME"/.claude-prov-*; do
+    [[ -d "$d" ]] && printf '%s\n' "$d"
+  done
+}
+
+# Give a config dir its OWN settings.json (§11.4 own-settings). If it is a symlink
+# (legacy shared layout) or absent, seed a REAL copy from the shared template so
+# it inherits enabledPlugins + theme. If already a real file, additively merge the
+# template's enabledPlugins in (own entries win — never clobber per-alias
+# overrides). The shared template $SHARED_DIR/settings.json remains the single
+# source of the always-on plugin set.
+cma_own_settings_seed() {
+  # NOTE: separate `local`s — a single `local a="$1" b="$a/x"` expands $a before
+  # it is assigned, which aborts under `set -u` ("a: unbound variable").
+  local cdir="${1:-}"
+  [ -n "$cdir" ] || return 0
+  local own="$cdir/settings.json"
+  local tmpl="${SHARED_DIR:-$HOME/.claude-shared}/settings.json"
+  local tmp=""
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -s "$tmpl" ]] || printf '{}\n' > "$tmpl"
+  if [[ -L "$own" || ! -e "$own" ]]; then
+    rm -f "$own" 2>/dev/null
+    cp "$tmpl" "$own" 2>/dev/null || printf '{}\n' > "$own"
+    return 0
+  fi
+  tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  if jq -s '.[0] as $own | .[1] as $t
+            | $own | .enabledPlugins = (($t.enabledPlugins // {}) + ($own.enabledPlugins // {}))' \
+        "$own" "$tmpl" > "$tmp" 2>/dev/null && jq -e . "$tmp" >/dev/null 2>&1; then
+    mv "$tmp" "$own"
+  else rm -f "$tmp"; fi
 }
 
 # Force-enable the always-on plugins in the shared settings.json enabledPlugins
@@ -737,6 +810,11 @@ cma_enable_plugins() {
   else
     rm -f "$tmp"; cma_warn "could not update enabledPlugins in $settings"
   fi
+  # Fan the always-on plugin set out into every managed config dir's OWN
+  # settings.json (settings.json is no longer a shared symlink — §11.4
+  # own-settings) so enabling a plugin still reaches every alias/provider.
+  local _cd
+  while IFS= read -r _cd; do [[ -n "$_cd" ]] && cma_own_settings_seed "$_cd"; done < <(cma_all_config_dirs)
 }
 
 # Write the non-secret per-provider env file consumed by cma_run_provider.

@@ -46,9 +46,12 @@ rc=$?
 assert_eq 0 "$rc" "claude-unify exits 0"
 
 it "every shared item becomes a symlink into the shared store"
+# §11.4 own-settings: settings.json is intentionally NOT in this list — it is each
+# dir's OWN real file, asserted separately below. Everything else (incl. the
+# plugin CACHE and history) stays a shared symlink.
 for item in projects todos tasks plans file-history paste-cache plugins \
             shell-snapshots session-env telemetry sessions backups cache \
-            stats-cache.json history.jsonl settings.json; do
+            stats-cache.json history.jsonl; do
   case "$item" in
     stats-cache.json)
       # Only fixtures with this file get the symlink; skip if absent.
@@ -58,10 +61,32 @@ for item in projects todos tasks plans file-history paste-cache plugins \
   assert_symlink_to "$acct2/$item" "$SHARED_DIR/$item" "$acct2 $item linked"
 done
 
-it "settings.json enabledPlugins is the union {a,b,c}"
+it "settings.json is each dir's OWN real file (§11.4 own-settings), not a shared symlink"
+# Per-alias permissions/model/hooks must never leak, so unify gives every dir its
+# OWN settings.json — while plugins (cache) + history stay shared symlinks (proven
+# in the loop above). The propagated enabledPlugins union lives in each own copy.
+assert_not_symlink "$acct1/settings.json" "acct1 settings.json is OWN"
+assert_not_symlink "$acct2/settings.json" "acct2 settings.json is OWN"
+assert_file "$acct1/settings.json" "acct1 own settings.json exists"
+assert_file "$acct2/settings.json" "acct2 own settings.json exists"
+assert_jq "$acct1/settings.json" '.enabledPlugins.a' "true" "acct1 own settings carries the enabledPlugins union"
+assert_jq "$acct1/settings.json" '.enabledPlugins.c' "true" "acct1 own settings gained acct2's plugin via the propagated union"
+
+it "shared TEMPLATE settings.json enabledPlugins is the union {a,b,c}"
+# Unify unions ONLY the enabledPlugins map into the shared template so newly-
+# enabled plugins propagate to every dir.
 assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins | keys | sort | join(",")' "a,b,c" "union"
-assert_jq "$SHARED_DIR/settings.json" '.effortLevel' "high" "effortLevel preserved"
-assert_jq "$SHARED_DIR/settings.json" '.skipDangerousModePermissionPrompt' "true" "permission flag preserved"
+
+it "§11.4 own-settings: per-alias NON-plugin keys stay local — no leak to a sibling dir or to shared"
+# effortLevel was set ONLY in acct1; skipDangerousModePermissionPrompt ONLY in
+# acct2. Under own-settings each keeps its own key, neither leaks to the other,
+# and NEITHER leaks into the shared template (which carries only the plugin union).
+assert_jq "$acct1/settings.json" '.effortLevel' "high" "acct1 keeps its OWN effortLevel"
+assert_jq "$acct2/settings.json" '.skipDangerousModePermissionPrompt' "true" "acct2 keeps its OWN permission flag"
+assert_jq "$acct1/settings.json" '.skipDangerousModePermissionPrompt // "absent"' "absent" "acct2's permission flag did NOT leak into acct1"
+assert_jq "$acct2/settings.json" '.effortLevel // "absent"' "absent" "acct1's effortLevel did NOT leak into acct2"
+assert_jq "$SHARED_DIR/settings.json" '.effortLevel // "absent"' "absent" "effortLevel did NOT leak to the shared template"
+assert_jq "$SHARED_DIR/settings.json" '.skipDangerousModePermissionPrompt // "absent"' "absent" "permission flag did NOT leak to the shared template"
 
 it "history.jsonl contains every unique line, no duplicates"
 expected_lines=5
@@ -109,6 +134,22 @@ run_unify >/dev/null 2>&1
 assert_symlink_to "$acct3/projects" "$SHARED_DIR/projects" "acct3 projects linked"
 assert_jq "$SHARED_DIR/settings.json" '.enabledPlugins.d' "true" "acct3 plugin merged"
 assert_file_contains "$SHARED_DIR/history.jsonl" "cmd5" "acct3 history merged"
+
+it "§11.4 own-settings PROOF: a per-alias settings.json edit does NOT leak into another dir or shared"
+# Add a unique per-alias NON-plugin key to acct1's OWN settings.json AFTER unify,
+# then re-run unify. own-settings must keep it local: acct1 retains it, acct2
+# never gains it, and the shared template never gains it (it carries only the
+# enabledPlugins union). This is the load-bearing anti-leak guarantee of the
+# refactor — a real behavioral proof, not a tautology.
+jq '.model = "per-alias-model-acct1-only"' "$acct1/settings.json" > "$acct1/settings.json.probe" \
+  && mv "$acct1/settings.json.probe" "$acct1/settings.json"
+# shellcheck disable=SC2119  # test intentionally calls run_unify with no args
+run_unify >/dev/null 2>&1
+assert_jq "$acct1/settings.json" '.model' "per-alias-model-acct1-only" "acct1 keeps its OWN per-alias model after unify"
+assert_jq "$acct2/settings.json" '.model // "absent"' "absent" "acct1's per-alias model did NOT leak into acct2"
+assert_jq "$SHARED_DIR/settings.json" '.model // "absent"' "absent" "acct1's per-alias model did NOT leak to the shared template"
+# The plugin union still flows to every dir (plugins ARE meant to be shared).
+assert_jq "$acct2/settings.json" '.enabledPlugins.a' "true" "acct2 still carries the propagated enabledPlugins union"
 
 # ── B1 / B2: absorb_default_plugins + link_default_plugin_subdirs ─────────────
 # Use an isolated SHARED_DIR/DEFAULT_DIR/ACCOUNT_PREFIX triple so these tests
