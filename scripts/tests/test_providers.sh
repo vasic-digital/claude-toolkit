@@ -1099,4 +1099,36 @@ out="$( CLAUDE_BIN="$HOME/fakebin/claude-stub" PROOF_DIR="$STUI_PROOF" bash "$ST
 assert_eq 0 "$rc" "unknown alias -> SKIP exit 0"
 printf '%s\n' "$out" | grep -q "SKIP: alias 'no_such_alias' not installed" ; assert_eq 0 $? "SKIP reason names the alias-not-installed branch specifically (not an earlier precondition)"
 
+# ---------------------------------------------------------------------------
+# Section — xAI existence via the generic /models probe (CORRECTED: xAI DOES
+# expose GET /v1/models, OpenAI-shaped, with alias ids like "latest"). No
+# docs-scrape special-case may exist (Task 4, §11.4.124 — see
+# .superpowers/sdd/task-4-recon.md: generic /models path already covers xAI;
+# no model-id-membership check exists anywhere to add alias tolerance to).
+# ---------------------------------------------------------------------------
+
+it "no xAI docs-scrape / hardcoded-model special-case is present in the sources"
+! grep -rniE 'docs\.x\.ai|scrape|xai-models\.json' "$SCRIPTS_DIR"/*.sh "$SCRIPTS_DIR"/*.py 2>/dev/null
+assert_eq 0 $? "xAI is handled by the generic /models path, not a scrape branch"
+
+it "providers-verify treats xAI like any OpenAI-shaped provider (200 on /models -> verified)"
+# Fake xAI /v1/models on loopback so the generic curl probe returns 200.
+python3 - "$HOME/xai.port" <<'PY' &
+import http.server, socketserver, sys, json
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers()
+        self.wfile.write(json.dumps({"object":"list","data":[{"id":"latest","aliases":[],"context_length":131072,"object":"model","owned_by":"xai"}]}).encode())
+    def log_message(self,*a): pass
+with socketserver.TCPServer(("127.0.0.1",0),H) as s:
+    open(sys.argv[1],"w").write(str(s.server_address[1])); s.handle_request()
+PY
+# wait for the port file, then probe
+for _ in $(seq 1 50); do [[ -s "$HOME/xai.port" ]] && break; sleep 0.05; done
+port="$(cat "$HOME/xai.port" 2>/dev/null)"
+XAI_API_KEY=sk-test out="$( XAI_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-verify.sh" \
+    --provider xai --model grok-4 --key-var XAI_API_KEY \
+    --base-url "http://127.0.0.1:${port}/v1" 2>/dev/null )"
+assert_eq "verified" "$out" "xAI /v1/models 200 -> verified (no special-case)"
+
 summary
