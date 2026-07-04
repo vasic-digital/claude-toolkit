@@ -1,9 +1,10 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-04
-**Last HEAD:** (pending — Phase 1 toolkit-side COMPLETE, 8/8 tasks)
-**Working tree:** modified (investigation doc + this file)
+**Last HEAD:** `a55018b` (Phase 1 COMPLETE + Go command LIVE-PROVEN + Phase-2 fully de-risked)
+**Working tree:** clean except this file (about to commit)
 **Active branch:** `main`
+**Next action:** EXECUTE Phase 2 — `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` (6 tasks, de-risked; see the 🔨 Phase 2 section below for the infra-map + live-proof + real-flags anchors).
 
 ## 0. Out-of-the-box resumption
 
@@ -49,7 +50,11 @@ Decompose into sub-projects; extend LLMsVerifier generically (project-not-aware,
 ### Implementation phases (from the plan's decomposition)
 
 - ✅ **Phase 1 (toolkit-side)** — COMPLETE (8/8). Commits: `249400b` T1 status cache, `49932bc` T2 cmd_sync persists status, `e6c881b` T3 list/list-all/list-faulty, `09d4618` T4 activation gate, `0d958e3` T5 --refresh-aliases/--quiet, `0323ea2` T6 install.sh session hook, T7 config-overwrite investigation (this commit — no code change, already fixed), T8 suite-green + CONTINUATION. Full suite 20/20 green throughout.
-- ⏸ **Phase 2 (semantic + live)** — separate plan (next). LLMsVerifier `semantic-code-visibility` Go command + `model_verify.py` semantic-layer wiring + live superpowers-TUI test + xAI + Tier-B live verifier. **DE-RISKED by parallel research** (`docs/research/2026-07-04-llmsverifier-go-internals.md`): build it as a **standalone stdlib-only** `cmd/semantic-code-visibility/main.go` (flag/os/net/http/encoding/json) — NOT reusing the chat clients (they transitively import the sqlite3 cgo `database` pkg). Keeps the submodule command CONST-051-decoupled + cgo-free. Toolkit-owned seam already scaffolded: `scripts/providers/fixture/{code-visibility.md,prompt-template.txt}` + `rubric/code-visibility-rubric.json` (sentinel `ZETA-9-ORANGE-7f3a`).
+- 🔨 **Phase 2 (semantic + live)** — Go command DONE + LIVE-PROVEN; toolkit wiring is the remaining implementation. Plan: `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` (verified). Ready to EXECUTE the 6 tasks — fully de-risked:
+  - **LIVE PROOF (real evidence, independently re-run):** `docs/qa/2026-07-04-semantic-visibility-live/report.md` — a real Groq model (llama-3.3-70b) received the toolkit fixture through the built `semantic-code-visibility` binary and returned the sentinel `ZETA-9-ORANGE-7f3a` verbatim (`overall_pass:true`, exit 0). Reproduced by the orchestrator. The headline capability WORKS end-to-end. (DeepSeek = honest 402-billing SKIP.) Groq base = `https://api.groq.com/openai` (binary appends `/v1/chat/completions`).
+  - **Infra map** (`docs/research/2026-07-04-live-verify-infra-map.md`): Phase-2 Task 5 EXTENDS the EXISTING `scripts/tests/verify_providers_live.sh` (existence-only today; append layers 3–4 before its `summary`, keep the SKIP guard; wired into `run-proof.sh:28-31`). Reuse `scripts/tests/verify_claude_live.sh`'s `--use-superpowers` PTY machinery (+ `lib/pty_drive.py`) for layer 4. Do NOT create a `proof/` duplicate. New files to ADD: `scripts/claude-semantic-visibility.sh` (driver, mirror `claude-verify-providers.sh:57-63` build-cache pattern), `scripts/providers-semantic.sh` (layer-3 adapter), `scripts/verify_superpowers_tui.sh` (layer-4).
+  - Real Go flags: `--base-url --model --api-key-env --fixture --prompt --sentinel --timeout --format` + optional `--round2-prompt --judge-base-url --judge-model --judge-api-key-env --judge-prompt --judge-threshold`. NO `--rubric` (rubric → rendered into `--judge-prompt`). Output: `round1_sentinel/round2_judge/overall_pass` (no evidence hashes). Binary cached (do not commit; `.local-cache/` now gitignored).
+  - Toolkit seam scaffolded: `scripts/providers/fixture/{code-visibility.md,prompt-template.txt}` + `rubric/code-visibility-rubric.json` (sentinel `ZETA-9-ORANGE-7f3a`).
 - ⏸ **Phase 3 (docs + release)** — separate plan: manual/FAQ/diagrams/templates + CONST-052 + v1.12.0 release across main repo + LLMsVerifier submodule via gh+glab, `<prefix>/v1.12.0` (§11.4.151), no force-push (§11.4.113).
 
 ### Corrections discovered during Phase 1 (MUST apply in Phase 2/3 — do not re-derive)
@@ -83,7 +88,7 @@ Source: `docs/research/2026-07-04-provider-api-endpoints.md` (§11.4.99 latest-s
 
 ### NEW findings from the Phase-2 plan authoring (apply in Phase 2/3)
 
-- **CONST-052 ID COLLISION (Phase-3 fix):** spec §3.4 proposes a NEW "CONST-052" for the semantic-code-visibility boundary contract, but the cascaded constitution ALREADY defines CONST-052 (lowercase-snake_case naming mandate). The proposed boundary rule MUST be renumbered (next free CONST id or a §11.4.NNN) in the Phase-3 spec + submodule-constitution work. Do NOT reuse CONST-052.
+- **CONST-052 ID COLLISION (Phase-3 fix):** spec §3.4 proposes a NEW "CONST-052" for the semantic-code-visibility boundary contract, but the cascaded constitution ALREADY defines CONST-052 (lowercase-snake_case naming mandate). Renumber draft (grep-backed): `docs/research/2026-07-04-const052-collision-renumber-draft.md` — recommended next-free = **CONST-069 ⇐ §11.4.166** (highest existing: CONST-068, §11.4.165). DRAFT-ONLY; land via the §11.4.49 constitution-submodule workflow in Phase 3 (fetch/pull first → author → validate → commit+push all upstreams → bump pointer → fix spec refs). Spec §3.4 already annotated "DO NOT reuse CONST-052".
 - **Tree is AHEAD of the spec** (the plan reconciled these): Go command already implemented (flags `--judge-prompt`, NOT `--rubric`; appends `/v1/chat/completions`; exit 0/1/2; output has NO `evidence` hashes — update spec §2.3/§4.5 accordingly); a live verifier `scripts/tests/verify_providers.sh`/`verify_providers_live.sh` already exists + is wired into run-proof.sh (spec §7.3's `proof/verify_providers_live.sh` path was wrong); `cma_status_*` + gate already landed (Phase 1).
 - **Minor doc gap:** the Phase-2 plan does not mention the OpenRouter deviation (public, no `object:list`) — add it to the existence-layer handling + Phase-3 docs (it's in `docs/research/2026-07-04-provider-api-endpoints.md`).
 
