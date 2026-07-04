@@ -1,10 +1,10 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-05
-**Last HEAD:** `1bedc95` (✅ Phase 2 COMPLETE — semantic layer-3 + live layer-4, all 6 tasks landed, per-task + final whole-branch reviewed, live-proven end-to-end)
-**Working tree:** clean except release docs (about to commit)
+**Last HEAD:** `ea9891b` (✅ **v1.12.0 RELEASED** — semantic layer-3 + live layer-4. Tag `v1.12.0` on all 4 mirrors; gh + glab release objects live. Final whole-branch review READY-TO-MERGE, its I-2/M-1/M-2 fixed pre-release, live-proven end-to-end.)
+**Working tree:** clean
 **Active branch:** `main`
-**Next action:** Phase 3 = release v1.12.0 (CHANGELOG done; tag `v1.12.0`, push 4 mirrors, gh+glab release objects). Then the v1.12.1 hardening follow-ups: judge.env different-family default (deep-research-confirmed self-grade risk, arXiv:2508.06709), xAI `overrides.json` base-url entry (resolve gap), submodule boundary-contract constitution id (CONST-052 collision → CONST-069). See `.superpowers/sdd/phase3-notes.md` for the evidence + anchors.
+**Next action:** v1.12.1 hardening (all tracked in `.superpowers/sdd/phase3-notes.md` with evidence + anchors): (1) `judge.env.template` default → a DIFFERENT model family than the common subject (deep-research-confirmed self-grade bias, arXiv:2508.06709; groq/llama-3.1-8b-instant proven-working-as-judge live); (2) xAI `overrides.json` base-url entry (resolve gap — existence probe already covers it); (3) final-review I-1 — give the submodule semantic-code-visibility command a DISTINCT infra/transport exit code (e.g. 3) that the adapter maps to `skip`, so a transient judge/endpoint error never downgrades the model-under-test; (4) submodule boundary-contract constitution id (CONST-052 collision → CONST-069); (5) the 2 deferred minors (`-e` dir-accept clearer die; base-url compound-suffix). Release format: plain `vX.Y.Z` tag + gh/glab + 4 mirrors; submodule push-before-main (§11.4.71).
 
 ## Phase 2 — DELIVERED (commits ea4417f..1bedc95, 11 commits)
 - Task 1 driver `claude-semantic-visibility.sh` (ea4417f, tests 25ab80f). Task 2 adapter `providers-semantic.sh` + cmd_sync/cmd_verify (ed70c14). Submodule reconciled+pushed 7a3ae9a6 (pointer f084d9c). Task 3 layer-4 `verify_superpowers_tui.sh` (d1972b5, review-fixes f4b5ebb). Task 4 xAI generic /v1/models tests — NO-OP (f596c75). Task 5 Tier-B live verifier + live negative-case honesty PASS (1bedc95).
