@@ -428,7 +428,10 @@ grep -q 'cma_run_provider beta"' "$ALIAS_FILE" ; assert_eq 1 $? "beta alias gone
 if command -v zsh >/dev/null 2>&1; then
   it "cma_run_provider runs under zsh (native transport) without bad substitution"
   # acme is the native-transport provider created in Section 3; its env file +
-  # alias exist and $HOME/api_keys.sh defines ACME_API_KEY.
+  # alias exist and $HOME/api_keys.sh defines ACME_API_KEY. Mark it verified so
+  # the launch-time activation gate permits the launch and the zsh indirect
+  # key-read (${!var}) path this test targets is actually exercised.
+  cma_status_write acme verified acme-big ""
   z_out="$(CLAUDE_BIN=/usr/bin/true HOME="$HOME" zsh -c '
     emulate -L zsh
     source "'"$ALIAS_FILE"'" 2>&1
@@ -687,7 +690,44 @@ it "no secret/key material is ever written into the status cache"
 assert_file_not_contains "$(cma_status_cache)" "sk-" "no bearer-token prefix in cache"
 assert_file_not_contains "$(cma_status_cache)" "Bearer" "no Authorization header in cache"
 
-# Clean the status cache so later sections (if added) start fresh.
+# Clean the status cache so later sections start fresh.
+rm -f "$(cma_status_cache)"
+
+# ---------------------------------------------------------------------------
+# Section 7 — launch-time activation gate in cma_run_provider. Only a
+# 'verified' alias brings up Claude Code; others refuse with an actionable
+# message. --force overrides. Uses acme (native transport, from Section 3) +
+# CLAUDE_BIN=/usr/bin/true so a permitted launch exits 0 without a real claude.
+# ---------------------------------------------------------------------------
+
+it "activation gate: unverified alias refuses to launch (rc 3, actionable message)"
+cma_status_write acme unverified acme-big semantic
+_g_out="$( ( source "$ALIAS_FILE"; cma_run_provider acme ) 2>&1 )"; _g_rc=$?
+assert_eq 3 "$_g_rc" "unverified alias returns 3 (gate refused)"
+printf '%s\n' "$_g_out" | grep -q 'not launching'; assert_eq 0 $? "gate prints 'not launching'"
+printf '%s\n' "$_g_out" | grep -q 'claude-providers sync'; assert_eq 0 $? "gate suggests re-verify via sync"
+
+it "activation gate: failed alias also refuses"
+cma_status_write acme failed acme-big existence
+( source "$ALIAS_FILE"; cma_run_provider acme ) >/dev/null 2>&1; assert_eq 3 $? "failed alias returns 3"
+
+it "activation gate: pending (no cache entry) refuses"
+rm -f "$(cma_status_cache)"
+( source "$ALIAS_FILE"; cma_run_provider acme ) >/dev/null 2>&1; assert_eq 3 $? "pending alias returns 3"
+
+it "activation gate: verified alias launches (CLAUDE_BIN=/usr/bin/true -> rc 0)"
+cma_status_write acme verified acme-big ""
+( source "$ALIAS_FILE"; cma_run_provider acme ) >/dev/null 2>&1; assert_eq 0 $? "verified alias launches"
+
+it "activation gate: --force overrides a non-verified status (both arg positions)"
+cma_status_write acme failed acme-big existence
+( source "$ALIAS_FILE"; cma_run_provider acme --force ) >/dev/null 2>&1; assert_eq 0 $? "--force after id launches"
+( source "$ALIAS_FILE"; cma_run_provider --force acme ) >/dev/null 2>&1; assert_eq 0 $? "--force before id launches"
+
+it "activation gate is present in the emitted cma_run_provider body"
+_gate_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+printf '%s\n' "$_gate_body" | grep -qF '_cma_force'; assert_eq 0 $? "emitted body carries the --force/gate marker"
+
 rm -f "$(cma_status_cache)"
 
 summary

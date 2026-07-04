@@ -457,6 +457,7 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' || \
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
@@ -466,14 +467,21 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window + activation-gate)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
 
 cma_run_provider() {
+  # --force bypasses the activation gate (operator override). Accepted BOTH as
+  # the very first arg (direct call: cma_run_provider --force <id>) and as the
+  # first arg after the id (alias path: `<alias> --force` expands to
+  # cma_run_provider <id> --force). Either way it is consumed, not forwarded.
+  local _cma_force=0
+  if [[ "${1:-}" == "--force" ]]; then _cma_force=1; shift; fi
   local id="$1"; shift 2>/dev/null || true
+  if [[ "${1:-}" == "--force" ]]; then _cma_force=1; shift; fi
   local pdir="$HOME/.local/share/claude-multi-account/providers"
   local envf="$pdir/$id.env"
   if [[ ! -f "$envf" ]]; then
@@ -482,6 +490,24 @@ cma_run_provider() {
   fi
   # shellcheck disable=SC1090
   source "$envf"
+  # Activation gate: only a 'verified' alias launches Claude Code. A non-verified
+  # alias (unverified / failed / pending) prints a clear, actionable message and
+  # refuses to launch, so a broken provider never surfaces as a confusing
+  # in-session error. Status comes from the non-secret status cache; this body is
+  # self-contained (no cma_* helpers) so it reads status.json with jq inline.
+  if (( ! _cma_force )); then
+    local _cma_sf="$pdir/status.json" _cma_st="pending"
+    if command -v jq >/dev/null 2>&1 && [[ -s "$_cma_sf" ]]; then
+      _cma_st="$(jq -r --arg i "$CMA_PROVIDER_ID" '.[$i].status // "pending"' "$_cma_sf" 2>/dev/null)"
+      [[ -n "$_cma_st" && "$_cma_st" != "null" ]] || _cma_st="pending"
+    fi
+    if [[ "$_cma_st" != "verified" ]]; then
+      printf 'claude-providers: alias %s is %s — not launching.\n' "$CMA_PROVIDER_ID" "$_cma_st" >&2
+      printf '  Re-verify: claude-providers sync   (re-runs verification for %s)\n' "$CMA_PROVIDER_ID" >&2
+      printf '  Override (operator): run the alias with --force\n' >&2
+      return 3
+    fi
+  fi
   local keysf="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
   # Disable nounset while sourcing the user-controlled keys file: it may have
   # dangling refs (e.g. `export X=$UNSET`) that would abort the source under a
