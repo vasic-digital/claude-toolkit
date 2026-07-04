@@ -976,4 +976,22 @@ out="$(bash "$PROVIDERS_SH" verify no-such-provider-xyz 2>&1)"; rc=$?
 assert_eq 1 "$rc" "cmd_verify unknown id exits 1"
 printf '%s\n' "$out" | grep -q "unknown provider" ; assert_eq 0 $? "cmd_verify unknown id emits a die message"
 
+# ---------------------------------------------------------------------------
+# Section — verify_superpowers_tui.sh SKIP behavior (Tier-A: no real claude).
+# With CLAUDE_BIN=/usr/bin/true (the sandbox default) the layer-4 test MUST
+# SKIP-with-reason and exit 0 — never a faked PASS, never a hard FAIL.
+# ---------------------------------------------------------------------------
+STUI="$SCRIPTS_DIR/verify_superpowers_tui.sh"
+
+it "verify_superpowers_tui SKIPs (exit 0 + reason) when there is no real claude binary"
+out="$( CLAUDE_BIN=/usr/bin/true bash "$STUI" --alias deepseek --timeout 5 2>&1 )"; rc=$?
+assert_eq 0 "$rc" "SKIP is a non-failure (exit 0)"
+printf '%s\n' "$out" | grep -q 'SKIP:' ; assert_eq 0 $? "prints an honest SKIP reason"
+printf '%s\n' "$out" | grep -qiv 'PASS' ; assert_eq 0 $? "never claims PASS when skipping"
+
+it "verify_superpowers_tui SKIPs when the named alias is not installed"
+out="$( CLAUDE_BIN="$(command -v cat)" bash "$STUI" --alias no_such_alias --timeout 5 2>&1 )"; rc=$?
+assert_eq 0 "$rc" "unknown alias -> SKIP exit 0"
+printf '%s\n' "$out" | grep -q 'SKIP:' ; assert_eq 0 $? "reason printed for unknown alias"
+
 summary
