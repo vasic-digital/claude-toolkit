@@ -40,7 +40,8 @@ source "$LIB_DIR/lib.sh"
 : "${CMA_ALWAYS_ON_PLUGINS:=superpowers@anthropics systematic-debugging@anthropics frontend-design@anthropics code-review@anthropics}"
 
 RESOLVER="$LIB_DIR/providers_resolve.py"
-VERIFY="$LIB_DIR/providers-verify.sh"
+VERIFY="${CMA_PROVIDERS_VERIFY:-$LIB_DIR/providers-verify.sh}"
+SEMANTIC="${CMA_PROVIDERS_SEMANTIC:-$LIB_DIR/providers-semantic.sh}"
 MODEL_VERIFY="$LIB_DIR/model_verify.py"
 PROVIDERS_GENERATE="$LIB_DIR/providers_generate.py"
 KEY_ALIASES="$LIB_DIR/providers/key-aliases.json"
@@ -64,6 +65,8 @@ Subcommands:
   list-all             list every installed provider alias (any status)
   list-faulty          list only aliases with an issue (failed/unverified/pending)
   show <id>            show details for one provider
+  verify <id> [--deep] re-run verification for one provider + persist status
+                       (layers 1-3; --deep also runs the live superpowers-TUI layer 4)
   remove <id>          remove a provider alias + its config dir (backed up)
   add --from-key VAR [--id PROVIDER]   register a key->provider mapping then sync
 
@@ -124,7 +127,10 @@ ensure_catalog() {
 
 # Extract API-key VARIABLE NAMES from the keys file WITHOUT executing it.
 present_key_vars() {
-  [[ -f "$CMA_KEYS_FILE" ]] || cma_die "keys file not found: $CMA_KEYS_FILE (pass --keys-file)"
+  # -e (not -f): a process-substitution / FIFO keys file (e.g. --keys-file
+  # <(...)) is a legitimate way to supply keys and is NOT a POSIX "regular
+  # file" per -f, but it is a readable, existing path per -e.
+  [[ -e "$CMA_KEYS_FILE" ]] || cma_die "keys file not found: $CMA_KEYS_FILE (pass --keys-file)"
   # `|| true`: a keys file with no assignments must yield an empty list, not a
   # grep exit-1 that aborts the script under `set -e`/pipefail.
   local names
@@ -201,7 +207,7 @@ cmd_sync() {
       # verification ("unverified") and a stream of "unbound variable" errors
       # spams stderr. `+u` makes the source tolerant; it is subshell-local.
       # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
-      vstatus="$( ( [[ -f "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
+      vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
 
@@ -215,21 +221,77 @@ cmd_sync() {
     cma_link_shared_items "$cdir"
     cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir" "$ctx_limit" "$max_out" "$alias"
     cma_provider_write_alias "$alias" "$pid"
-    # Persist status. 'verified' means the existence/tool-call layer confirmed;
-    # a non-"verified" here (e.g. 'unverified') means existence passed but a
-    # later layer (semantic / superpowers-TUI, Phase 2) has not yet confirmed —
-    # record the failing layer so list-faulty + the activation gate can explain.
+
+    # Layer bookkeeping. vstatus here is 'verified' (existence+tool-call passed)
+    # or 'unverified' (existence probe inconclusive). failing_layer records the
+    # FIRST layer that did not pass ("" when none failed).
+    local flayer=""
     if [[ "$vstatus" == "verified" ]]; then
-      cma_status_write "$pid" verified "$model" ""
+      # Layer 3: semantic code-visibility. Only attempt when verification is on
+      # and we are not offline; a 'skip' (precondition absent) NEVER downgrades.
+      if (( ! NO_VERIFY )) && (( ! OFFLINE )); then
+        local sstatus
+        # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
+        sstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
+                      bash "$SEMANTIC" --provider "$pid" --model "$model" --key-var "$keyvar" \
+                        ${base:+--base-url "$base"} 2>/dev/null ) )" || true
+        if [[ "$sstatus" == "unverified" ]]; then
+          vstatus="unverified"; flayer="semantic"
+        fi
+        # 'verified' | 'skip' | '' -> keep the existence verdict (verified).
+      fi
     else
-      cma_status_write "$pid" "$vstatus" "$model" semantic
+      # existence probe was inconclusive -> the layer that did not pass is existence.
+      flayer="existence"
     fi
-    cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus)"
+    cma_status_write "$pid" "$vstatus" "$model" "$flayer"
+    cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
   done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")
 
   cma_log "sync done: $n_created active, $n_disabled disabled (failed verify), $n_skipped not-resolved"
   cma_log "reload your shell or: source $ALIAS_FILE"
+}
+
+# --- subcommand: verify ------------------------------------------------------
+# claude-providers verify <id> [--deep]
+# Re-run verification for ONE already-installed provider and persist status.
+# --deep also runs the live superpowers-TUI (layer 4); without it, layers 1-3.
+cmd_verify() {
+  local id="${1:-}" deep=0; shift 2>/dev/null || true
+  [[ "${1:-}" == "--deep" ]] && deep=1
+  [[ -n "$id" ]] || cma_die "usage: claude-providers verify <id> [--deep]"
+  local envf; envf="$(cma_providers_dir)/$id.env"
+  [[ -f "$envf" ]] || cma_die "unknown provider: $id (run: claude-providers sync)"
+  # shellcheck source=/dev/null
+  ( set -a +u; . "$envf"; set +a
+    local base="$CMA_PROVIDER_BASE_URL" model="$CMA_PROVIDER_MODEL" keyvar="$CMA_PROVIDER_KEYVAR"
+    local vst sst flayer=""
+    vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
+              bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>/dev/null ) )" || true
+    [[ -z "$vst" ]] && vst=unverified
+    if [[ "$vst" == "failed" ]]; then cma_status_write "$id" failed "$model" existence; echo "failed"; return; fi
+    if [[ "$vst" != "verified" ]]; then cma_status_write "$id" unverified "$model" existence; echo "unverified"; return; fi
+    sst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
+              bash "$SEMANTIC" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>/dev/null ) )" || true
+    if [[ "$sst" == "unverified" ]]; then cma_status_write "$id" unverified "$model" semantic; echo "unverified"; return; fi
+    if (( deep )); then
+      # Capture the exit code into a variable BEFORE it is consumed by the
+      # `if`/`fi` test below — `$?` immediately after an `if cond; then …; fi`
+      # whose condition was false is the if-STATEMENT's own status (0 per
+      # POSIX when no branch ran), never the condition command's real code, so
+      # reading `$?` after the `fi` would silently and permanently disable the
+      # FAIL-demotes branch below.
+      local tui_rc=0
+      bash "$LIB_DIR/verify_superpowers_tui.sh" --alias "$id" >/dev/null 2>&1 || tui_rc=$?
+      if [[ "$tui_rc" -eq 0 ]]; then
+        cma_status_write "$id" verified "$model" ""; echo "verified"; return
+      fi
+      # layer-4 SKIP or FAIL: SKIP keeps verified-through-3; FAIL demotes.
+      # verify_superpowers_tui.sh exits 0 on PASS *and* on SKIP (honest), 1 on FAIL.
+      if [[ "$tui_rc" -eq 1 ]]; then cma_status_write "$id" unverified "$model" superpowers_tui; echo "unverified"; return; fi
+    fi
+    cma_status_write "$id" verified "$model" ""; echo "verified" )
 }
 
 # --- subcommand: list family ------------------------------------------------
@@ -457,7 +519,7 @@ cmd_sync_multi() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|list|list-all|list-faulty|show|remove|add) SUBCMD="$1"; shift ;;
+  sync|list|list-all|list-faulty|show|verify|remove|add) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -507,6 +569,7 @@ case "$SUBCMD" in
   list-all)    cmd_list_all ;;
   list-faulty) cmd_list_faulty ;;
   show)        cmd_show "${POSITIONAL[@]:-}" ;;
+  verify)      cmd_verify "${POSITIONAL[@]:-}" ;;
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
 esac

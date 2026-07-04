@@ -1,3 +1,9 @@
 # generated runtime cache — never commit
 models.dev.cache.json
 evidence/*.tmp
+
+# layer-3 semantic adapter: judge config may hold a var NAME (not a secret
+# value) plus a probe-endpoint choice; keep it operator-local. semantic-last.err
+# is the raw Go-command stderr from the last run (debugging only).
+judge.env
+semantic-last.err

@@ -809,4 +809,94 @@ printf '%s\n' "$out" | grep -q 'SCV-STUB' ; assert_eq 0 $? "driver execs the bui
 printf '%s\n' "$out" | grep -q -- '--sentinel Z' ; assert_eq 0 $? "driver forwards flags verbatim"
 assert_file "$_sem_bin" "binary was cached under .local-cache"
 
+# ---------------------------------------------------------------------------
+# Section — providers-semantic.sh (layer 3 adapter). A stub driver stands in
+# for the Go binary: it echoes a canned verdict JSON + exits with a chosen code,
+# so the adapter's stdout/exit mapping is asserted with no go/network/keys.
+# ---------------------------------------------------------------------------
+SEMSH="$SCRIPTS_DIR/providers-semantic.sh"
+_mk_stub_driver() {  # $1 = exit code, $2 = overall_pass json bool
+  cat > "$HOME/fakebin/scv-stub" <<EOF
+#!/usr/bin/env bash
+printf '{"round1_sentinel":{"pass":$2,"observed":"ZETA-9-ORANGE-7f3a"},"round2_judge":{"pass":$2,"score":3,"skipped":false},"overall_pass":$2}\n'
+exit $1
+EOF
+  chmod +x "$HOME/fakebin/scv-stub"
+}
+
+it "providers-semantic maps overall_pass=true -> 'verified' exit 0"
+_mk_stub_driver 0 true
+out="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+        bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+        --base-url https://api.deepseek.com 2>/dev/null )"; rc=$?
+assert_eq "verified" "$out" "pass -> verified"
+assert_eq 0 "$rc" "pass -> exit 0"
+
+it "providers-semantic maps overall_pass=false -> 'unverified' exit 1"
+_mk_stub_driver 1 false
+out="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+        bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+        --base-url https://api.deepseek.com 2>/dev/null )"; rc=$?
+assert_eq "unverified" "$out" "fail -> unverified"
+assert_eq 1 "$rc" "fail -> exit 1"
+
+it "providers-semantic SKIPs (exit 2 -> 'skip') when the model key is absent — no downgrade"
+# Use a key-var name no real provider would ever export (NOT DEEPSEEK_API_KEY —
+# a host actually configured for this toolkit's own purpose, i.e. real provider
+# keys exported in the operator's shell, would leak a real DEEPSEEK_API_KEY
+# into this process's env and falsely defeat the "key absent" precondition).
+unset CMA_TEST_NO_SUCH_KEY_VAR
+out="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" \
+        bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var CMA_TEST_NO_SUCH_KEY_VAR \
+        --base-url https://api.deepseek.com 2>/dev/null )"; rc=$?
+assert_eq "skip" "$out" "no key -> skip"
+assert_eq 2 "$rc" "skip -> exit 2"
+
+it "providers-semantic reads fixture/rubric from providers/ (CONST-051 boundary), not the submodule"
+# The rendered judge-prompt must contain rubric-derived criteria, proving the
+# toolkit owns the judge input and the submodule binary only receives CLI args.
+_mk_stub_driver 0 true
+CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y CMA_SEMANTIC_DEBUG=1 \
+  bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+  --base-url https://api.deepseek.com >/dev/null 2>"$HOME/sem.err"
+grep -q 'resolve_alias' "$HOME/sem.err" ; assert_eq 0 $? "judge-prompt carries rubric fixture-specific detail"
+
+# ---------------------------------------------------------------------------
+# Section — cmd_sync layer-3 wiring. Stub existence -> 'verified' and semantic
+# -> 'unverified' and assert the persisted status is unverified/semantic.
+# ---------------------------------------------------------------------------
+cat > "$HOME/fakebin/verify-ok" <<'EOF'
+#!/usr/bin/env bash
+echo verified
+EOF
+cat > "$HOME/fakebin/semantic-fail" <<'EOF'
+#!/usr/bin/env bash
+echo unverified
+exit 1
+EOF
+chmod +x "$HOME/fakebin/verify-ok" "$HOME/fakebin/semantic-fail"
+
+it "cmd_sync: existence=verified + semantic=unverified -> status unverified/semantic"
+# (uses the Section-3 catalog + key-aliases already seeded above; a key must be
+# set so cmd_sync attempts verification. --no-verify is NOT passed.)
+CMA_PROVIDERS_VERIFY="$HOME/fakebin/verify-ok" \
+CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-fail" \
+BETA_API_KEY=sk-test \
+  bash "$PROVIDERS_SH" sync --keys-file <(echo 'export BETA_API_KEY=sk-test') >/dev/null 2>&1
+assert_eq "unverified" "$(cma_status_read beta)" "semantic failure demotes to unverified"
+assert_jq "$(cma_status_cache)" '.beta.failing_layer' "semantic" "failing layer = semantic"
+
+it "cmd_sync: existence=verified + semantic=skip -> stays verified (honest SKIP, no downgrade)"
+cat > "$HOME/fakebin/semantic-skip" <<'EOF'
+#!/usr/bin/env bash
+echo skip
+exit 2
+EOF
+chmod +x "$HOME/fakebin/semantic-skip"
+CMA_PROVIDERS_VERIFY="$HOME/fakebin/verify-ok" \
+CMA_PROVIDERS_SEMANTIC="$HOME/fakebin/semantic-skip" \
+BETA_API_KEY=sk-test \
+  bash "$PROVIDERS_SH" sync --keys-file <(echo 'export BETA_API_KEY=sk-test') >/dev/null 2>&1
+assert_eq "verified" "$(cma_status_read beta)" "semantic skip does not downgrade verified"
+
 summary
