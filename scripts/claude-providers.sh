@@ -204,6 +204,7 @@ cmd_sync() {
 
     if [[ "$vstatus" == "failed" ]]; then
       cma_warn "provider '$pid' FAILED verification — alias NOT activated"
+      cma_status_write "$pid" failed "$model" existence
       n_disabled=$((n_disabled+1))
       continue
     fi
@@ -211,6 +212,15 @@ cmd_sync() {
     cma_link_shared_items "$cdir"
     cma_provider_write_env "$pid" "$keyvar" "$transport" "$base" "$model" "$fast" "$cdir" "$ctx_limit" "$max_out"
     cma_provider_write_alias "$alias" "$pid"
+    # Persist status. 'verified' means the existence/tool-call layer confirmed;
+    # a non-"verified" here (e.g. 'unverified') means existence passed but a
+    # later layer (semantic / superpowers-TUI, Phase 2) has not yet confirmed —
+    # record the failing layer so list-faulty + the activation gate can explain.
+    if [[ "$vstatus" == "verified" ]]; then
+      cma_status_write "$pid" verified "$model" ""
+    else
+      cma_status_write "$pid" "$vstatus" "$model" semantic
+    fi
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus)"
     n_created=$((n_created+1))
   done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")

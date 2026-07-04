@@ -293,6 +293,16 @@ sync_rc=$?
 it "sync exits cleanly"
 assert_eq 0 "$sync_rc" "sync rc"
 
+it "sync persists per-provider verification status (--no-verify -> unverified)"
+# With --no-verify, vstatus defaults to 'unverified' for every resolved
+# provider, and cmd_sync must record it in the status cache so the list family
+# + activation gate have a source of truth.
+assert_file "$(cma_status_cache)" "status cache written by sync"
+assert_eq "unverified" "$(cma_status_read acme)"    "acme status persisted"
+assert_eq "unverified" "$(cma_status_read mistral)" "mistral status persisted"
+assert_eq "unverified" "$(cma_status_read opencode)" "opencode status persisted"
+assert_file_not_contains "$(cma_status_cache)" "dummy-" "no dummy key values leaked into status cache"
+
 PDIR="$HOME/.local/share/claude-multi-account/providers"
 it "env files created for each resolved provider"
 assert_file "$PDIR/acme.env" "acme env"
@@ -628,6 +638,10 @@ rm -f "$_nc_t"
 # Section 6 — verification status cache (single source of truth for the list
 # family + the launch-time activation gate). Non-secret metadata only.
 # ---------------------------------------------------------------------------
+# Start from a clean cache: earlier sections (Section 3's `sync`) share this
+# sandbox $HOME and already populated status.json, so reset for deterministic
+# absolute-count assertions (§11.4.50).
+rm -f "$(cma_status_cache)"
 
 it "unknown provider id reads as 'pending'"
 assert_eq "pending" "$(cma_status_read no_such_provider)" "unknown id -> pending"
