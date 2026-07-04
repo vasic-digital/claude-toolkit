@@ -1,8 +1,8 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-04
-**Last HEAD:** `c6fe153` — `fix(toolkit): per-alias own settings + sticky trust; decouple aliases from atmosphere`
-**Working tree:** clean
+**Last HEAD:** (pending commit — provider-verification design spec written)
+**Working tree:** modified (design spec + this file + .remember/remember.md)
 **Active branch:** `main`
 
 ## 0. Out-of-the-box resumption
@@ -38,13 +38,12 @@ Decompose into sub-projects; extend LLMsVerifier generically (project-not-aware,
 ### Brainstorming progress
 
 - ✅ Phase 1: Explore project context — done. Read `claude-providers.sh`, `providers-verify.sh`, `claude-verify-providers.sh`, `model_verify.py`, `install.sh`, `test_providers.sh`, `submodules/LLMsVerifier/CLAUDE.md`, the 2026-06-16 design spec.
-- ✅ Phase 2 first clarifying question answered: "Decompose into sub-projects; extend LLMsVerifier generically."
-- ⏳ Phase 2 second clarifying question: FAILED validation (AskUserQuestion options missing `label` field). Re-issue with labels: (A) Sentinel-token exact match [Recommended], (B) Judge-graded rubric, (C) Two-round sentinel + judge.
-- ⏸ Phase 3: Propose 2-3 approaches with trade-offs.
-- ⏸ Phase 4: Present design sections, per-section approval.
-- ⏸ Phase 5: Write spec to `docs/superpowers/specs/YYYY-MM-DD-provider-verification-design.md`.
-- ⏸ Phase 6: Spec self-review (placeholders/contradictions/ambiguity/scope).
-- ⏸ Phase 7: User reviews written spec.
+- ✅ Phase 2: Both clarifying questions answered — (1) decompose + extend LLMsVerifier generically; (2) semantic test = two-round sentinel + judge (Option C).
+- ✅ Phase 3: Approach A selected — generic `semantic-code-visibility` in LLMsVerifier + toolkit-owned fixture/prompt/rubric/superpowers-TUI test.
+- ✅ Phase 4: All 8 design sections presented + approved per-section (architecture+boundaries, LLMsVerifier capability, toolkit seams, list/list-all/list-faulty+gate, install.sh session sync, per-alias config files, testing strategy, docs/release).
+- ✅ Phase 5: Spec written to `docs/superpowers/specs/2026-07-04-provider-verification-design.md`.
+- ✅ Phase 6: Spec self-review — fixed §2.1 status contradiction; no placeholders; scope tight; open questions deferred to plan.
+- ⏳ Phase 7: User reviews written spec — AWAITING USER REVIEW.
 - ⏸ Phase 8: Transition to `superpowers:writing-plans` (terminal state — NO other implementation skill before this).
 - ⏸ Then: implement verification overhaul + tests + docs + release.
 
