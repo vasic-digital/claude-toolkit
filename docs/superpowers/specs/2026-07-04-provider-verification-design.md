@@ -193,15 +193,24 @@ judge is an independent model (different provider or different model id) so a pr
 that cheats round 1 would need to also cheat a competitor's judge — high cost, low
 yield.
 
-### 3.3 The unconfirmed load-bearing premise
+### 3.3 The load-bearing premise (framing strengthened post-research)
+
+> **UPDATE (2026-07-04, post-implementation research —
+> `docs/research/2026-07-04-provider-api-endpoints.md`).** The premise is stronger than
+> "unconfirmed": Anthropic's official gateway-protocol docs **document that the FULL
+> Anthropic-Messages request body is POSTed to `ANTHROPIC_BASE_URL/v1/messages`** (and
+> warn gateways not to redact request bodies). Read-tool output rides in `tool_result`
+> content blocks by construction, so file-content forwarding **follows from documented
+> full-body forwarding** — it is not merely a third-party claim. Frame it that way in the
+> docs, NOT as "undocumented." The two-round test still **empirically confirms** it
+> per-provider (a provider/proxy could still drop or truncate the body).
 
 Whether Claude Code forwards Read-tool file contents to non-Anthropic backends via
-`ANTHROPIC_BASE_URL` is **not documented in official Anthropic docs**. The
-claude-code-router README (a protocol-translation proxy) implies yes, but that's a
-third-party source. **The two-round test EMPIRICALLY VERIFIES this premise rather than
-assuming it.** A round-1 fail on a known-good fixture is reported as "this alias cannot
+`ANTHROPIC_BASE_URL` — the two-round test EMPIRICALLY VERIFIES this per alias rather than
+assuming it. A round-1 fail on a known-good fixture is reported as "this alias cannot
 see your codebase through this path" — actionable, not a test defect. The spec and the
-manual MUST flag this premise explicitly with cited sources + dates (§11.4.99).
+manual MUST cite the Anthropic gateway-protocol docs + the claude-code-router README with
+retrieval dates (§11.4.99).
 
 ### 3.4 CONST-052 (proposed new constitution entry)
 
@@ -411,7 +420,20 @@ Linux and `~/.zshrc` on macOS, which is the existing, tested path.
 
 ## 6. Per-Alias Config Files — The Overwrite-Prompt Fix (Design Section 6)
 
-### 6.1 Root cause (to confirm at implementation per §11.4.102)
+> **RESOLVED (2026-07-04, systematic-debugging — full record:
+> `docs/investigations/2026-07-04-config-overwrite-prompt.md`).** The premise of this
+> section (a **shared** `settings.json` symlink triggering an overwrite prompt) was
+> WRONG: `settings.json` is already excluded from `CMA_SHARED_ITEMS` and each config dir
+> gets its OWN via `cma_own_settings_seed`; `.claude.json` was never shared for provider
+> dirs. The actual prompt is Claude Code's per-workspace **trust dialog**, ALREADY fixed
+> by `c6fe153` (sticky-trust merge) + `cma_trust_project` (per-alias owned `.claude.json`
+> + pre-launch trust seeding), covered by `test_session.sh:199-220` + `test_unify.sh`.
+> **No code change was needed** (§11.4.124 investigate-before-change). The "owned config
+> layout" this section proposes is already the state of the tree. The design below is
+> retained as the rationale; treat it as descriptive of the existing implementation, not
+> pending work. The live layer-4 (no-prompt) proof is the Phase-2 superpowers-TUI test.
+
+### 6.1 Root cause (CONFIRMED — see the RESOLVED note above)
 
 The overwrite prompt fires because provider dirs (`~/.claude-prov-<id>`) symlink
 `settings.json` and `.claude.json` into the shared tree (`$SHARED_DIR`), the same model
