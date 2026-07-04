@@ -7,3 +7,8 @@ scratch_*.log
 # Node dependencies for the TOON utility — installed via `npm install`
 # (run automatically by install.sh). Never vendor these into git.
 /node_modules/
+
+# Local build/probe cache — the compiled LLMsVerifier binaries + probe artifacts
+# cached by claude-verify-providers.sh (LV_BIN default $REPO_ROOT/.local-cache/…).
+# Regenerable from source (§11.4.53 — never version build artifacts).
+/.local-cache/
