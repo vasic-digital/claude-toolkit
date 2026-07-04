@@ -65,7 +65,17 @@ Source: `docs/research/2026-07-04-provider-api-endpoints.md` (§11.4.99 latest-s
 
 ### Phase-3 release blocker (from `docs/qa/2026-07-04-constitution-audit/report.md`)
 
-§11.4.157 GEMINI.md lockstep NEEDS-FIX: only `CLAUDE.md` (9749 B) at root; `AGENTS.md`, `QWEN.md`, `GEMINI.md` MISSING. Create all three in lockstep before the release tag. All other audited gates PASS (CONST-051 decoupling PASS — zero consumer names in LLMsVerifier source; no force-push/CI; prefix=`claude_toolkit`).
+§11.4.157 GEMINI.md lockstep — **RESOLVED** (commit `1c53562`): `AGENTS.md`, `QWEN.md`, `GEMINI.md` created at root as byte-identical lockstep mirrors of `CLAUDE.md` (verified BODY IDENTICAL x3). All audited gates now PASS (CONST-051 decoupling PASS — zero consumer names in LLMsVerifier source; no force-push/CI; prefix=`claude_toolkit`). NOTE: keep all four in lockstep on any future CLAUDE.md edit.
+
+### Recent commits (Phase-1 close + Phase-2/3 prep)
+
+`1c53562` GEMINI/AGENTS/QWEN lockstep + spec xAI correction · `9867b0f` T7/T8 close-out · `2ecb84b` parallel subagent artifacts · `0323ea2`..`249400b` Phase-1 T1-T6. Spec §4.6 annotated with the xAI correction (struck the wrong "no endpoint" claim).
+
+### In-flight (background subagents, may still be running on resume)
+
+- Go command `cmd/semantic-code-visibility/main.go` (standalone stdlib) being implemented+built+tested in the submodule working tree (NOT yet committed — needs review + submodule commit + pointer bump per §11.4.71, no force-push).
+- Phase-2 plan `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` being authored.
+Check `git status` in the submodule + `docs/superpowers/plans/` on resume; verify their evidence before committing.
 
 ### KEY DISCOVERY (recorded so it's not re-derived)
 
