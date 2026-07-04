@@ -962,7 +962,15 @@ cma_provider_write_alias() {
       cma_warn "refusing to write alias '$alias_name': unsafe provider id"
       return 1 ;;
   esac
-  cma_ensure_alias_file
+  # Only BOOTSTRAP the alias file when it is absent — do NOT re-run the full
+  # cma_ensure_alias_file (header + self-heal migrations) on every alias write.
+  # Those migrations are install/invocation-time concerns; running them per
+  # alias line made `--refresh-aliases` non-idempotent — a migration could
+  # reposition the cma_run_provider function relative to the alias lines
+  # (body byte-identical, only its position moved), so a second refresh no
+  # longer produced an identical file (§ idempotence; see test_providers.sh
+  # "--refresh-aliases is idempotent"). Existence is all this function needs.
+  [[ -f "$ALIAS_FILE" ]] || cma_ensure_alias_file
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"

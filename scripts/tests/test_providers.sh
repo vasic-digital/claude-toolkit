@@ -747,6 +747,11 @@ bash "$PROVIDERS_SH" list --refresh-aliases --quiet >/dev/null 2>&1
 grep -q '^alias acme="cma_run_provider acme"' "$ALIAS_FILE"; assert_eq 0 $? "acme alias restored by refresh"
 
 it "--refresh-aliases is idempotent"
+# Byte-idempotent: a second refresh must yield an identical file. (Regression
+# guard for the write_alias migration-churn bug — write_alias used to re-run the
+# full cma_ensure_alias_file self-heal on every alias line, non-deterministically
+# repositioning the cma_run_provider function relative to the alias lines, so this
+# occasionally differed. Fixed by only bootstrapping the alias file when absent.)
 _rb="$(cat "$ALIAS_FILE")"
 bash "$PROVIDERS_SH" list --refresh-aliases --quiet >/dev/null 2>&1
 assert_eq "$_rb" "$(cat "$ALIAS_FILE")" "second refresh yields an identical alias file"
