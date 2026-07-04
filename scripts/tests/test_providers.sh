@@ -1004,8 +1004,10 @@ assert_eq 0 "$cond" "semantic layer not invoked when existence is inconclusive"
 # env file directly (no sync needed) and stubs the existence (layer-1) and
 # semantic (layer-3) drivers via the same CMA_PROVIDERS_VERIFY /
 # CMA_PROVIDERS_SEMANTIC overrides cmd_sync already uses above. --deep
-# (layer-4, superpowers TUI) is NOT covered here: verify_superpowers_tui.sh
-# does not exist yet (Task 3).
+# (layer-4, superpowers TUI) is covered separately in the
+# verify_superpowers_tui.sh SKIP-behavior section below (Tier-A only — no
+# real claude in the sandbox, so PASS/FAIL classification itself is deferred
+# to Task 5's Tier-B live test).
 # ---------------------------------------------------------------------------
 cma_provider_write_env "gamma" "GAMMA_API_KEY" "router" "https://api.gamma.ai/v1" \
   "gamma-x" "" "$HOME/.claude-prov-gamma" "" "" "gamma"
@@ -1050,18 +1052,51 @@ printf '%s\n' "$out" | grep -q "unknown provider" ; assert_eq 0 $? "cmd_verify u
 # Section — verify_superpowers_tui.sh SKIP behavior (Tier-A: no real claude).
 # With CLAUDE_BIN=/usr/bin/true (the sandbox default) the layer-4 test MUST
 # SKIP-with-reason and exit 0 — never a faked PASS, never a hard FAIL.
+#
+# All invocations below pin PROOF_DIR into the sandbox. verify_superpowers_tui.sh
+# computes its default --out from its OWN on-disk location
+# (${PROOF_DIR:-$TESTS_ROOT/tests/proof}/...), which resolves to the REAL
+# scripts/tests/proof/ in the repo tree, not the sandboxed $HOME, unless
+# PROOF_DIR is overridden. Without this, every Tier-A run leaves untracked
+# providers-*-superpowers.txt files outside the sandbox (independent review
+# Finding 3; reproduced — see providers-deepseek-superpowers.txt and
+# providers-no_such_alias-superpowers.txt that were untracked in `git status`
+# before this fix).
 # ---------------------------------------------------------------------------
 STUI="$SCRIPTS_DIR/verify_superpowers_tui.sh"
+STUI_PROOF="$HOME/proof"
+
+it "verify_superpowers_tui SCRUB list mirrors verify_claude_live.sh exactly (session-continuity vars included)"
+_stui_scrub="$(grep -oE -- '-u [A-Z_]+' "$STUI" | awk '{print $2}' | sort -u)"
+_live_scrub="$(grep -oE -- '-u [A-Z_]+' "$TESTS_DIR/verify_claude_live.sh" | awk '{print $2}' | sort -u)"
+assert_eq "$_live_scrub" "$_stui_scrub" "SCRUB var set identical to verify_claude_live.sh (incl. CLAUDE_CODE_CHILD_SESSION/SESSION_ID govern resume safety)"
 
 it "verify_superpowers_tui SKIPs (exit 0 + reason) when there is no real claude binary"
-out="$( CLAUDE_BIN=/usr/bin/true bash "$STUI" --alias deepseek --timeout 5 2>&1 )"; rc=$?
+out="$( CLAUDE_BIN=/usr/bin/true PROOF_DIR="$STUI_PROOF" bash "$STUI" --alias deepseek --timeout 5 2>&1 )"; rc=$?
 assert_eq 0 "$rc" "SKIP is a non-failure (exit 0)"
 printf '%s\n' "$out" | grep -q 'SKIP:' ; assert_eq 0 $? "prints an honest SKIP reason"
 printf '%s\n' "$out" | grep -qiv 'PASS' ; assert_eq 0 $? "never claims PASS when skipping"
 
-it "verify_superpowers_tui SKIPs when the named alias is not installed"
-out="$( CLAUDE_BIN="$(command -v cat)" bash "$STUI" --alias no_such_alias --timeout 5 2>&1 )"; rc=$?
+# A stub whose basename matches claude* (unlike the previous `cat`/`true`) so
+# the launch passes the "no real claude binary" precondition
+# (verify_superpowers_tui.sh: [[ ... && "$(basename "$CB")" == claude* ]]) and
+# genuinely reaches the alias-not-installed check further down. Review
+# Finding 2: the old test used CLAUDE_BIN="$(command -v cat)", which SKIPped
+# at the EARLIER "no real claude binary" precondition — the
+# alias-not-installed branch had zero real coverage even though its
+# `grep -q 'SKIP:'` assertion passed.
+mkdir -p "$HOME/fakebin"
+cat > "$HOME/fakebin/claude-stub" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$HOME/fakebin/claude-stub"
+
+it "verify_superpowers_tui SKIPs when the named alias is not installed (genuinely reaches that branch)"
+[[ -f "$ALIAS_FILE" ]]; assert_eq 0 $? "precondition: sandbox alias file exists (so the alias-file check doesn't SKIP first)"
+[[ ! -f "$PDIR/no_such_alias.env" ]]; assert_eq 0 $? "precondition: no_such_alias has no provider env file"
+out="$( CLAUDE_BIN="$HOME/fakebin/claude-stub" PROOF_DIR="$STUI_PROOF" bash "$STUI" --alias no_such_alias --timeout 5 2>&1 )"; rc=$?
 assert_eq 0 "$rc" "unknown alias -> SKIP exit 0"
-printf '%s\n' "$out" | grep -q 'SKIP:' ; assert_eq 0 $? "reason printed for unknown alias"
+printf '%s\n' "$out" | grep -q "SKIP: alias 'no_such_alias' not installed" ; assert_eq 0 $? "SKIP reason names the alias-not-installed branch specifically (not an earlier precondition)"
 
 summary

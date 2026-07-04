@@ -43,8 +43,10 @@ keyvar="$( set -a; . "$PDIR/$ALIAS_ID.env"; set +a; printf '%s' "${CMA_PROVIDER_
   eval "tok=\"\${$keyvar:-}\""; [[ -n "${tok:-}" ]] ) || skip "no key in \$$keyvar for '$ALIAS_ID'"
 
 # --- launch (scrubbed env + throwaway cwd, like verify_claude_live.sh) -------
-SCRUB=(env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CONFIG_DIR
-       -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN)
+SCRUB=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_ENTRYPOINT
+       -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_EXECPATH -u CLAUDE_EFFORT
+       -u CLAUDE_CONFIG_DIR -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL
+       -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN)
 tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-stui.XXXXXX")"
 : > "$OUT"
 out="$( timeout "$TIMEOUT" "${SCRUB[@]}" bash -c '
@@ -63,8 +65,28 @@ if (( rc == 124 )); then echo "FAIL: launch hung within ${TIMEOUT}s (trust/overw
 if printf '%s' "$out" | grep -qiE 'do you (trust|want to open)|overwrite.*config|trust the files'; then
   echo "FAIL: a trust/overwrite prompt fired"; echo "# FAIL: trust-prompt" >> "$OUT"; exit 1
 fi
-# superpowers engagement marker: the skill announces itself in the transcript.
-if printf '%s' "$out" | grep -qiE 'superpowers|using-superpowers|systematic-debugging|skill'; then
+# superpowers engagement marker (review Finding 4 — HONESTY): a false PASS here
+# is far worse than a false FAIL, since PASS is what flips a provider to
+# 'verified' via `cmd_verify --deep`. The marker MUST NOT be satisfiable by the
+# model merely ECHOING the injected prompt or using a generic word:
+#   - bare 'skill'/'superpowers' matched refusals like "I don't have a skill
+#     called using-superpowers, but..." -> false PASS.
+#   - the literal prompt term 'using-superpowers' (PROMPT="/using-superpowers")
+#     matched its own echo -> false PASS.
+# The tightened marker requires either (a) the skill's actual self-announcement
+# form ("Using superpowers:<name>", per using-superpowers/SKILL.md's own
+# "Announce: 'Using [skill] to [purpose]'" convention -- distinct from the
+# hyphenated prompt text) or (b) a named skill that using-superpowers can only
+# chain into if its content genuinely loaded and ran (systematic-debugging,
+# brainstorming), not just a word echoed from the prompt. Erring stricter is
+# deliberate: a real engagement that fails to match should SKIP/FAIL, never a
+# fabricated PASS.
+#
+# This tightening is NOT Tier-A testable (no real claude in the sandbox to
+# generate a genuine negative-case transcript). The DEFINITIVE live check --
+# real claude, superpowers NOT engaging, must NOT PASS -- is deferred to
+# Task 5's Tier-B test.
+if printf '%s' "$out" | grep -qiE 'using superpowers:[a-z0-9_-]+|systematic-debugging|brainstorming'; then
   echo "PASS: superpowers engaged, no trust/overwrite prompt"; echo "# PASS" >> "$OUT"; exit 0
 fi
 echo "FAIL: session ran but superpowers did not engage"; echo "# FAIL: no-engagement" >> "$OUT"; exit 1
