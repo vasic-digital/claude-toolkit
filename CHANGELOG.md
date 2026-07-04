@@ -45,6 +45,12 @@ blocks (deepseek 402) are `unverified` — never a faked pass.
   failed pre-build; `providers-semantic.sh` discarded the driver's JSON evidence to
   `/dev/null`; the judge base URL was not normalized (a trailing `/v1` doubled to
   `/v1/v1/chat/completions`).
+- Final-review hardening: `cmd_sync`/`cmd_sync_multi` heal a stale/outdated
+  `cma_run_provider` wrapper once per sync (the byte-idempotence change had removed the
+  per-shell self-heal, so a pre-Phase-2 gate-less wrapper could still launch); the layer-4
+  engagement classifier now requires the namespaced `superpowers:<name>` form (a bare
+  skill word could false-verify); and `verify --deep` treats a layer-4 verifier crash as an
+  honest SKIP rather than a clean verify.
 
 ### Notes
 - The default `providers/judge.env.template` judge is DeepSeek. For strongest results,
