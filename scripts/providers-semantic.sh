@@ -61,6 +61,11 @@ JUDGE_ENV="${CMA_JUDGE_ENV:-$LIB_DIR/providers/judge.env}"
 # shellcheck source=/dev/null  # runtime judge config, non-secret (holds var NAMES + urls)
 [[ -f "$JUDGE_ENV" ]] && { set -a +u; . "$JUDGE_ENV"; set +a; }
 JUDGE_BASE="${CMA_JUDGE_BASE_URL:-}"
+# Normalize the same way as the model-under-test base (below): the Go command
+# appends /v1/chat/completions to whatever judge-base-url it is given too, so
+# a judge.env base ending in /v1 (a very natural way to write one) would
+# otherwise double up to /v1/v1/chat/completions -> 404.
+JUDGE_BASE="${JUDGE_BASE%/}"; JUDGE_BASE="${JUDGE_BASE%/chat/completions}"; JUDGE_BASE="${JUDGE_BASE%/anthropic}"; JUDGE_BASE="${JUDGE_BASE%/v1}"
 JUDGE_MODEL="${CMA_JUDGE_MODEL:-}"
 JUDGE_KEYVAR="${CMA_JUDGE_KEYVAR:-}"
 JUDGE_THRESHOLD="${CMA_JUDGE_THRESHOLD:-2}"
@@ -116,7 +121,7 @@ set +e
   --fixture "$FIX" --prompt "$tmp1" --round2-prompt "$tmp2" --sentinel "$SENTINEL" \
   --judge-base-url "$JUDGE_BASE" --judge-model "$JUDGE_MODEL" --judge-api-key-env CMA_JUDGE_KEY \
   --judge-prompt "$tmpj" --judge-threshold "$JUDGE_THRESHOLD" \
-  --format json >/dev/null 2>"$REPO_ROOT/.local-cache/semantic-last.err"
+  --format json >"$REPO_ROOT/.local-cache/semantic-last.json" 2>"$REPO_ROOT/.local-cache/semantic-last.err"
 rc=$?
 set -e
 

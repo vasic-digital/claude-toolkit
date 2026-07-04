@@ -874,6 +874,63 @@ CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y CMA
   --base-url https://api.deepseek.com >/dev/null 2>"$HOME/sem.err"
 grep -q 'resolve_alias' "$HOME/sem.err" ; assert_eq 0 $? "judge-prompt carries rubric fixture-specific detail"
 
+# providers-semantic.sh computes its own REPO_ROOT from BASH_SOURCE (it is not
+# invoked through a symlink here, and there is no env override), so the driver
+# it spawns writes evidence under the real repo's .local-cache — same place
+# claude-semantic-visibility.sh's own driver test caches its stub binary from
+# a *different* override; this one is not overridable, so we compute it the
+# same way the script does and read the file back from there. .local-cache/
+# is gitignored, so this never touches tracked state.
+_sem_repo_root="$(cd "$SCRIPTS_DIR/.." && pwd)"
+_sem_evidence="$_sem_repo_root/.local-cache/semantic-last.json"
+
+it "providers-semantic writes the driver's JSON evidence to .local-cache/semantic-last.json (bug fix)"
+# Regression guard: the OLD code redirected the driver's `--format json`
+# stdout straight to /dev/null (only stderr was captured to semantic-last.err),
+# so the round1_sentinel/round2_judge/overall_pass evidence Task 5's proof
+# capture needs was silently discarded on every run.
+rm -f "$_sem_evidence"
+_mk_stub_driver 0 true
+CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+  bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+  --base-url https://api.deepseek.com >/dev/null 2>/dev/null
+assert_file "$_sem_evidence" "semantic-last.json evidence file written"
+grep -q 'overall_pass' "$_sem_evidence" 2>/dev/null; assert_eq 0 $? "evidence file carries the driver's overall_pass"
+grep -q 'round1_sentinel' "$_sem_evidence" 2>/dev/null; assert_eq 0 $? "evidence file carries the driver's round1_sentinel"
+
+it "providers-semantic normalizes a judge base URL ending in /v1 before passing --judge-base-url (bug fix)"
+# Regression guard: the adapter normalizes the MODEL-under-test base (strips
+# trailing /, /chat/completions, /anthropic, /v1) because the Go command
+# appends /v1/chat/completions itself, but the OLD code skipped that same
+# normalization for the JUDGE base — a judge.env ending in /v1 (a very natural
+# way to write one) would double up to /v1/v1/chat/completions -> 404, which a
+# live run hit exactly. Point CMA_JUDGE_ENV at a throwaway file so the real
+# providers/judge.env.template (which has no /v1 suffix) can't mask the bug.
+_judge_env_v1="$(mktemp "${TMPDIR:-/tmp}/cma-judge-env.XXXXXX")"
+cat > "$_judge_env_v1" <<'EOF'
+CMA_JUDGE_BASE_URL="https://api.example.com/v1"
+CMA_JUDGE_MODEL="judge-model"
+CMA_JUDGE_KEYVAR="CMA_TEST_NO_SUCH_JUDGE_KEYVAR"
+CMA_JUDGE_THRESHOLD="2"
+EOF
+_argv_file="$HOME/scv-argv.txt"
+rm -f "$_argv_file"
+cat > "$HOME/fakebin/scv-argv-recorder" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$@" > "$_argv_file"
+echo '{"overall_pass":true}'
+exit 0
+EOF
+chmod +x "$HOME/fakebin/scv-argv-recorder"
+CMA_JUDGE_ENV="$_judge_env_v1" CMA_JUDGE_KEY=y CMA_PROBE_KEY=x \
+  CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-argv-recorder" \
+  bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+  --base-url https://api.deepseek.com >/dev/null 2>/dev/null
+assert_file "$_argv_file" "argv-recorder stub wrote its received args"
+_judge_base_val="$(awk '$0=="--judge-base-url"{getline; print; exit}' "$_argv_file" 2>/dev/null)"
+assert_eq "https://api.example.com" "$_judge_base_val" "judge base url has /v1 stripped, no double /v1/v1"
+rm -f "$_judge_env_v1"
+
 # ---------------------------------------------------------------------------
 # Section — cmd_sync layer-3 wiring. Stub existence -> 'verified' and semantic
 # -> 'unverified' and assert the persisted status is unverified/semantic.

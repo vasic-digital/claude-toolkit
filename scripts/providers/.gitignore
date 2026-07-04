@@ -5,5 +5,8 @@ evidence/*.tmp
 # layer-3 semantic adapter: judge config may hold a var NAME (not a secret
 # value) plus a probe-endpoint choice; keep it operator-local. semantic-last.err
 # is the raw Go-command stderr from the last run (debugging only).
+# semantic-last.json is the raw Go-command --format json evidence (round1/round2/
+# overall_pass) from the last run (debugging/proof-capture only).
 judge.env
 semantic-last.err
+semantic-last.json
