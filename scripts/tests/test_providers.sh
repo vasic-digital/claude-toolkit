@@ -809,6 +809,19 @@ printf '%s\n' "$out" | grep -q 'SCV-STUB' ; assert_eq 0 $? "driver execs the bui
 printf '%s\n' "$out" | grep -q -- '--sentinel Z' ; assert_eq 0 $? "driver forwards flags verbatim"
 assert_file "$_sem_bin" "binary was cached under .local-cache"
 
+it "claude-semantic-visibility.sh --help/-h ALWAYS works, even with no built binary (bug fix)"
+# Regression guard: the OLD code did `exec "$BIN" -h` unconditionally, so with
+# no cached binary (fresh checkout, no `go` toolchain yet) `exec` to a missing
+# path kills the non-interactive script with exit 127 and empty stdout — the
+# `||` fallback never runs because `exec` replaces the process on success and
+# never returns to bash on failure either (it just fails the whole script).
+out="$( LV_SEMANTIC_BIN=/nonexistent/path bash "$SEMDRV" --help 2>&1 )"; rc=$?
+assert_eq 0 "$rc" "--help exits 0 with no built binary"
+printf '%s\n' "$out" | grep -qi 'usage' ; assert_eq 0 $? "--help prints a usage line with no built binary"
+out="$( LV_SEMANTIC_BIN=/nonexistent/path bash "$SEMDRV" -h 2>&1 )"; rc=$?
+assert_eq 0 "$rc" "-h exits 0 with no built binary"
+printf '%s\n' "$out" | grep -qi 'usage' ; assert_eq 0 $? "-h prints a usage line with no built binary"
+
 # ---------------------------------------------------------------------------
 # Section — providers-semantic.sh (layer 3 adapter). A stub driver stands in
 # for the Go binary: it echoes a canned verdict JSON + exits with a chosen code,

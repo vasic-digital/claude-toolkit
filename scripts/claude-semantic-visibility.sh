@@ -19,7 +19,18 @@ LV_MOD="$LV_DIR/llm-verifier"
 BIN="${LV_SEMANTIC_BIN:-$REPO_ROOT/.local-cache/semantic-code-visibility}"
 SRC="$LV_MOD/cmd/semantic-code-visibility/main.go"
 
-case "${1:-}" in -h|--help) exec "$BIN" -h 2>/dev/null || { echo "semantic-code-visibility driver: builds + runs the LLMsVerifier command"; exit 0; } ;; esac
+case "${1:-}" in
+  -h|--help)
+    if [ -x "$BIN" ]; then
+      exec "$BIN" -h
+    fi
+    echo "usage: claude-semantic-visibility.sh [flags]"
+    echo "  semantic-code-visibility driver: builds (cached) + runs the LLMsVerifier"
+    echo "  layer-3 semantic-code-visibility command, forwarding all flags through."
+    echo "  Env: LLMSVERIFIER_DIR (submodule path), LV_SEMANTIC_BIN (cached binary path)."
+    exit 0
+    ;;
+esac
 
 if [ ! -d "$LV_MOD" ]; then
   echo "error: LLMsVerifier submodule not initialized." >&2
