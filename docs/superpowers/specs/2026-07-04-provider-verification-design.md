@@ -144,6 +144,41 @@ It emits a JSON verdict:
 }
 ```
 
+> **CORRECTION (2026-07-04, reconciled against the BUILT command —
+> `submodules/LLMsVerifier/llm-verifier/cmd/semantic-code-visibility/main.go`).**
+> The flag block and JSON example above are both stale; the shipped command diverged.
+>
+> **Real flag set** (verified in `main.go` `run()`): the required/base flags are
+> `--base-url --model --api-key-env --fixture --prompt --sentinel --timeout --format`
+> (`--timeout` default 60; `--format` only accepts `json`); the OPTIONAL round-2 flags are
+> `--round2-prompt --judge-base-url --judge-model --judge-api-key-env --judge-prompt
+> --judge-threshold` (`--judge-threshold` default 2). The three judge-endpoint flags are
+> **all-or-none** — set them together to enable round 2, otherwise round 2 is reported
+> `skipped` (never `failed`).
+>
+> **There is NO `--rubric` flag.** The command is rubric-AGNOSTIC: it takes a
+> `--judge-prompt` scoring-template (with `{{FIXTURE_CONTENT}}` + `{{DESCRIPTION}}`
+> placeholders), sends it to the judge model, and parses the FIRST integer in the reply as
+> the 0–3 score (`parseScore`). The TOOLKIT renders its rubric INTO that `--judge-prompt`
+> template; the submodule never receives a "rubric" as a first-class input. `--round2-prompt`
+> supplies the describe-the-code instruction. Both `--judge-prompt` and `--round2-prompt`
+> default to generic, consumer-agnostic templates baked into `main.go` (`defaultJudgePrompt`
+> / `defaultRound2Instruction`).
+>
+> **Real output shape** (the `report` struct in `main.go`) is exactly:
+> ```json
+> {
+>   "round1_sentinel": {"pass": true, "observed": "…", "reason": "…?"},
+>   "round2_judge":    {"pass": true, "score": 3, "skipped": false, "reason": "…?"},
+>   "overall_pass": true
+> }
+> ```
+> There is **no** top-level `evidence` object and **no** `fixture_hash`/`prompt_hash`.
+> `round2_judge` carries a `skipped` boolean and (unlike the example above) does NOT echo
+> `threshold` or a `reasoning` string — `--judge-threshold` is an INPUT only; `pass` and
+> `score` serialize as JSON `null` when round 2 was not evaluated. `reason` appears only on
+> a failure/skip.
+
 The submodule **MUST NOT**:
 - Bundle a default fixture, prompt, sentinel, or rubric that references any consumer
   project (codified as CONST-052).
@@ -213,6 +248,20 @@ manual MUST cite the Anthropic gateway-protocol docs + the claude-code-router RE
 retrieval dates (§11.4.99).
 
 ### 3.4 CONST-052 (proposed new constitution entry)
+
+> **CORRECTION (2026-07-04, reconciled against the cascaded constitution). DO NOT reuse
+> CONST-052.** The number **CONST-052 is ALREADY TAKEN** — the cascaded constitution
+> defines CONST-052 as the **"Lowercase-Snake_Case-Naming Mandate"** (cascaded from the
+> constitution submodule §11.4.29; present verbatim in
+> `submodules/LLMsVerifier/CLAUDE.md`). Numbering this boundary-contract rule CONST-052
+> would COLLIDE with that existing, unrelated mandate. Phase 3 MUST renumber the boundary
+> contract to the next free `CONST-NNN` (do NOT pick the new number here) and update every
+> "CONST-052" reference that means the boundary contract — in §2.3's `MUST NOT` list
+> ("codified as CONST-052") and in this §3.4 — to that new number. **DO NOT reuse
+> CONST-052 for the boundary contract.** Separately, the proposed rule text below says
+> "accept … rubric as CLI args," but the built command has NO `--rubric` flag (see the §2.3
+> correction) — the rubric is delivered via the `--judge-prompt` template; reword the rule
+> to match when renumbering.
 
 > "The `semantic-code-visibility` capability MUST accept fixture, prompt, sentinel,
 > judge-config, and rubric as CLI args. It MUST NOT bundle consumer-project-specific
@@ -333,6 +382,17 @@ detail:
   }
 }
 ```
+
+> **CORRECTION (2026-07-04, reconciled against the BUILT command —
+> `.../cmd/semantic-code-visibility/main.go`).** The `semantic.round2_judge` sub-object
+> shown here does NOT match the command's real output. The built command emits
+> `round2_judge` as `{"pass", "score", "skipped", "reason"?}` (with `pass`/`score` = JSON
+> `null` when round 2 is skipped). The `threshold` field shown above is NOT part of the
+> command's JSON output — it is the `--judge-threshold` INPUT flag; if the toolkit wants
+> `threshold` in the cache it must inject it itself. Similarly, the command emits no
+> `fixture_hash`/`prompt_hash`, so any evidence hashes the cache stores are computed
+> toolkit-side, not read from the command output. `round1_sentinel`
+> (`pass`/`observed`/`reason`?) already matches the command output.
 
 ### 4.6 xAI special-case
 
@@ -561,6 +621,19 @@ All hermetic tests use `make_sandbox` (mktemp `$HOME`, rebind env vars,
    produce correct usage text and exit 0.
 
 ### 7.3 Tier B — live host verification
+
+> **RECONCILED (2026-07-04, verified via `ls scripts/tests/verify_providers*`).** A live
+> provider verifier **ALREADY EXISTS** at `scripts/tests/verify_providers_live.sh` — NOT
+> the `scripts/tests/proof/verify_providers_live.sh` path the §7.1 table and this section
+> claim, and there is **no** separate `scripts/tests/verify_providers.sh`. The existing
+> file is read-only, SKIPs (exit 0) when no provider aliases are installed, and today
+> asserts: env-file well-formedness, secret-absence (only `CMA_PROVIDER_*` assignments),
+> each alias resolving to `cma_run_provider`, the wrapper's presence, and provider dirs
+> being excluded from account detection — writing evidence to `proof/50-providers-live.txt`
+> + `proof/51-detected-accounts.txt`. **Phase 2 EXTENDS this existing file** with the
+> Existence / Semantic (the `semantic-code-visibility` invocation) / Superpowers-TUI /
+> Aggregate steps below; it does NOT create a new file. Treat the §7.1 table's "(new)"
+> marker for this row as "(extend existing `scripts/tests/verify_providers_live.sh`)".
 
 Read-only against the real host config; writes evidence to `scripts/tests/proof/`.
 **SKIPs with a reason (never fakes PASS, §11.4.3)** when preconditions are absent:
