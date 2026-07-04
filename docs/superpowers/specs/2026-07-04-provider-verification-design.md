@@ -327,11 +327,23 @@ detail:
 
 ### 4.6 xAI special-case
 
-xAI has no documented `/models` endpoint (verified during research, 2026-07-04). The
+> **CORRECTION (2026-07-04, post-implementation research — supersedes the paragraph
+> below).** Fresh §11.4.99 research (`docs/research/2026-07-04-provider-api-endpoints.md`)
+> found that **xAI DOES expose `GET https://api.x.ai/v1/models`** (OpenAI-shaped
+> `{"object":"list","data":[...]}`, carries `context_length`), plus a native
+> `GET /v1/language-models`. So xAI is **not** a "no-endpoint / scrape-the-docs"
+> outlier — the existence layer treats it like the other OpenAI-shaped providers.
+> The only real nuance is that xAI's docs pages steer users to a console table and
+> `/v1/models` can return alias ids (e.g. `"latest"`), so model-id resolution should
+> tolerate alias ids. The genuine deviation among the providers is **OpenRouter**
+> (`GET https://openrouter.ai/api/v1/models` is public/no-auth and returns a bare
+> `{"data":[...]}` with **no** `"object":"list"`). Phase 2 implements per this
+> correction, not the superseded paragraph.
+
+~~xAI has no documented `/models` endpoint (verified during research, 2026-07-04). The
 existence layer special-cases xAI: it scrapes `https://docs.x.ai/docs/models` (or reads
 a cached copy under `providers/cache/xai-models.json` refreshed daily) and confirms the
-configured model id appears in the known list. Source URL + retrieval date cited per
-§11.4.99.
+configured model id appears in the known list.~~ (Superseded — see the correction above.)
 
 ## 5. `list` / `list-all` / `list-faulty` + Activation Gate (Design Section 4)
 
