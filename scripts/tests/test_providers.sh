@@ -624,4 +624,37 @@ assert_eq 1 "$_blocked" "bare '>' blocked by noclobber"
 assert_eq 1 "$_forced"  "'>|' force-clobber works under noclobber"
 rm -f "$_nc_t"
 
+# ---------------------------------------------------------------------------
+# Section 6 — verification status cache (single source of truth for the list
+# family + the launch-time activation gate). Non-secret metadata only.
+# ---------------------------------------------------------------------------
+
+it "unknown provider id reads as 'pending'"
+assert_eq "pending" "$(cma_status_read no_such_provider)" "unknown id -> pending"
+
+it "cma_status_write persists a status readable by cma_status_read"
+cma_status_write st_deepseek verified deepseek-chat ""
+assert_eq "verified" "$(cma_status_read st_deepseek)" "wrote + read verified"
+assert_jq "$(cma_status_cache)" '.st_deepseek.model' "deepseek-chat" "model persisted"
+assert_jq "$(cma_status_cache)" '.st_deepseek.failing_layer' "" "verified has empty failing_layer"
+
+it "cma_status_write upserts (overwrites same id, no duplicate record)"
+cma_status_write st_deepseek unverified deepseek-chat semantic
+assert_eq "unverified" "$(cma_status_read st_deepseek)" "upsert changed status"
+assert_jq "$(cma_status_cache)" '.st_deepseek.failing_layer' "semantic" "failing_layer recorded"
+assert_jq "$(cma_status_cache)" '. | length' "1" "still exactly one record (upsert, not append)"
+
+it "cma_status_all lists every record as tab-separated rows"
+cma_status_write st_groq failed llama-3 existence
+assert_eq "2" "$(cma_status_all | wc -l | tr -d ' ')" "two records listed"
+_all="$(cma_status_all)"
+printf '%s\n' "$_all" | grep -qF "st_groq	failed	llama-3	" ; assert_eq 0 $? "groq row present with fields"
+
+it "no secret/key material is ever written into the status cache"
+assert_file_not_contains "$(cma_status_cache)" "sk-" "no bearer-token prefix in cache"
+assert_file_not_contains "$(cma_status_cache)" "Bearer" "no Authorization header in cache"
+
+# Clean the status cache so later sections (if added) start fresh.
+rm -f "$(cma_status_cache)"
+
 summary

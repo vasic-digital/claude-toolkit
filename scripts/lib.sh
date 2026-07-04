@@ -724,6 +724,51 @@ CMA_SHARED_ITEMS=(
 
 cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
 
+# --- verification status cache ---------------------------------------------
+# Single source of truth for "is this provider alias usable". Holds ONLY
+# non-secret metadata: provider id -> {status, model, checked_at, failing_layer}.
+# status is one of: verified | unverified | failed | pending. Consumed by the
+# list family (claude-providers list/list-all/list-faulty) and the launch-time
+# activation gate in cma_run_provider. NO key material ever lands here.
+cma_status_cache() { echo "$(cma_providers_dir)/status.json"; }
+
+# cma_status_write <id> <status> [<model> [<failing_layer>]]
+# Upserts one record. failing_layer is "" for verified/pending. Atomic write.
+cma_status_write() {
+  local id="$1" status="$2" model="${3:-}" layer="${4:-}"
+  cma_require jq
+  local f; f="$(cma_status_cache)"; mkdir -p "$(dirname "$f")"
+  [[ -s "$f" ]] || printf '{}\n' > "$f"
+  # checked_at: portable UTC ISO-8601 (GNU + BSD date both accept -u +fmt).
+  local now; now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  if jq --arg id "$id" --arg s "$status" --arg m "$model" \
+        --arg l "$layer" --arg t "$now" \
+        '.[$id] = {status:$s, model:$m, checked_at:$t, failing_layer:$l}' \
+        "$f" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$f"
+  else
+    rm -f "$tmp"; cma_warn "could not update status cache $f"
+  fi
+}
+
+# cma_status_read <id> -> status word (pending if absent/unreadable).
+cma_status_read() {
+  local id="$1" f; f="$(cma_status_cache)"
+  [[ -s "$f" ]] || { echo pending; return 0; }
+  local s; s="$(jq -r --arg id "$id" '.[$id].status // "pending"' "$f" 2>/dev/null)"
+  [[ -n "$s" && "$s" != "null" ]] && echo "$s" || echo pending
+}
+
+# cma_status_all -> id<TAB>status<TAB>model<TAB>checked_at<TAB>failing_layer per record.
+cma_status_all() {
+  local f; f="$(cma_status_cache)"
+  [[ -s "$f" ]] || return 0
+  jq -r 'to_entries[] | [.key, .value.status, (.value.model // ""),
+         (.value.checked_at // ""), (.value.failing_layer // "")] | @tsv' \
+     "$f" 2>/dev/null || true
+}
+
 # Symlink every shared item into a config dir (account or provider), creating
 # empty placeholders in $SHARED_DIR for any item that doesn't exist yet.
 # Idempotent: skips items already present in the target.
