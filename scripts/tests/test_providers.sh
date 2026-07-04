@@ -782,4 +782,31 @@ it "sourcing the alias file fires the hook without error and with no network"
 ( source "$ALIAS_FILE" ) >/dev/null 2>&1
 assert_eq 0 $? "sourcing (hook fires) succeeds offline"
 
+# ---------------------------------------------------------------------------
+# Section — semantic-code-visibility driver (claude-semantic-visibility.sh)
+# Hermetic: a fake `go` on PATH "builds" a stub binary that echoes its argv,
+# proving the driver caches + forwards flags without a real toolchain/network.
+# ---------------------------------------------------------------------------
+SEMDRV="$SCRIPTS_DIR/claude-semantic-visibility.sh"
+_sem_bin="$HOME/.local-cache/semantic-code-visibility"
+mkdir -p "$HOME/fakebin"
+# Fake `go`: `go build -o <out> ./cmd/...` writes a stub that prints its args.
+cat > "$HOME/fakebin/go" <<'FAKEGO'
+#!/usr/bin/env bash
+if [[ "$1" == build ]]; then
+  out=""; while (($#)); do [[ "$1" == -o ]] && { out="$2"; shift 2; continue; }; shift; done
+  printf '#!/usr/bin/env bash\nprintf "SCV-STUB %%s\\n" "$*"\nexit 0\n' > "$out"; chmod +x "$out"; exit 0
+fi
+exit 0
+FAKEGO
+chmod +x "$HOME/fakebin/go"
+
+it "claude-semantic-visibility.sh builds (cached) + forwards flags to the binary"
+rm -f "$_sem_bin"
+out="$( PATH="$HOME/fakebin:$PATH" LLMSVERIFIER_DIR="$SCRIPTS_DIR/../submodules/LLMsVerifier" \
+        LV_SEMANTIC_BIN="$_sem_bin" bash "$SEMDRV" --model m --sentinel Z 2>/dev/null )"
+printf '%s\n' "$out" | grep -q 'SCV-STUB' ; assert_eq 0 $? "driver execs the built binary"
+printf '%s\n' "$out" | grep -q -- '--sentinel Z' ; assert_eq 0 $? "driver forwards flags verbatim"
+assert_file "$_sem_bin" "binary was cached under .local-cache"
+
 summary
