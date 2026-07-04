@@ -71,11 +71,15 @@ Source: `docs/research/2026-07-04-provider-api-endpoints.md` (§11.4.99 latest-s
 
 `1c53562` GEMINI/AGENTS/QWEN lockstep + spec xAI correction · `9867b0f` T7/T8 close-out · `2ecb84b` parallel subagent artifacts · `0323ea2`..`249400b` Phase-1 T1-T6. Spec §4.6 annotated with the xAI correction (struck the wrong "no endpoint" claim).
 
-### In-flight (background subagents, may still be running on resume)
+### Phase-2 Go command — INTEGRATED (local commits only, NOT pushed)
 
-- Go command `cmd/semantic-code-visibility/main.go` (standalone stdlib) being implemented+built+tested in the submodule working tree (NOT yet committed — needs review + submodule commit + pointer bump per §11.4.71, no force-push).
-- Phase-2 plan `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` being authored.
-Check `git status` in the submodule + `docs/superpowers/plans/` on resume; verify their evidence before committing.
+`cmd/semantic-code-visibility/main.go` + `main_test.go` committed INSIDE the submodule at `a48c03a5` (message: "feat(cmd): add semantic-code-visibility"). Main-repo submodule pointer bumped `86cebbf → a48c03a` (this commit). Standalone stdlib-only (no cgo/DB), CONST-051-clean (verified: zero consumer names), anti-bluff (transport/non-200/empty → fail-with-reason; judge failure hard-fails round 2). Independently verified this session: `go build` exit 0, `go test` → ok 0.006s, gofmt clean. Removed the stray `go build` binary from the submodule root (§11.4.53).
+
+**PUSH DISCIPLINE (when releasing — §11.4.71/§11.4.113):** the submodule commit `a48c03a5` is LOCAL-ONLY. Before any main-repo push that carries the bumped pointer, the submodule MUST be pushed first (fetch-before-push, no force-push), else the pointer dangles on the remote. Minor future refinement noted in review: `parseScore` takes the first integer (a chatty judge could misparse — judge prompt mandates a bare integer, round-1 unaffected).
+
+### In-flight (background subagent)
+
+- Phase-2 plan `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` being authored (verify it incorporates the xAI/OpenRouter/forwarding corrections + no placeholders before committing).
 
 ### KEY DISCOVERY (recorded so it's not re-derived)
 
