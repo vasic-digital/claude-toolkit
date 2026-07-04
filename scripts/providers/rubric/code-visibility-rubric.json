@@ -1,0 +1,16 @@
+{
+  "scale": [0, 1, 2, 3],
+  "threshold": 2,
+  "criteria": {
+    "0": "response is empty, an error message, or a refusal",
+    "1": "response is generic boilerplate with no fixture-specific detail",
+    "2": "response names at least one fixture-specific detail correctly",
+    "3": "response accurately describes multiple fixture-specific details"
+  },
+  "fixture_specific_details": [
+    "function resolve_alias",
+    "class TokenBucket",
+    "parameters provider_id and model_id",
+    "TokenBucket __init__ takes rate and capacity"
+  ]
+}

@@ -1,0 +1,16 @@
+Round 1 — sentinel exact match:
+Read the following file carefully. It contains a single sentinel token on a line
+beginning with "Sentinel:". Reply with EXACTLY that sentinel token and nothing else —
+no punctuation, no quotes, no explanation.
+
+--- BEGIN FILE ---
+{{FIXTURE_CONTENT}}
+--- END FILE ---
+
+(The expected sentinel token is {{SENTINEL}}. Reply with it verbatim.)
+
+Round 2 — describe what you see:
+Now describe the code in the file above. Be specific: name every function and its exact
+signature (parameter names included), and every class and its methods. State what
+resolve_alias does when the model id is unknown, and what parameters TokenBucket's
+__init__ takes. Do not invent details that are not present in the file.
