@@ -1,10 +1,15 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-07-04
-**Last HEAD:** `a55018b` (Phase 1 COMPLETE + Go command LIVE-PROVEN + Phase-2 fully de-risked)
-**Working tree:** clean except this file (about to commit)
+**Last updated:** 2026-07-05
+**Last HEAD:** `1bedc95` (✅ Phase 2 COMPLETE — semantic layer-3 + live layer-4, all 6 tasks landed, per-task + final whole-branch reviewed, live-proven end-to-end)
+**Working tree:** clean except release docs (about to commit)
 **Active branch:** `main`
-**Next action:** EXECUTE Phase 2 — `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` (6 tasks, de-risked; see the 🔨 Phase 2 section below for the infra-map + live-proof + real-flags anchors).
+**Next action:** Phase 3 = release v1.12.0 (CHANGELOG done; tag `v1.12.0`, push 4 mirrors, gh+glab release objects). Then the v1.12.1 hardening follow-ups: judge.env different-family default (deep-research-confirmed self-grade risk, arXiv:2508.06709), xAI `overrides.json` base-url entry (resolve gap), submodule boundary-contract constitution id (CONST-052 collision → CONST-069). See `.superpowers/sdd/phase3-notes.md` for the evidence + anchors.
+
+## Phase 2 — DELIVERED (commits ea4417f..1bedc95, 11 commits)
+- Task 1 driver `claude-semantic-visibility.sh` (ea4417f, tests 25ab80f). Task 2 adapter `providers-semantic.sh` + cmd_sync/cmd_verify (ed70c14). Submodule reconciled+pushed 7a3ae9a6 (pointer f084d9c). Task 3 layer-4 `verify_superpowers_tui.sh` (d1972b5, review-fixes f4b5ebb). Task 4 xAI generic /v1/models tests — NO-OP (f596c75). Task 5 Tier-B live verifier + live negative-case honesty PASS (1bedc95).
+- Bugs found by REAL execution + fixed: -h pre-build, JSON-evidence-to-/dev/null, judge-url doubling (bd502ef, 38ff959); `--refresh-aliases` non-idempotence — write_alias re-ran migrations per alias (5693297, root-caused from captured diff, 42 flake-loops clean).
+- Live proof: mistral→verified (round1✅+judge2/3), chutes/deepseek→unverified honestly; layer-4 classifier honesty proven live (neutral prompt did NOT false-match). Full suite 20/20 deterministic; submodule Go test ok.
 
 ## 0. Out-of-the-box resumption
 

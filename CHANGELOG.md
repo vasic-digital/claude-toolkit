@@ -2,6 +2,58 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.12.0 — 2026-07-05 — Semantic code-visibility (layer 3) + live TUI verification (layer 4)
+
+Adds two new provider-verification layers on top of the Phase-1 existence/tool-call
+checks, driven by the LLMsVerifier submodule's standalone, stdlib-only
+`semantic-code-visibility` Go command. The whole pipeline was proven end-to-end
+against real providers (redacted, real network): a genuinely code-seeing model
+(mistral-medium-2604) verifies (round-1 sentinel ✅ + round-2 judge 2/3); models that
+bluff or fail round-2 (chutes GLM-5.2-TEE — empty/timeout) are `unverified`; billing
+blocks (deepseek 402) are `unverified` — never a faked pass.
+
+### Added
+- **Layer 3 — semantic code-visibility.** `scripts/providers-semantic.sh` renders the
+  toolkit-owned rubric (`providers/rubric/code-visibility-rubric.json`) into a judge
+  prompt and drives the Go command through a build-and-cache driver
+  (`scripts/claude-semantic-visibility.sh`). Two rounds: a unique sentinel embedded in
+  a code fixture (does the model actually see the code?), then an independent
+  LLM-as-judge score (≥ threshold). One-word contract `verified|unverified|skip`
+  (exit 0/1/2). Wired into `cmd_sync`; keys move via env only (never argv). CONST-051
+  boundary held — the submodule stays project-agnostic, receiving fixture/prompt/
+  judge-prompt/sentinel only as CLI args.
+- **Layer 4 — live superpowers-TUI verification.** `scripts/verify_superpowers_tui.sh`
+  launches real Claude Code through a provider alias and confirms the superpowers
+  plugin engages with no trust/overwrite prompt — the only thing that flips a provider
+  to fully `verified`. Honest SKIP when preconditions (real claude/key/network) are
+  absent; the engagement classifier is hardened against false-PASS on prompt-echo, and
+  a live negative-case test (neutral prompt → marker must NOT match) proved it does not
+  false-verify.
+- **`claude-providers verify <id> [--deep]`** — single-provider deep re-verify.
+- **Tier-B live verifier** (`scripts/tests/verify_providers_live.sh`) runs layers 3–4
+  per installed provider, writes secret-redacted evidence + an aggregate
+  `proof/providers-summary.json`; already wired into `run-proof.sh`.
+
+### Fixed
+- **`--refresh-aliases` was not byte-idempotent** — `cma_provider_write_alias` re-ran the
+  full `cma_ensure_alias_file` self-heal migrations on *every* alias line, which could
+  non-deterministically reposition the `cma_run_provider` function and produce a
+  different file on a second refresh (the session hook runs this on every shell). Now
+  only bootstraps the alias file when absent. (Root-caused from a captured diff; 42
+  flake-loops + repeated full-suite runs now deterministic.)
+- Three bugs found by real execution of the new layer-3 path: `claude-semantic-visibility.sh --help`
+  failed pre-build; `providers-semantic.sh` discarded the driver's JSON evidence to
+  `/dev/null`; the judge base URL was not normalized (a trailing `/v1` doubled to
+  `/v1/v1/chat/completions`).
+
+### Notes
+- The default `providers/judge.env.template` judge is DeepSeek. For strongest results,
+  configure `providers/judge.env` with a judge from a **different model family** than the
+  provider under test — 2024-2026 research (e.g. arXiv:2508.06709) shows same-family
+  judges systematically favor their own family's outputs, including validating wrong
+  answers. A different-family default, an xAI `overrides.json` base-url entry, and the
+  submodule boundary-contract constitution id are tracked for a follow-up.
+
 ## v1.11.2 — 2026-07-03 — Token-limit guard + re-enabled provider proxies + Poe tool cap
 
 Ran every provider alias through REAL Claude Code executing `/using-superpowers`
