@@ -394,10 +394,25 @@ assert_eq "1" "$c2x" "still one xiaomi alias after re-sync"
 c2z="$(grep -c 'cma_run_provider opencode"' "$ALIAS_FILE")"
 assert_eq "1" "$c2z" "still one opencode alias after re-sync"
 
-it "list reports installed providers"
-list_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
-# shellcheck disable=SC2319  # $? from grep -q pipeline; captures exit status for assertion
-echo "$list_out" | grep -q "acme"; rc=$?; assert_eq 0 "$rc" "list shows acme"
+it "list family splits by status: list=verified, list-all=all, list-faulty=faulty"
+# Section 3 synced with --no-verify, so every provider is 'unverified'.
+# list (verified-only) hides them; list-all + list-faulty show them.
+la_out="$(bash "$PROVIDERS_SH" list-all 2>/dev/null)"
+echo "$la_out" | grep -q "acme"; assert_eq 0 $? "list-all shows unverified acme"
+lf_out="$(bash "$PROVIDERS_SH" list-faulty 2>/dev/null)"
+echo "$lf_out" | grep -q "acme"; assert_eq 0 $? "list-faulty shows unverified acme"
+l_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
+echo "$l_out" | grep -q "acme" && _seen=1 || _seen=0
+assert_eq 0 "$_seen" "list (verified-only) hides unverified acme"
+# Mark acme verified -> now it appears under list and disappears from list-faulty.
+cma_status_write acme verified acme-big ""
+l_out2="$(bash "$PROVIDERS_SH" list 2>/dev/null)"
+echo "$l_out2" | grep -q "acme"; assert_eq 0 $? "list shows acme once verified"
+lf_out2="$(bash "$PROVIDERS_SH" list-faulty 2>/dev/null)"
+echo "$lf_out2" | grep -q "acme" && _seen2=1 || _seen2=0
+assert_eq 0 "$_seen2" "list-faulty hides acme once verified"
+# Restore acme to unverified so later sections see the sync-time state.
+cma_status_write acme unverified acme-big semantic
 
 it "remove deletes alias + env, backs up config dir"
 bash "$PROVIDERS_SH" remove beta >/dev/null 2>&1
@@ -580,7 +595,11 @@ rm -f "$_mig2"
 # alias name via `grep ... | sed | head -1`; under pipefail a no-match grep
 # (exit 1) aborted the subshell/function. A provider .env can legitimately have
 # no alias line (manual edit, partial setup). These EXECUTE the real script.
-it "claude-providers list does NOT abort on a provider with no alias line"
+it "claude-providers list-all does NOT abort on a provider with no alias line"
+# Exercised via list-all (not list): ghost has no status entry -> 'pending', so
+# verified-only `list` would filter it out BEFORE the alias-less grep runs.
+# list-all shows every status, so ghost passes the filter and the alias-less
+# grep|sed|head pipeline is actually exercised (the pipefail-abort regression).
 mkdir -p "$PDIR"
 cat > "$PDIR/ghost.env" <<'GHOST'
 CMA_PROVIDER_ID='ghost'
@@ -590,9 +609,9 @@ CMA_PROVIDER_MODEL='ghost-model'
 CMA_PROVIDER_FAST_MODEL='ghost-fast'
 CMA_PROVIDER_KEYVAR='GHOST_API_KEY'
 GHOST
-list_out="$(bash "$PROVIDERS_SH" list 2>/dev/null)"; list_rc=$?
-assert_eq 0 "$list_rc" "list exits 0 (no abort on the alias-less provider)"
-printf '%s\n' "$list_out" | grep -q 'ghost'; assert_eq 0 $? "list still shows the alias-less provider"
+list_out="$(bash "$PROVIDERS_SH" list-all 2>/dev/null)"; list_rc=$?
+assert_eq 0 "$list_rc" "list-all exits 0 (no abort on the alias-less provider)"
+printf '%s\n' "$list_out" | grep -q 'ghost'; assert_eq 0 $? "list-all still shows the alias-less provider"
 
 it "claude-providers remove does NOT abort on a provider with no alias line"
 bash "$PROVIDERS_SH" remove ghost >/dev/null 2>&1; rm_rc=$?

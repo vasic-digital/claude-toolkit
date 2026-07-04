@@ -59,7 +59,9 @@ Usage: claude-providers [SUBCOMMAND] [options]
 Subcommands:
   sync                 (default) discover + create/refresh all provider aliases
   sync --multi         verify ALL models per provider, create multiple aliases
-  list                 list installed provider aliases and their model overrides
+  list                 list only VALIDATED + VERIFIED provider aliases
+  list-all             list every installed provider alias (any status)
+  list-faulty          list only aliases with an issue (failed/unverified/pending)
   show <id>            show details for one provider
   remove <id>          remove a provider alias + its config dir (backed up)
   add --from-key VAR [--id PROVIDER]   register a key->provider mapping then sync
@@ -229,28 +231,48 @@ cmd_sync() {
   cma_log "reload your shell or: source $ALIAS_FILE"
 }
 
-# --- subcommand: list -------------------------------------------------------
-cmd_list() {
-  local pdir; pdir="$(cma_providers_dir)"
+# --- subcommand: list family ------------------------------------------------
+# The three list subcommands share one row emitter, filtered by status:
+#   list         -> only VERIFIED aliases (safe to launch; the default view).
+#   list-all     -> every installed alias (the pre-split behavior).
+#   list-faulty  -> only non-verified aliases (failed/unverified/pending) —
+#                   the "what do I need to fix" view, with the failing layer.
+# Status is read from the status cache (cma_status_read); an alias with no
+# cache entry reads 'pending'.
+# _list_rows <filter>   filter: verified | faulty | all
+_list_rows() {
+  local filter="$1" pdir; pdir="$(cma_providers_dir)"
   if [[ ! -d "$pdir" ]] || ! compgen -G "$pdir/*.env" >/dev/null; then
     echo "No provider aliases installed. Run: claude-providers sync"
     return 0
   fi
-  printf '%-14s %-16s %-8s %-26s %-26s\n' ALIAS PROVIDER TRANSPORT STRONG_MODEL FAST_MODEL
+  printf '%-14s %-16s %-10s %-12s %-24s\n' ALIAS PROVIDER STATUS LAYER STRONG_MODEL
   local f
   for f in "$pdir"/*.env; do
-    local id keyvar transport base model fast cdir alias
-    id=""; transport=""; model=""; fast=""
+    local id status layer keep=0
+    # shellcheck disable=SC1090
+    id="$( ( set -a; . "$f"; set +a; printf '%s' "$CMA_PROVIDER_ID" ) )"
+    status="$(cma_status_read "$id")"
+    case "$filter" in
+      verified) [[ "$status" == "verified" ]] && keep=1 ;;
+      faulty)   [[ "$status" != "verified" ]] && keep=1 ;;
+      all)      keep=1 ;;
+    esac
+    (( keep )) || continue
+    layer="$(cma_status_all | awk -F'\t' -v i="$id" '$1==i{print $5}')"
     # shellcheck disable=SC1090
     ( set -a; . "$f"; set +a
       # `|| alias=""` is LOAD-BEARING: under `set -euo pipefail` a no-match grep
       # (exit 1, propagated by pipefail) would abort the subshell — and the whole
       # listing — for any provider whose alias line is absent.
       alias="$(grep -E "cma_run_provider $CMA_PROVIDER_ID(\"| )" "$ALIAS_FILE" 2>/dev/null | sed -E 's/^alias ([^=]+)=.*/\1/' | head -1)" || alias=""
-      printf '%-14s %-16s %-8s %-26s %-26s\n' \
-        "${alias:-?}" "$CMA_PROVIDER_ID" "$CMA_PROVIDER_TRANSPORT" "$CMA_PROVIDER_MODEL" "${CMA_PROVIDER_FAST_MODEL:-}" )
+      printf '%-14s %-16s %-10s %-12s %-24s\n' \
+        "${alias:-?}" "$CMA_PROVIDER_ID" "$status" "${layer:--}" "$CMA_PROVIDER_MODEL" )
   done
 }
+cmd_list()        { _list_rows verified; }
+cmd_list_all()    { _list_rows all; }
+cmd_list_faulty() { _list_rows faulty; }
 
 # --- subcommand: show -------------------------------------------------------
 cmd_show() {
@@ -434,7 +456,7 @@ cmd_sync_multi() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|list|show|remove|add) SUBCMD="$1"; shift ;;
+  sync|list|list-all|list-faulty|show|remove|add) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -456,9 +478,11 @@ while (( $# )); do
 done
 
 case "$SUBCMD" in
-  sync)   if (( MULTI )); then cmd_sync_multi; else cmd_sync; fi ;;
-  list)   cmd_list ;;
-  show)   cmd_show "${POSITIONAL[@]:-}" ;;
-  remove) cmd_remove "${POSITIONAL[@]:-}" ;;
-  add)    cmd_add "${POSITIONAL[@]:-}" ;;
+  sync)        if (( MULTI )); then cmd_sync_multi; else cmd_sync; fi ;;
+  list)        cmd_list ;;
+  list-all)    cmd_list_all ;;
+  list-faulty) cmd_list_faulty ;;
+  show)        cmd_show "${POSITIONAL[@]:-}" ;;
+  remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
+  add)         cmd_add "${POSITIONAL[@]:-}" ;;
 esac
