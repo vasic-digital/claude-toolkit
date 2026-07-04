@@ -77,9 +77,15 @@ Source: `docs/research/2026-07-04-provider-api-endpoints.md` (§11.4.99 latest-s
 
 **PUSH DISCIPLINE (when releasing — §11.4.71/§11.4.113):** the submodule commit `a48c03a5` is LOCAL-ONLY. Before any main-repo push that carries the bumped pointer, the submodule MUST be pushed first (fetch-before-push, no force-push), else the pointer dangles on the remote. Minor future refinement noted in review: `parseScore` takes the first integer (a chatty judge could misparse — judge prompt mandates a bare integer, round-1 unaffected).
 
-### In-flight (background subagent)
+### Phase-2 plan — WRITTEN + VERIFIED + COMMITTED
 
-- Phase-2 plan `docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` being authored (verify it incorporates the xAI/OpenRouter/forwarding corrections + no placeholders before committing).
+`docs/superpowers/plans/2026-07-05-phase2-semantic-live-plan.md` (897 lines). 6 tasks: (1) verify + driver the Go command (`scripts/claude-semantic-visibility.sh`, mirrors claude-verify-providers.sh; submodule fetch-before-push + separate pointer bump); (2) `providers-semantic.sh` layer-3 wiring into cmd_sync (renders rubric into `--judge-prompt`, persists via `cma_status_write`); (3) `verify_superpowers_tui.sh` layer-4 (Tier-B SKIP-able); (4) xAI CORRECTED (generic /v1/models, no docs-scrape special-case); (5) extend the EXISTING `scripts/tests/verify_providers_live.sh` (Tier-B); (6) full suite + submodule go test + CONTINUATION sync. Each task: exact paths, complete code, failing→passing test, commands+expected output, commit step. Verified before commit: xAI correction present, CONST-052-collision flagged, real `--judge-prompt` flag, no placeholders, header OK.
+
+### NEW findings from the Phase-2 plan authoring (apply in Phase 2/3)
+
+- **CONST-052 ID COLLISION (Phase-3 fix):** spec §3.4 proposes a NEW "CONST-052" for the semantic-code-visibility boundary contract, but the cascaded constitution ALREADY defines CONST-052 (lowercase-snake_case naming mandate). The proposed boundary rule MUST be renumbered (next free CONST id or a §11.4.NNN) in the Phase-3 spec + submodule-constitution work. Do NOT reuse CONST-052.
+- **Tree is AHEAD of the spec** (the plan reconciled these): Go command already implemented (flags `--judge-prompt`, NOT `--rubric`; appends `/v1/chat/completions`; exit 0/1/2; output has NO `evidence` hashes — update spec §2.3/§4.5 accordingly); a live verifier `scripts/tests/verify_providers.sh`/`verify_providers_live.sh` already exists + is wired into run-proof.sh (spec §7.3's `proof/verify_providers_live.sh` path was wrong); `cma_status_*` + gate already landed (Phase 1).
+- **Minor doc gap:** the Phase-2 plan does not mention the OpenRouter deviation (public, no `object:list`) — add it to the existence-layer handling + Phase-3 docs (it's in `docs/research/2026-07-04-provider-api-endpoints.md`).
 
 ### KEY DISCOVERY (recorded so it's not re-derived)
 
