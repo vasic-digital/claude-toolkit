@@ -969,6 +969,47 @@ cma_provider_write_alias() {
   mv "$tmp" "$ALIAS_FILE"
 }
 
+# Install (idempotently) the provider session-refresh hook into $ALIAS_FILE. On
+# every interactive shell start the hook re-writes provider aliases from cache
+# (NO network) and, when the status cache is older than CMA_PROVIDERS_SYNC_TTL
+# (default 24h), kicks a detached full sync (§11.4.89 background — never blocks
+# the shell). Bracketed by markers so a re-install replaces the block atomically
+# (no duplication across re-installs).
+cma_install_session_hook() {
+  cma_ensure_alias_file
+  local begin='# cma-providers-session-refresh BEGIN'
+  local end='# cma-providers-session-refresh END'
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  # Drop any existing block (BEGIN..END inclusive), then append the fresh one.
+  awk -v b="$begin" -v e="$end" '
+    $0==b{skip=1} !skip{print} $0==e{skip=0}' "$ALIAS_FILE" > "$tmp"
+  {
+    printf '%s\n' "$begin"
+    cat <<'HOOK'
+cma_providers_session_refresh() {
+  command -v claude-providers >/dev/null 2>&1 || return 0
+  # No-network: re-write alias functions from the cached env files.
+  claude-providers list --quiet --refresh-aliases >/dev/null 2>&1 || true
+  # TTL-triggered background full sync (detached; never blocks the shell).
+  local ttl="${CMA_PROVIDERS_SYNC_TTL:-86400}"
+  local sf="$HOME/.local/share/claude-multi-account/providers/status.json"
+  if [ -f "$sf" ]; then
+    local now mtime age
+    now="$(date +%s)"
+    mtime="$(date -r "$sf" +%s 2>/dev/null || stat -c %Y "$sf" 2>/dev/null || echo "$now")"
+    age=$(( now - mtime ))
+    if [ "$age" -gt "$ttl" ]; then
+      ( nohup claude-providers sync >/dev/null 2>&1 & disown ) 2>/dev/null || true
+    fi
+  fi
+}
+cma_providers_session_refresh
+HOOK
+    printf '%s\n' "$end"
+  } >> "$tmp"
+  mv "$tmp" "$ALIAS_FILE"
+}
+
 # True only when the toolkit may prompt the user interactively. Scripts read
 # confirmations from /dev/tty (so prompts survive `curl | bash`), so this
 # probes /dev/tty rather than stdin. It returns false when:

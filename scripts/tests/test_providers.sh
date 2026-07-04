@@ -758,4 +758,28 @@ _quiet="$(bash "$PROVIDERS_SH" list --refresh-aliases --quiet 2>&1 >/dev/null)"
 printf '%s' "$_quiet" | grep -q refreshed && _q=1 || _q=0
 assert_eq 0 "$_q" "quiet refresh suppresses the log"
 
+# ---------------------------------------------------------------------------
+# Section 9 — install-time session-sync hook (cma_install_session_hook). The
+# hook refreshes aliases from cache on every shell (no network) + kicks a
+# detached full sync only when status.json is stale (TTL). Marker-bracketed,
+# idempotent. status.json is absent here (Section 7 removed it), so no
+# background sync spawns — deterministic.
+# ---------------------------------------------------------------------------
+
+it "cma_install_session_hook installs a marker-bracketed refresh block"
+cma_install_session_hook
+assert_eq "1" "$(grep -c 'cma-providers-session-refresh BEGIN' "$ALIAS_FILE")" "one BEGIN marker"
+assert_eq "1" "$(grep -c 'cma-providers-session-refresh END' "$ALIAS_FILE")" "one END marker"
+assert_file_contains "$ALIAS_FILE" "list --quiet --refresh-aliases" "hook uses the no-network refresh path"
+assert_file_contains "$ALIAS_FILE" "CMA_PROVIDERS_SYNC_TTL" "hook honours the TTL knob"
+
+it "cma_install_session_hook is idempotent (re-install replaces, no duplicate)"
+cma_install_session_hook
+assert_eq "1" "$(grep -c 'cma-providers-session-refresh BEGIN' "$ALIAS_FILE")" "still one BEGIN after re-install"
+assert_eq "1" "$(grep -c 'cma_providers_session_refresh()' "$ALIAS_FILE")" "still one function definition"
+
+it "sourcing the alias file fires the hook without error and with no network"
+( source "$ALIAS_FILE" ) >/dev/null 2>&1
+assert_eq 0 $? "sourcing (hook fires) succeeds offline"
+
 summary

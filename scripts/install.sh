@@ -135,6 +135,16 @@ if [[ -d "$PROXY_SRC" ]]; then
   cma_log "copied proxy scripts to $PROXY_DST"
 fi
 
+# 4c. Provider session-sync hook + an install-time sync (soft — the host may
+# lack keys/network at install time, so a failure here is non-fatal). The hook
+# refreshes provider aliases from cache on every new shell (no network) and
+# kicks a detached full sync when the cache is stale (§11.4.89).
+cma_install_session_hook
+if [[ -x "$LIB_DIR/claude-providers.sh" ]]; then
+  cma_log "running claude-providers sync (install-time; soft)"
+  ( "$LIB_DIR/claude-providers.sh" sync ) || cma_warn "provider sync skipped (no keys/network?)"
+fi
+
 # 5. Unify whatever accounts exist now.
 if (( $(cma_detect_accounts | wc -l) > 0 )); then
   cma_log "running claude-unify.sh"
