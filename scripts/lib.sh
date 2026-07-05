@@ -190,6 +190,9 @@ cma_detect_accounts() {
     # exactly like *-shared. This is the linchpin that keeps the existing
     # claudeN accounts and add-account untouched by the provider feature.
     [[ "$(basename "$d")" == "${ACCOUNT_PREFIX}prov-"* ]] && continue
+    # The claude-code-router config dir and any *.lock dir are not accounts.
+    [[ "$(basename "$d")" == "${ACCOUNT_PREFIX}code-router" ]] && continue
+    [[ "$(basename "$d")" == *.lock ]] && continue
     # Empty dirs always count (a brand-new account before any claude run).
     if [[ -z "$(ls -A "$d" 2>/dev/null)" ]]; then
       echo "$d"

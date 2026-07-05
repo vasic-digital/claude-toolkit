@@ -115,6 +115,23 @@ assert_not_symlink "$acct2/.credentials.json" "acct2 creds local"
 assert_file_contains "$acct1/.credentials.json" "acct1" "acct1 creds intact"
 assert_file_contains "$acct2/.credentials.json" "acct2" "acct2 creds intact"
 
+it "unify registers claude<N> aliases for every detected account that lacks one"
+assert_file_contains "$ALIAS_FILE" "alias claude1=\"CLAUDE_CONFIG_DIR=$acct1 cma_run\"" "acct1 gets claude1 alias"
+assert_file_contains "$ALIAS_FILE" "alias claude2=\"CLAUDE_CONFIG_DIR=$acct2 cma_run\"" "acct2 gets claude2 alias"
+alias_count="$(grep -cE '^alias claude[0-9]+=' "$ALIAS_FILE" || true)"
+assert_eq 2 "$alias_count" "exactly two claudeN aliases registered"
+
+it "unify preserves claude<N> basenames and fills gaps with next free claudeN"
+# A dir literally named ~/.claude-claude4 should be aliased as claude4, not
+# renumbered. Other dirs consume the remaining free claude<N> slots.
+c4="$(make_account claude4)"
+zacct="$(make_account zebra)"
+run_unify >/dev/null 2>&1
+assert_file_contains "$ALIAS_FILE" "alias claude4=\"CLAUDE_CONFIG_DIR=$c4 cma_run\"" "claude4 dir keeps claude4 alias"
+assert_file_contains "$ALIAS_FILE" "alias claude3=\"CLAUDE_CONFIG_DIR=$zacct cma_run\"" "zebra dir gets next free claude3 alias"
+alias_count="$(grep -cE '^alias claude[0-9]+=' "$ALIAS_FILE" || true)"
+assert_eq 4 "$alias_count" "four claudeN aliases total (1,2,3,4)"
+
 it "re-running claude-unify is idempotent (settings.json byte-stable)"
 checksum_before="$(sha256sum "$SHARED_DIR/settings.json" | cut -d' ' -f1)"
 target_before="$(cma_realpath "$acct1/projects")"  # readlink -f is unavailable on BSD/macOS

@@ -2,6 +2,26 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.12.2 — 2026-07-05 — Native alias auto-registration + account-detection hardening
+
+### Fixed
+- **Native `claude<N>` aliases were never created for pre-existing account dirs.**
+  Running `install.sh` or `claude-unify.sh` only merged shared state; if account
+  directories already existed (e.g. `~/.claude-milos85vasic`), no shell aliases were
+  registered, so `claude1`/`claude2`/etc. were undefined. `claude-unify.sh` now
+  auto-registers a `claude<N>` alias for every detected account that lacks one.
+- **Smart alias numbering:** an account dir literally named `~/.claude-claude4`
+  keeps the `claude4` alias; remaining dirs fill the lowest free `claude<N>` slot
+  instead of skipping over reserved numbers.
+- **Bogus account detection:** `~/.claude-code-router` and `~/.claude-*.lock`
+  directories are no longer treated as Claude accounts, preventing them from
+  stealing alias slots or being merged into shared state.
+
+### Added
+- Regression tests in `test_unify.sh` and `test_install.sh` prove that install/unify
+  register native aliases for existing account dirs and preserve `claude<N>`
+  basenames while filling gaps.
+
 ## v1.12.1 — 2026-07-05 — Judge independence + resolve/robustness hardening
 
 Addresses the v1.12.0 final whole-branch review's deferred items and the deep-research
