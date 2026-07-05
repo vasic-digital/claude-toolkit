@@ -1,10 +1,10 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-05
-**Last HEAD:** `7382007` (✅ **v1.12.1 released-pending-tag** — judge-independence + resolve/robustness hardening. All 6 items done, whole-branch review READY, its 1 IMPORTANT [cmd_sync_multi dir-guard] fixed. Submodule reconciled → `17b4bfb6` on remotes. Tag/push next.)
+**Last HEAD:** `e920c49` (✅ **v1.12.1 RELEASED** — judge-independence + resolve/robustness hardening. Tag `v1.12.1` on all 4 mirrors; gh + glab release objects live. Whole-branch review READY, its 1 IMPORTANT [cmd_sync_multi dir-guard] fixed pre-release. Submodule `17b4bfb6` on remotes.)
 **Working tree:** clean
 **Active branch:** `main`
-**Next action:** v1.12.1 is complete + reviewed; tag `v1.12.1` + push 4 mirrors + gh/glab (if not already done this turn). Then the remaining deep-research OPTIONAL hardenings (not yet scheduled — evidence in `.superpowers/sdd/phase3-notes.md`): RISK 2 rubric-anchor each 0-3 judge level + reasoning-before-score; RISK 3 atomic-claim/QAGS probe for borderline (score==threshold) cases; RISK 4 minimize sentinel↔criteria lexical overlap. Release format: plain `vX.Y.Z` tag + gh/glab + 4 mirrors; submodule push-before-main (§11.4.71).
+**Next action:** v1.12.0 + v1.12.1 both shipped + reviewed. Remaining work is OPTIONAL deep-research hardenings (not scheduled — evidence in `.superpowers/sdd/phase3-notes.md`) (not yet scheduled — evidence in `.superpowers/sdd/phase3-notes.md`): RISK 2 rubric-anchor each 0-3 judge level + reasoning-before-score; RISK 3 atomic-claim/QAGS probe for borderline (score==threshold) cases; RISK 4 minimize sentinel↔criteria lexical overlap. Release format: plain `vX.Y.Z` tag + gh/glab + 4 mirrors; submodule push-before-main (§11.4.71).
 
 ## v1.12.1 — DELIVERED (commits 4240e76..7382007)
 judge.env.template default → groq/llama (different family; self-grade bias arXiv:2508.06709, verified live); providers-semantic.sh independence WARN (same-endpoint judge) + explicit exit-3→skip; overrides.json xai base_url https://api.x.ai/v1 (endpoint confirmed live); claude-providers.sh directory-keys-file clear die on BOTH cmd_sync + cmd_sync_multi; submodule I-1 (semantic cmd exit 3 for transport/infra vs exit 1 genuine-fail, 11/11 go tests) + CONST-069 (17b4bfb6). Suite 20/20 deterministic; final review READY.
