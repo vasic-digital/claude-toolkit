@@ -206,6 +206,13 @@ it "the stale mimo-v2.5-pro-ultraspeed id is never selected"
 cond=1; [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY strong_model)" != "mimo-v2.5-pro-ultraspeed" ]] && cond=0; assert_eq 0 "$cond" "ultraspeed not strong"
 cond=1; [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY fast_model)" != "mimo-v2.5-pro-ultraspeed" ]] && cond=0; assert_eq 0 "$cond" "ultraspeed not fast"
 
+it "xai override provides the base_url the null-api catalog lacks (v1.12.1 resolve-gap fix)"
+# The real overrides.json must carry the xai base_url so xai stops resolving to
+# 'unmapped' (catalog api:null -> "router provider missing base_url"). The
+# override->base_url resolution mechanism itself is proven by the xiaomi test above;
+# this guards the xai entry's presence + correctness in the shipped overrides.json.
+assert_eq "https://api.x.ai/v1" "$(jq -r '.xai.base_url // "MISSING"' "$SCRIPTS_DIR/providers/overrides.json")" "overrides.json xai base_url present + correct"
+
 it "opencode resolves from the key-alias mapping on ZEN_API_KEY"
 assert_eq "opencode" "$(rfield "$OUT" ZEN_API_KEY provider_id)" "opencode provider_id"
 assert_eq "resolved" "$(rfield "$OUT" ZEN_API_KEY status)" "opencode resolved"
@@ -305,6 +312,15 @@ bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2
 grep -q '_cma_force' "$ALIAS_FILE"; assert_eq 0 $? "cmd_sync healed the stale wrapper (_cma_force restored)"
 # (refresh-vs-refresh byte-idempotence is covered separately by the "--refresh-aliases
 #  is idempotent" test; cmd_sync output need not equal refresh(cmd_sync output).)
+
+it "present_key_vars dies clearly when CMA_KEYS_FILE is a directory (v1.12.1 5a)"
+# -e (kept for FIFO/process-substitution keys files) also passes a DIRECTORY, which
+# then yields a silent "0 key vars" (grep on a dir). A directory must die clearly.
+_kd="$(mktemp -d "${TMPDIR:-/tmp}/cma-kd.XXXXXX")"
+_kderr="$( bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$_kd" 2>&1 >/dev/null )"; _kdrc=$?
+printf '%s' "$_kderr" | grep -qi 'is a directory'; assert_eq 0 $? "directory keys-file -> clear 'is a directory' die"
+[[ "$_kdrc" -ne 0 ]]; assert_eq 0 $? "directory keys-file -> non-zero exit (not silent 0 key vars)"
+rm -rf "$_kd"
 
 it "sync persists per-provider verification status (--no-verify -> unverified)"
 # With --no-verify, vstatus defaults to 'unverified' for every resolved
@@ -862,6 +878,33 @@ out="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_K
         --base-url https://api.deepseek.com 2>/dev/null )"; rc=$?
 assert_eq "verified" "$out" "pass -> verified"
 assert_eq 0 "$rc" "pass -> exit 0"
+
+# The adapter SOURCES judge.env/template (which sets CMA_JUDGE_BASE_URL), so control
+# the judge config via a CMA_JUDGE_ENV file, not an env var the template would clobber.
+it "providers-semantic WARNs when judge endpoint == model-under-test endpoint (v1.12.1 1A independence guard)"
+_mk_stub_driver 0 true
+printf 'CMA_JUDGE_BASE_URL="https://api.deepseek.com"\nCMA_JUDGE_MODEL="deepseek-chat"\nCMA_JUDGE_KEYVAR="DEEPSEEK_API_KEY"\n' > "$HOME/judge-same.env"
+err="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-same.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+        bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+        --base-url https://api.deepseek.com 2>&1 >/dev/null )"
+printf '%s' "$err" | grep -qi 'same-family judge is NOT independent'; assert_eq 0 $? "same-endpoint judge -> independence WARNING on stderr"
+
+it "providers-semantic does NOT warn when judge endpoint differs (independent judge)"
+_mk_stub_driver 0 true
+printf 'CMA_JUDGE_BASE_URL="https://api.groq.com/openai"\nCMA_JUDGE_MODEL="llama-3.1-8b-instant"\nCMA_JUDGE_KEYVAR="GROQ_API_KEY"\n' > "$HOME/judge-diff.env"
+err2="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-diff.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+         bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+         --base-url https://api.deepseek.com 2>&1 >/dev/null )"
+printf '%s' "$err2" | grep -qi 'same-family judge is NOT independent' && _w=1 || _w=0
+assert_eq 0 "$_w" "different-endpoint judge -> NO independence warning"
+
+it "providers-semantic maps Go exit 3 (transport/infra) -> 'skip', not 'unverified' (v1.12.1 I-1 no-downgrade)"
+_mk_stub_driver 3 false
+out3="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-diff.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+         bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+         --base-url https://api.deepseek.com 2>/dev/null )"; rc3=$?
+assert_eq "skip" "$out3" "Go exit 3 (infra) -> skip (a transient judge/model error must not demote)"
+assert_eq 2 "$rc3" "skip -> adapter exit 2"
 
 it "providers-semantic maps overall_pass=false -> 'unverified' exit 1"
 _mk_stub_driver 1 false

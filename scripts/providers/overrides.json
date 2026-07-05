@@ -47,5 +47,8 @@
   "novita-ai": {
     "strong_model": "deepseek/deepseek-v3.2",
     "fast_model": "qwen/qwen3.6-27b"
+  },
+  "xai": {
+    "base_url": "https://api.x.ai/v1"
   }
 }

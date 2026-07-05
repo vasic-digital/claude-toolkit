@@ -80,6 +80,15 @@ base="${BASEURL:-}"
 base="${base%/}"; base="${base%/chat/completions}"; base="${base%/anthropic}"; base="${base%/v1}"
 [[ -n "$base" ]] || emit_skip "no base url"
 
+# Independence guard (final-review / deep-research §11.4.150): a judge on the SAME
+# provider endpoint as the model-under-test is the same model family and exhibits
+# measured self-preference bias (arXiv:2508.06709), inflating verdicts. WARN (do not
+# fail — the operator may intend it); the real fix is a different-family judge in judge.env.
+_su_host="${base#*://}"; _su_host="${_su_host%%/*}"
+_ju_host="${JUDGE_BASE#*://}"; _ju_host="${_ju_host%%/*}"
+[[ -n "$_su_host" && "$_su_host" == "$_ju_host" ]] && \
+  echo "providers-semantic[$PROVIDER]: WARNING judge endpoint '$_ju_host' == model-under-test endpoint — same-family judge is NOT independent (self-grading bias); prefer a different-family judge in providers/judge.env" >&2
+
 # --- split the toolkit prompt template into round-1 + round-2 ----------------
 # The template carries a "Round 1 —" block and a "Round 2 —" block; the Go
 # command takes them as two separate flags. Split on the first line starting
@@ -128,5 +137,6 @@ set -e
 case "$rc" in
   0) echo verified;   echo "providers-semantic[$PROVIDER]: layer-3 sentinel+judge PASS" >&2; exit 0 ;;
   1) echo unverified; echo "providers-semantic[$PROVIDER]: layer-3 FAIL (cannot see code / bluffed)" >&2; exit 1 ;;
+  3) emit_skip "round-1/round-2 API call could not complete (transport/infra error, exit 3) — honest SKIP, no downgrade (final-review I-1: a transient judge/model error must not demote the model-under-test)" ;;
   *) emit_skip "semantic command config/precondition error (exit $rc)" ;;
 esac

@@ -131,6 +131,9 @@ present_key_vars() {
   # <(...)) is a legitimate way to supply keys and is NOT a POSIX "regular
   # file" per -f, but it is a readable, existing path per -e.
   [[ -e "$CMA_KEYS_FILE" ]] || cma_die "keys file not found: $CMA_KEYS_FILE (pass --keys-file)"
+  # -e accepts a FIFO/process-substitution but ALSO a directory; a directory would
+  # slip past -e and then yield a silent "0 key vars" (grep on a dir). Die clearly.
+  [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
   # `|| true`: a keys file with no assignments must yield an empty list, not a
   # grep exit-1 that aborts the script under `set -e`/pipefail.
   local names
@@ -165,6 +168,9 @@ resolve_records() {
 
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
+  # Fail fast + clearly if the keys file is a directory (present_key_vars also warns,
+  # but it runs in a subshell so its die can't abort the main sync — v1.12.1 5a).
+  [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
   ensure_catalog
   # Heal a stale/outdated alias file ONCE per full sync (idempotent): the self-heal
   # path for an outdated cma_run_provider wrapper (e.g. a pre-Phase-2 one lacking the
