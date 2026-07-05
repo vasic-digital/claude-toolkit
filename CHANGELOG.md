@@ -2,6 +2,21 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.12.3 — 2026-07-05 — Session-name sanitization (kebab-case)
+
+### Changed
+- **Auto-derived session names are now sanitized to kebab-case.**
+  `claude-session.sh` derives the session name from the project directory's
+  basename. It now: lowercases the name; trims leading/trailing whitespace;
+  collapses internal whitespace and underscores to `-`; strips any remaining
+  characters that are not `[a-z0-9-]`; and collapses consecutive `-` before
+  trimming leading/trailing `-`. This makes session names safe for the CLI and
+  filesystem while remaining human-readable.
+
+### Added
+- New regression tests in `test_session.sh` cover leading/trailing whitespace,
+  multiple consecutive spaces, and stripping of special invalid characters.
+
 ## v1.12.2 — 2026-07-05 — Native alias auto-registration + account-detection hardening
 
 ### Fixed

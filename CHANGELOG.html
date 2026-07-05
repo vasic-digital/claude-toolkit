@@ -244,25 +244,31 @@ code span.wa { color: #8f5902; font-weight: bold; font-style: italic; }
 <ul>
 <li><a href="#changelog" id="toc-changelog">Changelog</a>
 <ul>
+<li><a href="#v1123--2026-07-05--session-name-sanitization-kebab-case" id="toc-v1123--2026-07-05--session-name-sanitization-kebab-case">v1.12.3
+— 2026-07-05 — Session-name sanitization (kebab-case)</a>
+<ul>
+<li><a href="#changed" id="toc-changed">Changed</a></li>
+<li><a href="#added" id="toc-added">Added</a></li>
+</ul></li>
 <li><a href="#v1122--2026-07-05--native-alias-auto-registration--account-detection-hardening" id="toc-v1122--2026-07-05--native-alias-auto-registration--account-detection-hardening">v1.12.2
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</a>
 <ul>
 <li><a href="#fixed" id="toc-fixed">Fixed</a></li>
-<li><a href="#added" id="toc-added">Added</a></li>
+<li><a href="#added-1" id="toc-added-1">Added</a></li>
 </ul></li>
 <li><a href="#v1121--2026-07-05--judge-independence--resolverobustness-hardening" id="toc-v1121--2026-07-05--judge-independence--resolverobustness-hardening">v1.12.1
 — 2026-07-05 — Judge independence + resolve/robustness hardening</a>
 <ul>
-<li><a href="#changed" id="toc-changed">Changed</a></li>
-<li><a href="#added-1" id="toc-added-1">Added</a></li>
+<li><a href="#changed-1" id="toc-changed-1">Changed</a></li>
+<li><a href="#added-2" id="toc-added-2">Added</a></li>
 <li><a href="#fixed-1" id="toc-fixed-1">Fixed</a></li>
 </ul></li>
 <li><a href="#v1120--2026-07-05--semantic-code-visibility-layer-3--live-tui-verification-layer-4" id="toc-v1120--2026-07-05--semantic-code-visibility-layer-3--live-tui-verification-layer-4">v1.12.0
 — 2026-07-05 — Semantic code-visibility (layer 3) + live TUI
 verification (layer 4)</a>
 <ul>
-<li><a href="#added-2" id="toc-added-2">Added</a></li>
+<li><a href="#added-3" id="toc-added-3">Added</a></li>
 <li><a href="#fixed-2" id="toc-fixed-2">Fixed</a></li>
 <li><a href="#notes" id="toc-notes">Notes</a></li>
 </ul></li>
@@ -271,14 +277,14 @@ verification (layer 4)</a>
 tool cap</a>
 <ul>
 <li><a href="#fixed-3" id="toc-fixed-3">Fixed</a></li>
-<li><a href="#changed-1" id="toc-changed-1">Changed</a></li>
-<li><a href="#added-3" id="toc-added-3">Added</a></li>
+<li><a href="#changed-2" id="toc-changed-2">Changed</a></li>
+<li><a href="#added-4" id="toc-added-4">Added</a></li>
 </ul></li>
 <li><a href="#v1111--2026-07-03--live-per-alias-claude-code-verification-cli--tui--provider-fixes" id="toc-v1111--2026-07-03--live-per-alias-claude-code-verification-cli--tui--provider-fixes">v1.11.1
 — 2026-07-03 — Live per-alias Claude Code verification (CLI + TUI) +
 provider fixes</a>
 <ul>
-<li><a href="#added-4" id="toc-added-4">Added</a></li>
+<li><a href="#added-5" id="toc-added-5">Added</a></li>
 <li><a href="#fixed-4" id="toc-fixed-4">Fixed</a></li>
 <li><a href="#verified-live-on-host" id="toc-verified-live-on-host">Verified (live on host)</a></li>
 </ul></li>
@@ -328,14 +334,14 @@ checked)</a></li>
 <li><a href="#v1103--2026-06-29--execution-level-wrapper-test-coverage" id="toc-v1103--2026-06-29--execution-level-wrapper-test-coverage">v1.10.3
 — 2026-06-29 — Execution-level wrapper test coverage</a>
 <ul>
-<li><a href="#added-5" id="toc-added-5">Added</a></li>
+<li><a href="#added-6" id="toc-added-6">Added</a></li>
 <li><a href="#verified-5" id="toc-verified-5">Verified</a></li>
 </ul></li>
 <li><a href="#v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests" id="toc-v1102--2026-06-29--self-healing-rc-source-lines--strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</a>
 <ul>
 <li><a href="#fixed-8" id="toc-fixed-8">Fixed</a></li>
-<li><a href="#added-6" id="toc-added-6">Added</a></li>
+<li><a href="#added-7" id="toc-added-7">Added</a></li>
 <li><a href="#verified-6" id="toc-verified-6">Verified</a></li>
 </ul></li>
 <li><a href="#v1101--2026-06-29--robust-cma_run-wrapper-assertions" id="toc-v1101--2026-06-29--robust-cma_run-wrapper-assertions">v1.10.1 —
@@ -348,7 +354,7 @@ checked)</a></li>
 — 2026-06-29 — Auto-applied per-alias session color +
 coverage/wiring</a>
 <ul>
-<li><a href="#added-7" id="toc-added-7">Added</a></li>
+<li><a href="#added-8" id="toc-added-8">Added</a></li>
 <li><a href="#fixed-10" id="toc-fixed-10">Fixed</a></li>
 <li><a href="#verified-8" id="toc-verified-8">Verified</a></li>
 </ul></li>
@@ -369,14 +375,14 @@ coverage/wiring</a>
 zero-coverage tests</a>
 <ul>
 <li><a href="#fixed-13" id="toc-fixed-13">Fixed</a></li>
-<li><a href="#added-8" id="toc-added-8">Added</a></li>
+<li><a href="#added-9" id="toc-added-9">Added</a></li>
 <li><a href="#verified-11" id="toc-verified-11">Verified</a></li>
 </ul></li>
 <li><a href="#v181--2026-06-29--merge-engine-correctness--portability-hardening" id="toc-v181--2026-06-29--merge-engine-correctness--portability-hardening">v1.8.1
 — 2026-06-29 — Merge-engine correctness + portability hardening</a>
 <ul>
 <li><a href="#fixed-14" id="toc-fixed-14">Fixed</a></li>
-<li><a href="#added-9" id="toc-added-9">Added</a></li>
+<li><a href="#added-10" id="toc-added-10">Added</a></li>
 <li><a href="#verified-12" id="toc-verified-12">Verified</a></li>
 </ul></li>
 <li><a href="#v180--2026-06-29--alias-isolation--token-limit-guard--per-project-auto-sessions" id="toc-v180--2026-06-29--alias-isolation--token-limit-guard--per-project-auto-sessions">v1.8.0
@@ -384,13 +390,13 @@ zero-coverage tests</a>
 auto-sessions</a>
 <ul>
 <li><a href="#fixed-15" id="toc-fixed-15">Fixed</a></li>
-<li><a href="#added-10" id="toc-added-10">Added</a></li>
+<li><a href="#added-11" id="toc-added-11">Added</a></li>
 <li><a href="#verified-13" id="toc-verified-13">Verified</a></li>
 </ul></li>
 <li><a href="#v1712--2026-06-28--one-line-curl-installer" id="toc-v1712--2026-06-28--one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</a>
 <ul>
-<li><a href="#added-11" id="toc-added-11">Added</a></li>
+<li><a href="#added-12" id="toc-added-12">Added</a></li>
 <li><a href="#verified-14" id="toc-verified-14">Verified</a></li>
 </ul></li>
 <li><a href="#v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation" id="toc-v1711--2026-06-28--round-4-coverage-gap-regression-tests-toon-recursion-guard-arg-validation">v1.7.11
@@ -430,7 +436,7 @@ fix, coverage tests</a>
 <ul>
 <li><a href="#security-1" id="toc-security-1">Security</a></li>
 <li><a href="#fixed-19" id="toc-fixed-19">Fixed</a></li>
-<li><a href="#added-12" id="toc-added-12">Added</a></li>
+<li><a href="#added-13" id="toc-added-13">Added</a></li>
 <li><a href="#verified-18" id="toc-verified-18">Verified</a></li>
 </ul></li>
 <li><a href="#v177--2026-06-28--portable-realpath-bsd-portability-hardening-set--u-edge-fix-regression-tests" id="toc-v177--2026-06-28--portable-realpath-bsd-portability-hardening-set--u-edge-fix-regression-tests">v1.7.7
@@ -438,7 +444,7 @@ fix, coverage tests</a>
 edge fix, regression tests</a>
 <ul>
 <li><a href="#fixed-20" id="toc-fixed-20">Fixed</a></li>
-<li><a href="#added-13" id="toc-added-13">Added</a></li>
+<li><a href="#added-14" id="toc-added-14">Added</a></li>
 <li><a href="#verified-19" id="toc-verified-19">Verified</a></li>
 <li><a href="#audit-findings-v176--no-code-change-required" id="toc-audit-findings-v176--no-code-change-required">Audit findings
 (v1.7.6 — no code change required)</a></li>
@@ -448,7 +454,7 @@ edge fix, regression tests</a>
 macOS/bash-3.2 portability, 4-host rollout</a>
 <ul>
 <li><a href="#fixed-21" id="toc-fixed-21">Fixed</a></li>
-<li><a href="#added-14" id="toc-added-14">Added</a></li>
+<li><a href="#added-15" id="toc-added-15">Added</a></li>
 <li><a href="#multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal" id="toc-multi-host-rollout-nezha--mistbornlocal--thinkerlocal--amberlocal">Multi-host
 rollout (nezha · mistborn.local · thinker.local · amber.local)</a></li>
 <li><a href="#verified-20" id="toc-verified-20">Verified</a></li>
@@ -466,13 +472,13 @@ Cause Analysis</a></li>
 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default</a>
 <ul>
 <li><a href="#fixed-23" id="toc-fixed-23">Fixed</a></li>
-<li><a href="#changed-2" id="toc-changed-2">Changed</a></li>
+<li><a href="#changed-3" id="toc-changed-3">Changed</a></li>
 <li><a href="#tests-1" id="toc-tests-1">Tests</a></li>
 </ul></li>
 <li><a href="#v166--2026-06-21--toon-integration-for-token-efficient-prompts" id="toc-v166--2026-06-21--toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</a>
 <ul>
-<li><a href="#added-15" id="toc-added-15">Added</a></li>
+<li><a href="#added-16" id="toc-added-16">Added</a></li>
 <li><a href="#token-savings" id="toc-token-savings">Token
 Savings</a></li>
 <li><a href="#note" id="toc-note">Note</a></li>
@@ -495,28 +501,28 @@ Savings</a></li>
 <li><a href="#v163--2026-06-21--poe-provider-382-models-3-aliases" id="toc-v163--2026-06-21--poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</a>
 <ul>
-<li><a href="#added-16" id="toc-added-16">Added</a></li>
+<li><a href="#added-17" id="toc-added-17">Added</a></li>
 <li><a href="#verified-24" id="toc-verified-24">Verified</a></li>
 </ul></li>
 <li><a href="#v162--2026-06-21--chutes-provider-documentation--model-update" id="toc-v162--2026-06-21--chutes-provider-documentation--model-update">v1.6.2
 — 2026-06-21 — Chutes provider documentation + model update</a>
 <ul>
-<li><a href="#changed-3" id="toc-changed-3">Changed</a></li>
+<li><a href="#changed-4" id="toc-changed-4">Changed</a></li>
 <li><a href="#verified-25" id="toc-verified-25">Verified</a></li>
 </ul></li>
 <li><a href="#v161--2026-06-21--cache_control-fix--e2e-tests" id="toc-v161--2026-06-21--cache_control-fix--e2e-tests">v1.6.1 —
 2026-06-21 — cache_control fix + E2E tests</a>
 <ul>
 <li><a href="#fixed-26" id="toc-fixed-26">Fixed</a></li>
-<li><a href="#added-17" id="toc-added-17">Added</a></li>
+<li><a href="#added-18" id="toc-added-18">Added</a></li>
 <li><a href="#verified-working-all-aliases-tested-with-do-you-see-our-codebase" id="toc-verified-working-all-aliases-tested-with-do-you-see-our-codebase">Verified
 working (all aliases tested with &quot;Do you see our codebase?&quot;)</a></li>
 </ul></li>
 <li><a href="#v160--2026-06-21--multi-alias-provider-system" id="toc-v160--2026-06-21--multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</a>
 <ul>
-<li><a href="#added-18" id="toc-added-18">Added</a></li>
-<li><a href="#changed-4" id="toc-changed-4">Changed</a></li>
+<li><a href="#added-19" id="toc-added-19">Added</a></li>
+<li><a href="#changed-5" id="toc-changed-5">Changed</a></li>
 <li><a href="#full-test-suite" id="toc-full-test-suite">Full test
 suite</a></li>
 <li><a href="#usage" id="toc-usage">Usage</a></li>
@@ -532,8 +538,8 @@ suite</a></li>
 <li><a href="#v150--2026-06-20--cross-alias-session-visibility" id="toc-v150--2026-06-20--cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</a>
 <ul>
-<li><a href="#added-19" id="toc-added-19">Added</a></li>
-<li><a href="#changed-5" id="toc-changed-5">Changed</a></li>
+<li><a href="#added-20" id="toc-added-20">Added</a></li>
+<li><a href="#changed-6" id="toc-changed-6">Changed</a></li>
 <li><a href="#full-test-suite-2" id="toc-full-test-suite-2">Full test
 suite</a></li>
 <li><a href="#how-it-works" id="toc-how-it-works">How it works</a></li>
@@ -542,8 +548,8 @@ suite</a></li>
 <li><a href="#v140--2026-06-20--opencode-zen-provider-alias" id="toc-v140--2026-06-20--opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</a>
 <ul>
-<li><a href="#added-20" id="toc-added-20">Added</a></li>
-<li><a href="#changed-6" id="toc-changed-6">Changed</a></li>
+<li><a href="#added-21" id="toc-added-21">Added</a></li>
+<li><a href="#changed-7" id="toc-changed-7">Changed</a></li>
 <li><a href="#full-test-suite-3" id="toc-full-test-suite-3">Full test
 suite</a></li>
 <li><a href="#honest-notes" id="toc-honest-notes">Honest notes</a></li>
@@ -551,8 +557,8 @@ suite</a></li>
 <li><a href="#v130--2026-06-19--xiaomi-mimo-provider-alias" id="toc-v130--2026-06-19--xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</a>
 <ul>
-<li><a href="#added-21" id="toc-added-21">Added</a></li>
-<li><a href="#changed-7" id="toc-changed-7">Changed</a></li>
+<li><a href="#added-22" id="toc-added-22">Added</a></li>
+<li><a href="#changed-8" id="toc-changed-8">Changed</a></li>
 <li><a href="#full-test-suite-4" id="toc-full-test-suite-4">Full test
 suite</a></li>
 <li><a href="#honest-notes-1" id="toc-honest-notes-1">Honest
@@ -561,16 +567,16 @@ notes</a></li>
 <li><a href="#v120--2026-06-19--zai-coding-plan-provider-alias" id="toc-v120--2026-06-19--zai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</a>
 <ul>
-<li><a href="#added-22" id="toc-added-22">Added</a></li>
-<li><a href="#changed-8" id="toc-changed-8">Changed</a></li>
+<li><a href="#added-23" id="toc-added-23">Added</a></li>
+<li><a href="#changed-9" id="toc-changed-9">Changed</a></li>
 <li><a href="#full-test-suite-5" id="toc-full-test-suite-5">Full test
 suite</a></li>
 </ul></li>
 <li><a href="#v110--2026-06-16--distributed-infrastructure--provider-verification" id="toc-v110--2026-06-16--distributed-infrastructure--provider-verification">v1.1.0
 — 2026-06-16 — Distributed infrastructure + provider verification</a>
 <ul>
-<li><a href="#added-23" id="toc-added-23">Added</a></li>
-<li><a href="#changed-9" id="toc-changed-9">Changed</a></li>
+<li><a href="#added-24" id="toc-added-24">Added</a></li>
+<li><a href="#changed-10" id="toc-changed-10">Changed</a></li>
 <li><a href="#fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds" id="toc-fixed-llmsverifier--shipped-as-pr-2-applied-to-deployed-builds">Fixed
 (LLMsVerifier — shipped as PR #2, applied to deployed builds)</a></li>
 <li><a href="#verified-live-real-do-you-see-my-code-against-production-apis" id="toc-verified-live-real-do-you-see-my-code-against-production-apis">Verified
@@ -620,7 +626,7 @@ Cause Analysis</a></li>
 <li><a href="#v172--2026-06-22--claude-alias-verification-full-release" id="toc-v172--2026-06-22--claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</a>
 <ul>
-<li><a href="#added-24" id="toc-added-24">Added</a></li>
+<li><a href="#added-25" id="toc-added-25">Added</a></li>
 <li><a href="#tests-10" id="toc-tests-10">Tests</a></li>
 </ul></li>
 </ul></li>
@@ -628,6 +634,26 @@ Cause Analysis</a></li>
 </nav>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v1123--2026-07-05--session-name-sanitization-kebab-case">v1.12.3
+— 2026-07-05 — Session-name sanitization (kebab-case)</h2>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Auto-derived session names are now sanitized to
+kebab-case.</strong> <code>claude-session.sh</code> derives the session
+name from the project directory&#39;s basename. It now: lowercases the name;
+trims leading/trailing whitespace; collapses internal whitespace and
+underscores to <code>-</code>; strips any remaining characters that are
+not <code>[a-z0-9-]</code>; and collapses consecutive <code>-</code>
+before trimming leading/trailing <code>-</code>. This makes session
+names safe for the CLI and filesystem while remaining
+human-readable.</li>
+</ul>
+<h3 id="added">Added</h3>
+<ul>
+<li>New regression tests in <code>test_session.sh</code> cover
+leading/trailing whitespace, multiple consecutive spaces, and stripping
+of special invalid characters.</li>
+</ul>
 <h2 id="v1122--2026-07-05--native-alias-auto-registration--account-detection-hardening">v1.12.2
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</h2>
@@ -651,7 +677,7 @@ slot instead of skipping over reserved numbers.</li>
 directories are no longer treated as Claude accounts, preventing them
 from stealing alias slots or being merged into shared state.</li>
 </ul>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li>Regression tests in <code>test_unify.sh</code> and
 <code>test_install.sh</code> prove that install/unify register native
@@ -662,7 +688,7 @@ aliases for existing account dirs and preserve
 — 2026-07-05 — Judge independence + resolve/robustness hardening</h2>
 <p>Addresses the v1.12.0 final whole-branch review&#39;s deferred items and
 the deep-research findings on LLM-as-judge bias.</p>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li><strong>Round-2 judge default is now a DIFFERENT model
 family.</strong> <code>providers/judge.env.template</code> defaults to
@@ -682,7 +708,7 @@ exit 3 → <code>skip</code>, so a transient judge/model hiccup is an
 honest SKIP and never downgrades the model-under-test (final-review
 I-1).</li>
 </ul>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li><strong>Independence warning:</strong>
 <code>providers-semantic.sh</code> warns (never fails) when the judge
@@ -715,7 +741,7 @@ command. The whole pipeline was proven end-to-end against real providers
 2/3); models that bluff or fail round-2 (chutes GLM-5.2-TEE —
 empty/timeout) are <code>unverified</code>; billing blocks (deepseek
 402) are <code>unverified</code> — never a faked pass.</p>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li><strong>Layer 3 — semantic code-visibility.</strong>
 <code>scripts/providers-semantic.sh</code> renders the toolkit-owned
@@ -834,7 +860,7 @@ tool is preserved. Parametrized via the <code>POE_MAX_TOOLS</code> env
 var. Verified live: Poe&#39;s <code>/using-superpowers</code> now returns a
 successful result.</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li><strong><code>cma_ensure_alias_file</code> migration</strong> —
 added <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> and
@@ -852,7 +878,7 @@ never masked.</li>
 fixed the input token-limit error; documented the two guards as
 independent halves.</li>
 </ul>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li><strong>scripts/tests/test_poe_proxy.sh</strong> — hermetic tests
 for the Poe proxy: <code>parameters</code> injection, the tool-count
@@ -878,7 +904,7 @@ API directly. 9 aliases pass end-to-end; 2 had genuine model-config
 drift (fixed below); the remaining failures are all
 <strong>account-side</strong> (insufficient funds, invalid/expired keys,
 missing keys, or a plan with no chat model) — not toolkit bugs.</p>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li><strong>scripts/tests/verify_claude_live.sh</strong> — end-to-end
 live verification of every provider alias through REAL Claude Code in
@@ -1127,7 +1153,7 @@ subagents, each finding independently reproduced before fixing.</li>
 </ul>
 <h2 id="v1103--2026-06-29--execution-level-wrapper-test-coverage">v1.10.3 —
 2026-06-29 — Execution-level wrapper test coverage</h2>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li><strong><code>test_wrapper_exec.sh</code></strong> — the first
 hermetic test that actually <em>executes</em> the generated
@@ -1166,7 +1192,7 @@ an existing source line across <code>.</code>/<code>source</code> and
 <code>$HOME</code>/<code>~</code>/absolute forms, so re-installs never
 accumulate duplicate source lines.</li>
 </ul>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li><strong><code>test_rc_sourcing.sh</code></strong> (10 strict
 assertions) — reproduces the bug class the hermetic suite missed (it
@@ -1204,7 +1230,7 @@ coverage/wiring</h2>
 <p>The per-alias session color is now <strong>auto-applied</strong> (it
 was only a hint in v1.9.x), plus self-healing for a stale
 <code>CLAUDE_BIN</code> and several closed test-coverage gaps.</p>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li><strong>Auto-applied per-alias session color.</strong> Each bare
 alias launch now writes the alias&#39;s color into the session as an
@@ -1339,7 +1365,7 @@ one, so they never regained the integration. Fix: regenerate when
 <strong>either</strong> marker is missing.</li>
 </ul></li>
 </ul>
-<h3 id="added-8">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li><strong><code>docs/SESSION_COLOR.md</code></strong> — resolves the
 previously dangling reference, documenting per-project auto-session
@@ -1487,7 +1513,7 @@ tolerates a bare call) across <code>lib.sh</code>,
 and the test harness (the sandbox keeps its <code>cma-test.</code>
 prefix for the cleanup safety check).</li>
 </ul>
-<h3 id="added-9">Added</h3>
+<h3 id="added-10">Added</h3>
 <ul>
 <li><strong>B5 token-limit guard coverage</strong>
 (<code>test_coverage.sh</code>). The v1.8.0
@@ -1571,7 +1597,7 @@ launch wrapper now writes
 <code>projects[&lt;root&gt;].hasTrustDialogAccepted=true</code> for the
 launching project via the new <code>claude-session</code> helper.</li>
 </ul>
-<h3 id="added-10">Added</h3>
+<h3 id="added-11">Added</h3>
 <ul>
 <li><strong>Auto session-per-project
 (<code>claude-session.sh</code>).</strong> Every bare alias launch
@@ -1604,7 +1630,7 @@ the live catalog and the emitted alias file.</li>
 </ul>
 <h2 id="v1712--2026-06-28--one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</h2>
-<h3 id="added-11">Added</h3>
+<h3 id="added-12">Added</h3>
 <ul>
 <li><strong><code>curl-install.sh</code></strong> — one-line bootstrap
 installer:
@@ -1927,7 +1953,7 @@ in <code>providers_resolve.py</code>: the usage docstring&#39;s
 <code>\</code> line-continuations are now a raw string
 (<code>r&quot;&quot;&quot;</code>).</li>
 </ul>
-<h3 id="added-12">Added</h3>
+<h3 id="added-13">Added</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code></strong> — 11 new hermetic
 tests (19 assertions) covering previously-untested <code>lib.sh</code>
@@ -1995,7 +2021,7 @@ with an empty <code>args</code> is an &quot;unbound variable&quot; error on bash
 non-re-exec&#39;d <code>claude-providers.sh</code>). Guarded with
 <code>${args[@]+&quot;${args[@]}&quot;}</code>.</li>
 </ul>
-<h3 id="added-13">Added</h3>
+<h3 id="added-14">Added</h3>
 <ul>
 <li><strong><code>cma_realpath</code></strong> portable canonicalizer in
 <code>lib.sh</code>.</li>
@@ -2071,7 +2097,7 @@ and <code>tests/lib/sandbox.sh</code> (empty <code>${arr[@]}</code>
 expansions are unbound on bash 3.2). The suite now runs green on macOS
 bash 3.2.</li>
 </ul>
-<h3 id="added-14">Added</h3>
+<h3 id="added-15">Added</h3>
 <ul>
 <li><strong><code>CMA_NONINTERACTIVE</code> + automatic TTY
 detection</strong> — a new <code>cma_can_prompt</code> helper makes
@@ -2184,7 +2210,7 @@ allowlist in <code>scripts/claude-opencode-sync.sh</code>. The server
 consistently timed out on connection and is now configured but disabled
 by default.</li>
 </ul>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li>Regenerated
 <code>Claude_Multi_Account_Fine_Tuning.{html,pdf,docx}</code> from
@@ -2201,7 +2227,7 @@ failed</strong></li>
 </ul>
 <h2 id="v166--2026-06-21--toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</h2>
-<h3 id="added-15">Added</h3>
+<h3 id="added-16">Added</h3>
 <ul>
 <li><strong>TOON (Token-Oriented Object Notation)</strong> integration —
 saves ~40% tokens vs JSON for structured data in LLM prompts by
@@ -2279,7 +2305,7 @@ now auto-starts compatibility proxies for providers that need them
 </ul>
 <h2 id="v163--2026-06-21--poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</h2>
-<h3 id="added-16">Added</h3>
+<h3 id="added-17">Added</h3>
 <ul>
 <li><strong>Poe provider</strong> — universal AI platform with 382
 models from all major providers. OpenAI-compatible API at
@@ -2307,7 +2333,7 @@ all YES</li>
 </ul>
 <h2 id="v162--2026-06-21--chutes-provider-documentation--model-update">v1.6.2
 — 2026-06-21 — Chutes provider documentation + model update</h2>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li><strong>Chutes provider models updated</strong> — catalog was stale.
 Chutes now offers 13 TEE (Trusted Execution Environment) models. Updated
@@ -2336,7 +2362,7 @@ it with HTTP 422. Fixed by adding ccr&#39;s built-in <code>cleancache</code>
 transformer to every provider config, which strips
 <code>cache_control</code> before forwarding to the provider.</li>
 </ul>
-<h3 id="added-17">Added</h3>
+<h3 id="added-18">Added</h3>
 <ul>
 <li><strong><code>alias_e2e_test.py</code></strong> — end-to-end alias
 verification script that tests each alias by sending requests through
@@ -2355,7 +2381,7 @@ working (all aliases tested with &quot;Do you see our codebase?&quot;)</h3>
 </ul>
 <h2 id="v160--2026-06-21--multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</h2>
-<h3 id="added-18">Added</h3>
+<h3 id="added-19">Added</h3>
 <ul>
 <li><strong>Multi-alias provider system</strong> — every provider can
 now have multiple aliases (<code>provider</code>,
@@ -2386,7 +2412,7 @@ probing during verification.</li>
 LLMsVerifier (ModelVerifier, Seed, xiaomi provider), challenges
 (anti-bluff §11.4, chaos/stress tests), containers (deploy-stack).</li>
 </ul>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li>Probe <code>max_tokens</code> increased from 32 to 128 — reasoning
 models need more tokens for chain-of-thought + response (was causing
@@ -2436,7 +2462,7 @@ pre-existing)</li>
 </ul>
 <h2 id="v150--2026-06-20--cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</h2>
-<h3 id="added-19">Added</h3>
+<h3 id="added-20">Added</h3>
 <ul>
 <li><strong>Cross-alias session visibility</strong> — sessions created
 under ANY alias (<code>claudeN</code>, <code>deepseek</code>,
@@ -2464,7 +2490,7 @@ provider). 61 projects merged in every <code>.claude.json</code>.
 Evidence in
 <code>scripts/tests/proof/80-cross-alias-sessions.txt</code>.</li>
 </ul>
-<h3 id="changed-5">Changed</h3>
+<h3 id="changed-6">Changed</h3>
 <ul>
 <li><code>scripts/claude-sync-state.sh</code> — provider dirs included
 in merge targets</li>
@@ -2501,7 +2527,7 @@ also merged.</li>
 </ul>
 <h2 id="v140--2026-06-20--opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</h2>
-<h3 id="added-20">Added</h3>
+<h3 id="added-21">Added</h3>
 <ul>
 <li><strong><code>opencode</code> provider alias</strong> — <a href="https://opencode.ai/zen">OpenCode Zen</a> curated AI gateway with
 <strong>21 free models</strong> (all $0 cost, all support tool calling +
@@ -2544,7 +2570,7 @@ all HTTP 200 with cost=$0. Evidence in
 table, setup, usage, live-verified notes, stealth model
 explanation).</li>
 </ul>
-<h3 id="changed-6">Changed</h3>
+<h3 id="changed-7">Changed</h3>
 <ul>
 <li><code>scripts/providers/key-aliases.json</code> and
 <code>scripts/providers/overrides.json</code> extended with the
@@ -2574,7 +2600,7 @@ work).</li>
 </ul>
 <h2 id="v130--2026-06-19--xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</h2>
-<h3 id="added-21">Added</h3>
+<h3 id="added-22">Added</h3>
 <ul>
 <li><strong><code>xiaomi</code> provider alias</strong> — Xiaomi MiMo
 via the <strong>Anthropic-native endpoint</strong>
@@ -2618,7 +2644,7 @@ tool calling proven (<code>finish_reason: tool_calls</code>
 <code>docs/Provider_Aliases_User_Guide.md</code> (model table, setup,
 usage, live-verified notes).</li>
 </ul>
-<h3 id="changed-7">Changed</h3>
+<h3 id="changed-8">Changed</h3>
 <ul>
 <li><code>scripts/providers/key-aliases.json</code> and
 <code>scripts/providers/overrides.json</code> extended with the
@@ -2646,7 +2672,7 @@ file.</li>
 </ul>
 <h2 id="v120--2026-06-19--zai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</h2>
-<h3 id="added-22">Added</h3>
+<h3 id="added-23">Added</h3>
 <ul>
 <li><strong><code>zai-coding-plan</code> provider alias</strong> —
 OpenAI-compatible router transport via
@@ -2670,7 +2696,7 @@ selection) + sync e2e tests (env file, alias, model overrides).</li>
 <code>~/.claude-code-router/config.json</code> as the active default
 route.</li>
 </ul>
-<h3 id="changed-8">Changed</h3>
+<h3 id="changed-9">Changed</h3>
 <ul>
 <li><code>overrides.json</code> extended with
 <code>zai-coding-plan</code> section for model pinning.</li>
@@ -2686,7 +2712,7 @@ include 5 new assertions for <code>zai-coding-plan</code>.</li>
 heavy testing against <strong>real production LLM services</strong>,
 plus end-to-end provider aliases proven on two hosts and two
 transports.</p>
-<h3 id="added-23">Added</h3>
+<h3 id="added-24">Added</h3>
 <ul>
 <li><strong><code>containers</code> + <code>challenges</code>
 submodules</strong> (<code>submodules/</code>) — the distributed-boot
@@ -2721,7 +2747,7 @@ included).</li>
 verification proofs, endpoint coverage, security posture, observability,
 per-provider sweeps, dual-host end-to-end alias proofs.</li>
 </ul>
-<h3 id="changed-9">Changed</h3>
+<h3 id="changed-10">Changed</h3>
 <ul>
 <li><strong>Provider session accent color: orange → purple</strong>
 across spec, guide, and the long-form doc. (Claude Code 2.1.178 cannot
@@ -2907,7 +2933,7 @@ assertions)</li>
 </ul>
 <h2 id="v172--2026-06-22--claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</h2>
-<h3 id="added-24">Added</h3>
+<h3 id="added-25">Added</h3>
 <ul>
 <li><strong>Claude alias verification</strong> in verify_aliases_live.sh
 — tests claude1/2/3 alongside provider aliases</li>

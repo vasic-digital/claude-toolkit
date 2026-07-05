@@ -1415,7 +1415,7 @@ reproduced below. The authoritative copies live at
 <span id="cb21-393"><a href="#cb21-393" aria-hidden="true" tabindex="-1"></a><span class="st">  # trust the workspace, and hint the alias color. Only when bare so explicit</span></span>
 <span id="cb21-394"><a href="#cb21-394" aria-hidden="true" tabindex="-1"></a><span class="st">  # user flags (-p, --resume, a prompt, …) are always respected verbatim.</span></span>
 <span id="cb21-395"><a href="#cb21-395" aria-hidden="true" tabindex="-1"></a><span class="st">  # claude-session emits only &quot;--resume &lt;uuid&gt;&quot; or &quot;--session-id &lt;uuid&gt; --name</span></span>
-<span id="cb21-396"><a href="#cb21-396" aria-hidden="true" tabindex="-1"></a><span class="st">  # &lt;snake&gt;&quot; (no shell metacharacters), so eval-splitting is safe and works in</span></span>
+<span id="cb21-396"><a href="#cb21-396" aria-hidden="true" tabindex="-1"></a><span class="st">  # &lt;kebab&gt;&quot; (no shell metacharacters), so eval-splitting is safe and works in</span></span>
 <span id="cb21-397"><a href="#cb21-397" aria-hidden="true" tabindex="-1"></a><span class="st">  # both bash and zsh (zsh does not word-split unquoted expansions).</span></span>
 <span id="cb21-398"><a href="#cb21-398" aria-hidden="true" tabindex="-1"></a><span class="st">  local _cma_label=&quot;&quot;</span></span>
 <span id="cb21-399"><a href="#cb21-399" aria-hidden="true" tabindex="-1"></a><span class="st">  if [[ $# -eq 0 &amp;&amp; -x &quot;$HOME/.local/bin/claude-session&quot; ]]; then</span></span>
@@ -4416,11 +4416,13 @@ project root path (the git working-tree root if you are inside a repo,
 otherwise <code>$PWD</code>), so every alias — and every subdirectory of
 the repo — maps to the <em>same</em> session: switch aliases and you
 continue the same ongoing work.</p>
-<p>The session is named in lowercase <code>snake_case</code> from the
-project root directory&#39;s basename (e.g. <code>claude_toolkit</code>;
-<code>Android 15</code> → <code>android_15</code>). The name is applied
-on <strong>both create and resume</strong>, so a session created
-<em>without</em> a name — by an older wrapper or a plain
+<p>The session is named in lowercase <code>kebab-case</code> from the
+project root directory&#39;s basename (e.g. <code>claude_toolkit</code> →
+<code>claude-toolkit</code>; <code>Android 15</code> →
+<code>android-15</code>). Whitespace and special characters are
+sanitized to hyphens, and leading/trailing separators are trimmed. The
+name is applied on <strong>both create and resume</strong>, so a session
+created <em>without</em> a name — by an older wrapper or a plain
 <code>claude</code> invocation — finally gets named the next time you
 bare-launch an alias into it.</p>
 <p>The moment you pass any argument (a prompt, <code>-p</code>,

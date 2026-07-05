@@ -393,7 +393,7 @@ cma_run() {
   # trust the workspace, and hint the alias color. Only when bare so explicit
   # user flags (-p, --resume, a prompt, …) are always respected verbatim.
   # claude-session emits only "--resume <uuid>" or "--session-id <uuid> --name
-  # <snake>" (no shell metacharacters), so eval-splitting is safe and works in
+  # <kebab>" (no shell metacharacters), so eval-splitting is safe and works in
   # both bash and zsh (zsh does not word-split unquoted expansions).
   local _cma_label=""
   if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then

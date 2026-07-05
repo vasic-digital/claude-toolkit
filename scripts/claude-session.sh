@@ -5,7 +5,7 @@
 # Each project (identified by its root directory) gets ONE long-lived Claude
 # session so launching any alias inside it resumes the same ongoing work, or
 # creates it the first time. The session is keyed by a STABLE id derived from
-# the project root path, and named after the root dir in lowercase snake_case.
+# the project root path, and named after the root dir in lowercase kebab-case.
 #
 # It also marks the project as trusted in the launching account's .claude.json
 # (suppresses the "workspace has not been trusted" warning), and prints a
@@ -16,9 +16,9 @@
 # Subcommands:
 #   flags <config_dir>          Print launch flags for `claude` on stdout:
 #                               either `--resume <sid>` (session exists) or
-#                               `--session-id <sid> --name <snake>` (first run).
+#                               `--session-id <sid> --name <kebab>` (first run).
 #                               Side effect: trust the project in <config_dir>.
-#   name  [path]                Print the snake_case session name for a path.
+#   name  [path]                Print the kebab-case session name for a path.
 #   id    [path]                Print the stable session UUID for a path.
 #   color <label>              Print the mapped color for an alias label.
 #   hint  <label> [path]        Print a human color/session hint on stderr.
@@ -44,14 +44,21 @@ cma_project_root() {
   fi
 }
 
-# lowercase snake_case of the root dir's basename, no spaces/specials.
+# Sanitize a user-facing session name:
+#   - lowercase
+#   - trim leading/trailing whitespace
+#   - collapse any run of characters that are not [a-z0-9] to a single "-"
+#     (this turns whitespace, underscores, and special characters into
+#      word separators while stripping them)
+#   - collapse consecutive "-" and trim leading/trailing "-"
+# The result is a filesystem/CLI-safe kebab-case name.
 cma_session_name() {
   local root base
   root="$(cma_project_root "${1:-$PWD}")"
   base="$(basename "$root")"
   printf '%s\n' "$base" \
     | tr '[:upper:]' '[:lower:]' \
-    | sed -E 's/[^a-z0-9]+/_/g; s/_+/_/g; s/^_//; s/_$//'
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/[^a-z0-9]+/-/g; s/-+/-/g; s/^-//; s/-$//'
 }
 
 # Stable RFC-4122-shaped UUID derived from the project root path. md5 is enough
