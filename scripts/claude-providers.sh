@@ -405,6 +405,9 @@ cmd_add() {
 # Verify ALL models for each provider, score them, and create multiple aliases
 # (provider, provider2, provider3...) with paired strong+fast models.
 cmd_sync_multi() {
+  # Same clear-die-on-directory guard as cmd_sync — present_key_vars dies only in a
+  # subshell here too, so the --multi path needs its own main-process check (v1.12.1 5a).
+  [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
   cma_require python3
   cma_require jq
   ensure_catalog

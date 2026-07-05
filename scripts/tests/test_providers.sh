@@ -322,6 +322,15 @@ printf '%s' "$_kderr" | grep -qi 'is a directory'; assert_eq 0 $? "directory key
 [[ "$_kdrc" -ne 0 ]]; assert_eq 0 $? "directory keys-file -> non-zero exit (not silent 0 key vars)"
 rm -rf "$_kd"
 
+it "cmd_sync_multi ALSO dies clearly on a directory keys-file (v1.12.1 5a, --multi path)"
+# The --multi path resolves keys through the same subshell pattern, so it needs its
+# own main-process guard too (final-review IMPORTANT: cmd_sync had it, cmd_sync_multi did not).
+_kd2="$(mktemp -d "${TMPDIR:-/tmp}/cma-kd2.XXXXXX")"
+_kd2err="$( bash "$PROVIDERS_SH" sync --multi --offline --keys-file "$_kd2" 2>&1 >/dev/null )"; _kd2rc=$?
+printf '%s' "$_kd2err" | grep -qi 'is a directory'; assert_eq 0 $? "--multi directory keys-file -> clear die"
+[[ "$_kd2rc" -ne 0 ]]; assert_eq 0 $? "--multi directory keys-file -> non-zero exit (not silent 0 key vars)"
+rm -rf "$_kd2"
+
 it "sync persists per-provider verification status (--no-verify -> unverified)"
 # With --no-verify, vstatus defaults to 'unverified' for every resolved
 # provider, and cmd_sync must record it in the status cache so the list family
