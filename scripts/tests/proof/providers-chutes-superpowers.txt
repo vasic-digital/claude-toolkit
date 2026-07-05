@@ -1,0 +1,4 @@
+claude-providers: alias chutes is pending — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for chutes)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

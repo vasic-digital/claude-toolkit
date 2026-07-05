@@ -1,0 +1,4 @@
+claude-providers: alias kimi-for-coding is pending — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for kimi-for-coding)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

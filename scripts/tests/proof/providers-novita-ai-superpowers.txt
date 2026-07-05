@@ -1,0 +1,4 @@
+claude-providers: alias novita-ai is pending — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for novita-ai)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

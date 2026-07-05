@@ -1,0 +1,182 @@
+{
+  "chutes2": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes2-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes2-superpowers.txt"
+    }
+  },
+  "chutes3": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes3-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes3-superpowers.txt"
+    }
+  },
+  "chutes4": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes4-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes4-superpowers.txt"
+    }
+  },
+  "chutes": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes-superpowers.txt"
+    }
+  },
+  "deepseek": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-deepseek-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-deepseek-superpowers.txt"
+    }
+  },
+  "fireworks-ai": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-fireworks-ai-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-fireworks-ai-superpowers.txt"
+    }
+  },
+  "github-models": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-github-models-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-github-models-superpowers.txt"
+    }
+  },
+  "huggingface2": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-huggingface2-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-huggingface2-superpowers.txt"
+    }
+  },
+  "huggingface3": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-huggingface3-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-huggingface3-superpowers.txt"
+    }
+  },
+  "huggingface": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-huggingface-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-huggingface-superpowers.txt"
+    }
+  },
+  "inference": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-inference-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-inference-superpowers.txt"
+    }
+  },
+  "kilo": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kilo-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kilo-superpowers.txt"
+    }
+  },
+  "kimi-for-coding": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-superpowers.txt"
+    }
+  },
+  "novita-ai": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-novita-ai-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-novita-ai-superpowers.txt"
+    }
+  },
+  "nvidia2": {
+    "status": "pending",
+    "layers": {
+      "existence": true,
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-nvidia2-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-nvidia2-superpowers.txt"
+    }
+  }
+}
