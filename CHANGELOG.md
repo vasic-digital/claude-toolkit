@@ -2,6 +2,37 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.12.1 — 2026-07-05 — Judge independence + resolve/robustness hardening
+
+Addresses the v1.12.0 final whole-branch review's deferred items and the deep-research
+findings on LLM-as-judge bias.
+
+### Changed
+- **Round-2 judge default is now a DIFFERENT model family.** `providers/judge.env.template`
+  defaults to Groq / Llama-3.1 (`llama-3.1-8b-instant`) instead of DeepSeek. 2024-2026
+  research (arXiv:2508.06709 and others) shows a judge systematically favors its own model
+  family — including validating that family's *wrong* answers, the exact failure layer-3
+  exists to catch — so defaulting the judge to a common subject (DeepSeek) was the worst
+  case. Verified working live as an independent judge.
+- **The semantic command distinguishes transport/infra failures from genuine verdicts.** The
+  LLMsVerifier `semantic-code-visibility` command now exits **3** when a round-1/round-2 API
+  call cannot complete (non-2xx, timeout, empty, connection error), vs exit **1** for a real
+  negative verdict. `providers-semantic.sh` maps exit 3 → `skip`, so a transient judge/model
+  hiccup is an honest SKIP and never downgrades the model-under-test (final-review I-1).
+
+### Added
+- **Independence warning:** `providers-semantic.sh` warns (never fails) when the judge
+  endpoint equals the model-under-test endpoint (same provider = same family = not independent).
+- **xAI is now resolvable:** `providers/overrides.json` gains `xai` → `https://api.x.ai/v1`
+  (the catalog lists xAI with no API base, so it previously resolved `unmapped`). Endpoint
+  confirmed live.
+- CONST-069 capability-boundary mandate in the LLMsVerifier submodule constitution (records the
+  CONST-051 project-agnostic boundary under a non-colliding id).
+
+### Fixed
+- A directory passed as the keys file (`CMA_KEYS_FILE` / `--keys-file`) now dies with a clear
+  message instead of silently yielding "0 key vars".
+
 ## v1.12.0 — 2026-07-05 — Semantic code-visibility (layer 3) + live TUI verification (layer 4)
 
 Adds two new provider-verification layers on top of the Phase-1 existence/tool-call
