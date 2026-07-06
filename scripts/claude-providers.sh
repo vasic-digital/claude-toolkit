@@ -254,19 +254,46 @@ resolve_records() {
   local args=(--models-dev "$CACHE" --keys "$keys")
   [[ -f "$KEY_ALIASES" ]] && args+=(--key-aliases "$KEY_ALIASES")
   [[ -f "$OVERRIDES" ]] && args+=(--overrides "$OVERRIDES")
-  local base_records extra
-  base_records="$(python3 "$RESOLVER" "${args[@]}")"
+  local base_records extra rc
+  # Capture BOTH the output and the real exit code explicitly. Do not rely on
+  # `set -e` here: resolve_records() is itself invoked via a command
+  # substitution (`records="$(resolve_records)"` in cmd_sync/cmd_sync_multi),
+  # and a failing `var="$(cmd)"` assignment INSIDE a function that is itself
+  # only reached through another command substitution does not reliably
+  # trigger errexit in bash (a well-known nested-command-substitution
+  # quirk) — a hard resolver crash could otherwise read as success with
+  # $base_records silently left empty.
+  base_records="$(python3 "$RESOLVER" "${args[@]}")"; rc=$?
+  if (( rc != 0 )); then
+    cma_die "providers_resolve.py failed (exit $rc) — refusing to merge in an empty/partial provider list"
+  fi
+  # A resolver that exits 0 but prints empty/invalid JSON is exactly as
+  # dangerous as a nonzero exit: merging THAT in used to silently drop every
+  # real provider (the old `jq -s` merge slurped both process-substitution
+  # streams into one flat array and indexed into it by position — an empty
+  # first stream shifted the HelixAgent record into `.[0]`, so the sync ran
+  # with ONLY the local HelixAgent provider and zero real providers, exit 0,
+  # no warning). Validate before ever reaching the merge.
+  if ! printf '%s' "$base_records" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "providers_resolve.py produced no/invalid JSON output — refusing to merge (would silently drop all providers)"
+  fi
   # Merge the local-detector record(s) into the resolver output BEFORE cmd_sync
   # consumes it, so PATH-detected providers reuse the whole env/alias/verify
   # loop verbatim. Guard against emitting a HelixAgent record whose provider_id
   # a key-var already resolved to (cmd_sync also dedupes, this is belt+braces).
   extra="$(detect_helixagent_record)"
-  jq -s '
-    (.[0] // []) as $base
-    | (.[1] // []) as $extra
-    | ($base | map(.provider_id)) as $ids
+  if ! printf '%s' "$extra" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_helixagent_record produced no/invalid JSON output"
+  fi
+  # Merge by CONCATENATING two independently-parsed JSON values (--argjson
+  # parses each input on its own — a missing/malformed value is a hard jq
+  # parse error, never a silent reindex) rather than slurping both inputs
+  # into one flat stream and positionally indexing into it (`jq -s
+  # '.[0] + .[1]'`-style), which is exactly what shifted silently above.
+  jq -n --argjson base "$base_records" --argjson extra "$extra" '
+    ($base | map(.provider_id)) as $ids
     | $base + ($extra | map(select(.provider_id as $p | ($ids | index($p)) | not)))
-  ' <(printf '%s' "$base_records") <(printf '%s' "$extra")
+  '
 }
 
 # --- subcommand: sync -------------------------------------------------------
@@ -668,8 +695,11 @@ done
 # Source-guard the executable entrypoint so the module can be sourced (for unit
 # tests / to call detect_helixagent_record directly) WITHOUT running dispatch.
 # Under normal execution BASH_SOURCE[0] == $0 (both the script path) so this is a
-# no-op for real invocations; when sourced, $0 is the caller so dispatch is
-# skipped and only the function definitions load.
+# no-op for real invocations; when sourced, $0 is the caller so this guard skips
+# ONLY the --refresh-aliases fast path + the final SUBCMD dispatch (case) below —
+# the function definitions above AND the top-level arg-parsing loop (which sets
+# SUBCMD/POSITIONAL/flags from whatever "$@" the sourcing context had) still run
+# unconditionally either way.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
 # --refresh-aliases: rebuild every provider's alias shell line from its cached
