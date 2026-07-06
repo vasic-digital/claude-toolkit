@@ -10,11 +10,15 @@
 # record were created with transport=router and the LIVE-enumerated models —
 # real captured evidence (§11.4.69), not a mock that proves nothing.
 #
-# Three cases prove the honest behaviour of the detector:
+# Four groups prove the honest behaviour of the detector + resolver merge:
 #   A. binary on PATH + server up  -> alias/env/record with live models
 #   B. binary NOT on PATH          -> NO helixagent alias/env (PATH gate)
 #   C. binary on PATH + server DOWN -> alias/env STILL created off the pins,
 #                                      honest 'unverified' (installed-not-running)
+#   D. resolve_records loud-fail guards (the C1 fix): a resolver that exits
+#      nonzero (D1) OR exits 0 but prints a non-array (D2) MUST make
+#      resolve_records cma_die loudly and emit NO provider set — never silently
+#      drop the real providers down to a HelixAgent-only/empty list.
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -286,6 +290,76 @@ assert_eq 0 $? "strong model falls back to configured pin (helix-debate)"
 grep -qE "^CMA_PROVIDER_FAST_MODEL='?helix-llm'?" "$PDIR/helixagent.env"
 assert_eq 0 $? "fast model falls back to configured pin (helix-llm)"
 assert_eq "unverified" "$(cma_status_read helixagent)" "honest unverified when unreachable"
+
+# ===========================================================================
+# CASE D — resolve_records loud-fail guards (§11.4.115 RED-polarity regression
+# guard for the C1 fix: "die loudly instead of silently dropping providers").
+# Two sub-cases, each isolating ONE of the two loud-fail guards so that
+# neutering that guard alone flips this board RED (the silent-regression hole
+# the C1 Critical closed — previously reintroducible with a green board):
+#   D1. resolver EXITS NONZERO (but prints a valid []) -> only the
+#       `if (( rc != 0 ))` guard can catch it (the array check passes on []).
+#   D2. resolver EXITS 0 but prints a NON-ARRAY ({})   -> only the
+#       `jq -e 'type=="array"'` validation guard can catch it.
+# resolve_records is driven through the SAME `records="$(resolve_records)"`
+# command-substitution context cmd_sync/cmd_sync_multi use — the documented
+# nested-command-substitution errexit quirk is exactly why the explicit guards
+# exist, so a direct call would bypass them and misrepresent production. The
+# fake helixagent binary is deliberately ABSENT here (detect_helixagent_record
+# returns []) so a neutered guard would emit an empty/HelixAgent-only set — the
+# real silent drop — proving the guards, not the detector, are under test.
+# Real invocation + captured stdout/stderr/exit — no metadata-only assertion.
+# ===========================================================================
+D_OUT="$HOME/case_d.out"; D_ERR="$HOME/case_d.err"
+
+# RED fixture D1: emit a VALID empty array yet EXIT NONZERO. Only the
+# `if (( rc != 0 ))` guard stands between this and a silent merge.
+STUB_FAIL="$HOME/stub_resolver_fail.py"
+cat > "$STUB_FAIL" <<'PY'
+import sys
+print("[]")        # valid JSON array -> array-validation guard would PASS
+sys.exit(7)        # ...but nonzero exit MUST be caught by the rc!=0 guard
+PY
+
+# RED fixture D2: EXIT 0 but print a NON-ARRAY ({}). Only the
+# `jq -e 'type=="array"'` validation guard can catch this.
+STUB_NONARRAY="$HOME/stub_resolver_nonarray.py"
+cat > "$STUB_NONARRAY" <<'PY'
+print("{}")        # exit 0, but not an array -> validation guard MUST fire
+PY
+
+# Drive resolve_records through cmd_sync's command-substitution context with a
+# stubbed RESOLVER; echo the real exit code, leaving stdout/stderr in files.
+_run_resolve() {   # $1 = stub resolver path
+  CMA_KEYS_FILE="$KEYS" CMA_HELIXAGENT_BIN=helixagent-absent-xyz \
+    bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1
+             RESOLVER="'"$1"'"
+             records="$(resolve_records)"
+             printf "%s" "$records"' >"$D_OUT" 2>"$D_ERR"
+  echo $?
+}
+
+it "CASE D1: resolver EXITS NONZERO -> resolve_records dies loudly, drops nothing"
+d_rc="$(_run_resolve "$STUB_FAIL")"
+{
+  echo "--- CASE D1 (resolver prints [] then exit 7) rc=$d_rc ---"
+  echo "STDOUT=[$(cat "$D_OUT")]"
+  echo "STDERR=[$(cat "$D_ERR")]"
+} >> "$PROOF"
+[[ "$d_rc" -ne 0 ]]; assert_eq 0 $? "resolve_records exits nonzero when the resolver crashes (loud-fail, not silent drop)"
+assert_file_contains "$D_ERR" "providers_resolve.py failed (exit" "cma_die fired with the resolver-crash message"
+[[ ! -s "$D_OUT" ]]; assert_eq 0 $? "NO provider set emitted on stdout (no partial / HelixAgent-only silent drop)"
+
+it "CASE D2: resolver EXITS 0 but prints a NON-ARRAY -> resolve_records dies loudly"
+d_rc="$(_run_resolve "$STUB_NONARRAY")"
+{
+  echo "--- CASE D2 (resolver prints {} exit 0) rc=$d_rc ---"
+  echo "STDOUT=[$(cat "$D_OUT")]"
+  echo "STDERR=[$(cat "$D_ERR")]"
+} >> "$PROOF"
+[[ "$d_rc" -ne 0 ]]; assert_eq 0 $? "resolve_records exits nonzero when the resolver prints non-array JSON (loud-fail)"
+assert_file_contains "$D_ERR" "produced no/invalid JSON output" "cma_die fired with the invalid-JSON message"
+[[ ! -s "$D_OUT" ]]; assert_eq 0 $? "NO provider set emitted on stdout (no silent drop of all real providers)"
 
 echo >> "$PROOF"
 echo "=== helixagent.env (final) ===" >> "$PROOF"
