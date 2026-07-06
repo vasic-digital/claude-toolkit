@@ -158,12 +158,115 @@ present_key_vars() {
 # Validate that the catalog cache is parseable JSON.
 _catalog_valid() { python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1" 2>/dev/null; }
 
+# --- local HelixAgent PATH-detection (decoupled; providers_resolve.py stays pure)
+# HelixAgent is a LOCAL binary with no cloud API key, so it never appears in the
+# models.dev catalog and the env-key-name pipeline can't discover it. This
+# detector gates on `command -v helixagent` (the PATH), enumerates the served
+# models from the LIVE OpenAI-compatible `/v1/models` endpoint (single source of
+# truth — no hardcoded model list, mirrors CONST-036), and emits ONE
+# `resolved`-shaped JSON record that flows through the SAME
+# cma_provider_write_env / cma_provider_write_alias / verification loop as every
+# other provider (see cmd_sync). Everything is env-overridable (CMA_HELIXAGENT_*)
+# so no host-specific path is baked in (CONST-045). Server-down is HONEST: the
+# alias is still registered off the configured pins, and verification marks it
+# 'unverified' rather than fabricate a live model list (§11.4.6).
+#
+# transport = router: HelixAgent's /v1 is OpenAI-compatible (NOT Anthropic-
+# native), so the alias routes through ccr (claude-code-router) exactly like
+# every other OpenAI-style provider. A future Anthropic-native HelixAgent
+# endpoint can be promoted via CMA_HELIXAGENT_TRANSPORT=native.
+detect_helixagent_record() {
+  : "${CMA_HELIXAGENT_BIN:=helixagent}"
+  : "${CMA_HELIXAGENT_ID:=helixagent}"
+  : "${CMA_HELIXAGENT_HOST:=localhost}"
+  : "${CMA_HELIXAGENT_PORT:=8100}"
+  : "${CMA_HELIXAGENT_KEYVAR:=HELIXAGENT_API_KEY}"
+  : "${CMA_HELIXAGENT_TRANSPORT:=router}"
+  : "${CMA_HELIXAGENT_STRONG:=helix-debate}"
+  : "${CMA_HELIXAGENT_FAST:=helix-llm}"
+  : "${CMA_HELIXAGENT_CONTEXT_LIMIT:=128000}"
+  : "${CMA_HELIXAGENT_MAX_OUTPUT:=8192}"
+  local base="${CMA_HELIXAGENT_BASE_URL:-http://${CMA_HELIXAGENT_HOST}:${CMA_HELIXAGENT_PORT}/v1}"
+
+  # PATH gate: no helixagent binary -> no record (honest; the whole feature is
+  # opt-in on the binary being installed).
+  command -v "$CMA_HELIXAGENT_BIN" >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+
+  # Enumerate models from the live endpoint. The auth token (if any) is read by
+  # NAME from the environment and passed via `curl --config -` (stdin), never on
+  # argv (no secret leak, §11.4.10). During resolve the key-var is usually not
+  # exported (present_key_vars sources the keys file only in a subshell), so an
+  # unauthenticated /v1/models listing is the common path — acceptable + honest.
+  local ids="" key=""
+  key="${!CMA_HELIXAGENT_KEYVAR:-}"
+  if command -v curl >/dev/null 2>&1; then
+    local t="${CMA_HELIXAGENT_HTTP_TIMEOUT:-8}"
+    if [[ -n "$key" ]]; then
+      ids="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
+             | curl -s --max-time "$t" --config - "${base%/}/models" 2>/dev/null \
+             | jq -r '.data[].id? // empty' 2>/dev/null || true)"
+    else
+      ids="$(curl -s --max-time "$t" "${base%/}/models" 2>/dev/null \
+             | jq -r '.data[].id? // empty' 2>/dev/null || true)"
+    fi
+  fi
+
+  local strong="" fast=""
+  if [[ -n "$ids" ]]; then
+    # Data-driven selection from the LIVE id list: prefer the configured strong/
+    # fast ids when the server serves them, else fall back to positional picks.
+    if printf '%s\n' "$ids" | grep -qxF -- "$CMA_HELIXAGENT_STRONG"; then
+      strong="$CMA_HELIXAGENT_STRONG"
+    else
+      strong="$(printf '%s\n' "$ids" | head -n1)"
+    fi
+    if printf '%s\n' "$ids" | grep -qxF -- "$CMA_HELIXAGENT_FAST"; then
+      fast="$CMA_HELIXAGENT_FAST"
+    else
+      fast="$(printf '%s\n' "$ids" | sed -n '2p')"
+      [[ -z "$fast" ]] && fast="$strong"
+    fi
+  else
+    # Server unreachable / no models returned: honest fallback to the configured
+    # pins so the alias still exists (verification will mark it 'unverified').
+    strong="$CMA_HELIXAGENT_STRONG"; fast="$CMA_HELIXAGENT_FAST"
+  fi
+
+  # Emit ONE record with the exact schema providers_resolve.py produces.
+  jq -cn \
+    --arg key_var "$CMA_HELIXAGENT_KEYVAR" \
+    --arg pid     "$CMA_HELIXAGENT_ID" \
+    --arg alias   "$CMA_HELIXAGENT_ID" \
+    --arg base    "$base" \
+    --arg transport "$CMA_HELIXAGENT_TRANSPORT" \
+    --arg strong  "$strong" \
+    --arg fast    "$fast" \
+    --argjson ctx "${CMA_HELIXAGENT_CONTEXT_LIMIT:-null}" \
+    --argjson out "${CMA_HELIXAGENT_MAX_OUTPUT:-null}" \
+    '[{key_var:$key_var, classification:"llm", provider_id:$pid, alias:$alias,
+       base_url:$base, transport:$transport, strong_model:$strong,
+       fast_model:$fast, context_limit:$ctx, max_output:$out,
+       status:"resolved", reason:"helixagent detected on PATH"}]'
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
   [[ -f "$KEY_ALIASES" ]] && args+=(--key-aliases "$KEY_ALIASES")
   [[ -f "$OVERRIDES" ]] && args+=(--overrides "$OVERRIDES")
-  python3 "$RESOLVER" "${args[@]}"
+  local base_records extra
+  base_records="$(python3 "$RESOLVER" "${args[@]}")"
+  # Merge the local-detector record(s) into the resolver output BEFORE cmd_sync
+  # consumes it, so PATH-detected providers reuse the whole env/alias/verify
+  # loop verbatim. Guard against emitting a HelixAgent record whose provider_id
+  # a key-var already resolved to (cmd_sync also dedupes, this is belt+braces).
+  extra="$(detect_helixagent_record)"
+  jq -s '
+    (.[0] // []) as $base
+    | (.[1] // []) as $extra
+    | ($base | map(.provider_id)) as $ids
+    | $base + ($extra | map(select(.provider_id as $p | ($ids | index($p)) | not)))
+  ' <(printf '%s' "$base_records") <(printf '%s' "$extra")
 }
 
 # --- subcommand: sync -------------------------------------------------------
@@ -562,6 +665,13 @@ while (( $# )); do
   esac
 done
 
+# Source-guard the executable entrypoint so the module can be sourced (for unit
+# tests / to call detect_helixagent_record directly) WITHOUT running dispatch.
+# Under normal execution BASH_SOURCE[0] == $0 (both the script path) so this is a
+# no-op for real invocations; when sourced, $0 is the caller so dispatch is
+# skipped and only the function definitions load.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+
 # --refresh-aliases: rebuild every provider's alias shell line from its cached
 # env file — NO network, NO probe. This is the session hook's fast path (run on
 # each interactive shell start). Runs before dispatch so `list --refresh-aliases`
@@ -593,3 +703,5 @@ case "$SUBCMD" in
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
 esac
+
+fi  # end source-guard (BASH_SOURCE == $0)
