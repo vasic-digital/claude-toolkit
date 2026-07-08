@@ -1,11 +1,11 @@
 # Toolkit proof of work
 
-- generated: `2026-06-26T18:37:04+0300`
-- host: `Darwin 24.5.0 arm64`
+- generated: `2026-07-08T15:06:39+0500`
+- host: `Linux 6.12.41-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
 ```
-Test files: 9   passed: 9   failed: 0 ALL GREEN 
+Test files: 20   passed: 20   failed: 0 ALL GREEN 
 ```
 exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 
@@ -23,12 +23,18 @@ instructions=1
 
 result: see PASS/FAIL tally below
 ```
-result: `✓ 9 passed, 0 failed`  ·  exit code: `0`
+result: `SKIP: opencode not installed on this host — live verification skipped.`  ·  exit code: `0`
 
 ## Live provider-alias verification (real installed state)
 ```
-✓ 5 passed, 0 failed
+✓ 30 passed, 0 failed
 ```
 exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
-Artifacts: `10-debug-config.json`, `21-skill-names.txt`, `31-mcp-list.clean.txt`, `50-providers-live.txt`.
+## Live alias verification (real provider + Claude aliases)
+```
+PASS: 5 FAIL: 14 TOTAL: 19
+```
+exit code: `14`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
+
+Artifacts: `10-debug-config.json`, `21-skill-names.txt`, `31-mcp-list.clean.txt`, `50-providers-live.txt`, `43-live-aliases.log`.
