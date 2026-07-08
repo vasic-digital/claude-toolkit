@@ -457,7 +457,7 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'claude-session' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'apply-color' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' || \
+       ! printf '%s\n' "$_prov_body" | grep -q '_cma_compact_cap' || \
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
@@ -471,7 +471,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window + activation-gate + env-isolation)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -555,8 +555,14 @@ cma_run_provider() {
   # transports (native + router), so every provider alias is protected.
   # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below on
   # the native path) caps OUTPUT — the two are independent halves of the guard.
-  [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] && \
+  # Auto-compact cap: only lower the window; never raise it above ~200K.
+  # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need this
+  # guard — exporting their full window disables auto-compaction until ~987K,
+  # filling the session before compacting. CMA_AUTO_COMPACT_CAP overrides.
+  local _cma_compact_cap="${CMA_AUTO_COMPACT_CAP:-200000}"
+  if [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" && "${CMA_PROVIDER_CONTEXT_LIMIT}" -le "$_cma_compact_cap" ]]; then
     export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
+  fi
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
   # Pull merged state before launch; push post-session state after exit.
