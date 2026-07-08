@@ -54,7 +54,7 @@ SKIP: layer-3 preconditions absent for inference
     [32m[PASS][0m layer-3 semantic PASS for kilo
 
   • superpowers-TUI (layer 4) for 'kilo' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for kilo
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for kilo
 
   • semantic (layer 3) for 'kimi-for-coding' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for kimi-for-coding
@@ -69,7 +69,7 @@ SKIP: layer-3 preconditions absent for novita-ai
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for novita-ai
 
   • semantic (layer 3) for 'nvidia' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for nvidia
+SKIP: layer-3 preconditions absent for nvidia
 
   • superpowers-TUI (layer 4) for 'nvidia' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for nvidia
@@ -78,13 +78,13 @@ SKIP: layer-3 preconditions absent for novita-ai
 SKIP: layer-3 preconditions absent for opencode
 
   • superpowers-TUI (layer 4) for 'opencode' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for opencode
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode
 
   • semantic (layer 3) for 'openrouter' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for openrouter
 
   • superpowers-TUI (layer 4) for 'openrouter' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for openrouter
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for openrouter
 
   • semantic (layer 3) for 'poe' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for poe
@@ -96,7 +96,7 @@ SKIP: layer-3 preconditions absent for openrouter
 SKIP: layer-3 preconditions absent for siliconflow
 
   • superpowers-TUI (layer 4) for 'siliconflow' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for siliconflow
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for siliconflow
 
   • semantic (layer 3) for 'tencent-tokenhub' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for tencent-tokenhub
@@ -111,7 +111,7 @@ SKIP: layer-3 preconditions absent for upstage
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for upstage
 
   • semantic (layer 3) for 'xiaomi' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for xiaomi
+    [32m[PASS][0m layer-3 semantic ran (verdict: unverified) for xiaomi
 
   • superpowers-TUI (layer 4) for 'xiaomi' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for xiaomi
@@ -132,4 +132,4 @@ SKIP: layer-3 preconditions absent for zhipuai
     [32m[PASS][0m layer-4 classifier honesty: neutral prompt via 'chutes' correctly did NOT match the engagement marker
 evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/50-providers-live.txt
 
-[32m✓ 30 passed, 0 failed[0m
+[32m✓ 29 passed, 0 failed[0m

@@ -76,7 +76,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-kilo-semantic.txt",
@@ -84,7 +84,7 @@
     }
   },
   "kimi-for-coding": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -111,7 +111,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -124,7 +124,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-semantic.txt",
@@ -136,7 +136,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-openrouter-semantic.txt",
@@ -160,7 +160,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-siliconflow-semantic.txt",
@@ -180,7 +180,7 @@
     }
   },
   "upstage": {
-    "status": "failed",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -192,10 +192,10 @@
     }
   },
   "xiaomi": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "unverified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -204,7 +204,7 @@
     }
   },
   "zai-coding-plan": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -220,7 +220,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zhipuai-semantic.txt",
