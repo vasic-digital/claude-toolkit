@@ -1202,3 +1202,101 @@ XAI_API_KEY=sk-test out="$( XAI_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-ver
 assert_eq "verified" "$out" "xAI /v1/models 200 -> verified (no special-case)"
 
 summary
+
+# ---------------------------------------------------------------------------
+# Section 10 — HTTP probe URL normalization (providers-verify.sh)
+# Native-transport providers (/anthropic base URL) must probe /models
+# correctly (not /anthropic/models). Loopback HTTP server test.
+# ---------------------------------------------------------------------------
+
+it "providers-verify strips /anthropic from probe URL for native-transport providers"
+python3 - "$HOME/nat.port" <<'PY' &
+import http.server, socketserver, sys, json
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/models":
+            self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers()
+            self.wfile.write(json.dumps({"object":"list","data":[]}).encode())
+        else:
+            self.send_response(404); self.end_headers()
+    def log_message(self,*a): pass
+with socketserver.TCPServer(("127.0.0.1",0),H) as s:
+    open(sys.argv[1],"w").write(str(s.server_address[1])); s.handle_request()
+PY
+for _ in $(seq 1 50); do [[ -s "$HOME/nat.port" ]] && break; sleep 0.05; done
+natport="$(cat "$HOME/nat.port" 2>/dev/null)"
+NATIVE_ANTHROPIC_API_KEY=sk-test out="$(
+  NATIVE_ANTHROPIC_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-verify.sh" \
+    --provider native --model mimo-x --key-var NATIVE_ANTHROPIC_API_KEY \
+    --base-url "http://127.0.0.1:${natport}/anthropic" 2>/dev/null )"
+assert_eq "verified" "$out" "native /anthropic base -> verified (correct /models probe)"
+
+# ---------------------------------------------------------------------------
+# Section 11 — cma_run_provider env isolation (emitted body check)
+# ---------------------------------------------------------------------------
+
+it "emitted cma_run_provider carries env-isolation unset for ANTHROPIC_*"
+grep -qF 'unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL' "$ALIAS_FILE"
+assert_eq 0 $? "full ANTHROPIC_* unset line present in alias file"
+
+it "emitted cma_run_provider carries env-isolation unset for CLAUDE_CODE_*"
+grep -qF 'unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS' "$ALIAS_FILE"
+assert_eq 0 $? "CLAUDE_CODE_* unset line present in alias file"
+
+it "env-isolation markers appear in cma_run_provider body before activation gate"
+_gate_line="$(grep -n '_cma_force' "$ALIAS_FILE" | grep -v '^[0-9]*:.*grep\|^[0-9]*:.*_gate_line' | head -1 | cut -d: -f1)"
+_unset_line="$(grep -n 'unset ANTHROPIC_BASE_URL' "$ALIAS_FILE" | head -1 | cut -d: -f1)"
+[[ -n "$_unset_line" && -n "$_gate_line" && "$_unset_line" -lt "$_gate_line" ]]
+assert_eq 0 $? "env-isolation unset lines precede the activation gate"
+
+it "migration check detects missing env-isolation marker"
+_bare_body='cma_run_provider() { :; }'
+printf '%s\n' "$_bare_body" | grep -qF 'unset ANTHROPIC_BASE_URL' && _has=1 || _has=0
+assert_eq 0 "$_has" "bare body without env-isolation triggers missing check"
+
+# ---------------------------------------------------------------------------
+# Section 12 — multi-alias status persistence (direct status cache + gate test)
+# ---------------------------------------------------------------------------
+
+it "cma_status_write works for a multi-alias name (numeric suffix pattern)"
+cma_status_write "acme2" "verified" "acme-big" ""
+assert_eq "verified" "$(cma_status_read acme2)" "multi-alias acme2 reads as verified"
+assert_jq "$(cma_status_cache)" '.acme2.model' "acme-big" "multi-alias carries model name"
+assert_jq "$(cma_status_cache)" '.acme2.failing_layer' "" "verified has empty failing_layer"
+
+it "cma_status_write for multi-alias with low score -> unverified (existence)"
+cma_status_write "acme4" "unverified" "acme-tiny" "existence"
+assert_eq "unverified" "$(cma_status_read acme4)" "low-score multi-alias -> unverified"
+assert_jq "$(cma_status_cache)" '.acme4.failing_layer' "existence" "low-score -> existence"
+
+it "multi-alias activation gate: verified alias launches (cma_run_provider rc 0)"
+cma_status_write "acme2" "verified" "acme-big" ""
+mkdir -p "$HOME/.claude-prov-acme2"
+_pdir="$(cma_providers_dir)"; mkdir -p "$_pdir"
+cat > "$_pdir/acme2.env" <<ENVEOF
+CMA_PROVIDER_ID='acme2'
+CMA_PROVIDER_KEYVAR='ACME_API_KEY'
+CMA_PROVIDER_TRANSPORT='native'
+CMA_PROVIDER_BASE_URL=''
+CMA_PROVIDER_MODEL='acme-big'
+CMA_PROVIDER_FAST_MODEL='acme-small'
+CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-acme2'
+ENVEOF
+( ACME_API_KEY=sk-test CLAUDE_BIN=/usr/bin/true source "$ALIAS_FILE"; cma_run_provider acme2 ) >/dev/null 2>&1
+assert_eq 0 $? "multi-alias verified acme2 launches (rc 0)"
+
+it "multi-alias activation gate: unverified alias blocks (rc 3)"
+# Create env file first (needed for cma_run_provider to find it)
+cat > "$_pdir/acme4.env" <<ENVEOF
+CMA_PROVIDER_ID='acme4'
+CMA_PROVIDER_KEYVAR='ACME_API_KEY'
+CMA_PROVIDER_TRANSPORT='native'
+CMA_PROVIDER_BASE_URL=''
+CMA_PROVIDER_MODEL='acme-tiny'
+CMA_PROVIDER_FAST_MODEL='acme-small'
+CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-acme4'
+ENVEOF
+mkdir -p "$HOME/.claude-prov-acme4"
+cma_status_write "acme4" "unverified" "acme-tiny" "existence"
+( CLAUDE_BIN=/usr/bin/true ACME_API_KEY=sk-test source "$ALIAS_FILE"; cma_run_provider acme4 ) >/dev/null 2>&1; _grc=$?
+assert_eq 3 "$_grc" "unverified multi-alias acme4 blocked by gate (rc 3)"

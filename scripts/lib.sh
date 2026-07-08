@@ -461,7 +461,8 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"'; then
+       ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -470,7 +471,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window + activation-gate)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window + activation-gate + env-isolation)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -493,6 +494,14 @@ cma_run_provider() {
   fi
   # shellcheck disable=SC1090
   source "$envf"
+  # Cross-alias env isolation: unset any ANTHROPIC_*/CLAUDE_CODE_* vars that
+  # leaked from a PREVIOUS cma_run_provider invocation in this shell. The
+  # transport-specific branches below re-export them from this provider's
+  # CMA_PROVIDER_* vars (fresh from source "$envf"), so the unset here is
+  # only clearing the leftover from the previous alias — identical to how
+  # cma_run (the native claudeN wrapper) isolates its ANTHROPIC_* vars.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS
   # Activation gate: only a 'verified' alias launches Claude Code. A non-verified
   # alias (unverified / failed / pending) prints a clear, actionable message and
   # refuses to launch, so a broken provider never surfaces as a confusing
