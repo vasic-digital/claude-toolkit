@@ -249,6 +249,49 @@ detect_helixagent_record() {
        status:"resolved", reason:"helixagent detected on PATH"}]'
 }
 
+# --- local Kimi Code OAuth PATH-detection -----------------------------------
+# Kimi Code uses OAuth tokens (15-min expiry), not static API keys. The token
+# lives in ~/.kimi-code/credentials/kimi-code.json. Gates on `command -v kimi`.
+# The sentinel key_var _CMA_KIMICODE_OAUTH_ signals to both the verification
+# path and the launch wrapper to read the token from the provider token file
+# ($PROVIDER_DIR/kimi-for-coding.token). Token is refreshed at sync time.
+detect_kimicode_record() {
+  command -v kimi >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+  local cred_file="$HOME/.kimi-code/credentials/kimi-code.json"
+  [[ -f "$cred_file" ]] || { printf '[]\n'; return 0; }
+
+  # Token refresh: if expired, run kimi -p to trigger OAuth refresh.
+  local now expires token
+  now="$(date +%s)"
+  expires="$(jq -r '.expires_at // 0' "$cred_file" 2>/dev/null || echo 0)"
+  if (( expires <= now )); then
+    timeout 20 kimi -p "hi" --output-format text >/dev/null 2>&1 || true
+    expires="$(jq -r '.expires_at // 0' "$cred_file" 2>/dev/null || echo 0)"
+  fi
+
+  token="$(jq -r '.access_token // ""' "$cred_file" 2>/dev/null)"
+  [[ -n "$token" ]] || { printf '[]\n'; return 0; }
+
+  # Write token for verification/launch paths (chmod 600 — no group/world read).
+  local tdir; tdir="$(cma_providers_dir)"; mkdir -p "$tdir"
+  local tokf="$tdir/kimi-for-coding.token"
+  printf '%s' "$token" > "$tokf" && chmod 600 "$tokf" 2>/dev/null || true
+
+  jq -n \
+    --arg pid "kimi-for-coding" \
+    --arg alias "kimi-for-coding" \
+    --arg keyvar "_CMA_KIMICODE_OAUTH_" \
+    --arg base "https://api.kimi.com/coding/v1" \
+    --arg transport "router" \
+    --arg strong "kimi-for-coding" \
+    --arg fast "kimi-for-coding" \
+    --argjson ctx 262144 \
+    '[{key_var:$keyvar, classification:"llm", provider_id:$pid, alias:$alias,
+       base_url:$base, transport:$transport, strong_model:$strong,
+       fast_model:$fast, context_limit:$ctx, max_output:null,
+       status:"resolved", reason:"kimi-code detected on PATH (OAuth token)"}]'
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -279,22 +322,24 @@ resolve_records() {
   fi
   # Merge the local-detector record(s) into the resolver output BEFORE cmd_sync
   # consumes it, so PATH-detected providers reuse the whole env/alias/verify
-  # loop verbatim. Guard against emitting a HelixAgent record whose provider_id
-  # a key-var already resolved to (cmd_sync also dedupes, this is belt+braces).
+  # loop verbatim. Guard against emitting a HelixAgent/KimiCode record whose
+  # provider_id a key-var already resolved to (cmd_sync also dedupes).
   extra="$(detect_helixagent_record)"
   if ! printf '%s' "$extra" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_helixagent_record produced no/invalid JSON output"
   fi
-  # Merge by CONCATENATING two independently-parsed JSON values (--argjson
-  # parses each input on its own — a missing/malformed value is a hard jq
-  # parse error, never a silent reindex) rather than slurping both inputs
-  # into one flat stream and positionally indexing into it (`jq -s
-  # '.[0] + .[1]'`-style), which is exactly what shifted silently above.
-  jq -n --argjson base "$base_records" --argjson extra "$extra" '
+  extra_kc="$(detect_kimicode_record)" || true
+  if ! printf '%s' "$extra_kc" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_kimicode_record produced no/invalid JSON output"
+  fi
+  # Merge all three sources: resolver records + HelixAgent + Kimi Code, deduped.
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" '
     ($base | map(.provider_id)) as $ids
-    | $base + ($extra | map(select(.provider_id as $p | ($ids | index($p)) | not)))
+    | $base + ($e1 + $e2 | map(select(.provider_id as $p | ($ids | index($p)) | not)))
   '
 }
+
+
 
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
@@ -341,7 +386,7 @@ cmd_sync() {
       local vargs=(--provider "$pid" --model "$model" --key-var "$keyvar")
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
       (( OFFLINE )) && vargs+=(--offline)
-      # Source keys so the verifier/probe can read the secret (subshell only).
+            # Source keys so the verifier/probe can read the secret (subshell only).
       # Disable nounset while sourcing: the user-controlled keys file may
       # contain dangling references (e.g. `export X=$UNSET`), which under the
       # inherited `set -u` would abort the source mid-file — silently leaving
@@ -349,6 +394,13 @@ cmd_sync() {
       # verification ("unverified") and a stream of "unbound variable" errors
       # spams stderr. `+u` makes the source tolerant; it is subshell-local.
       # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
+      # Kimi Code OAuth sentinel: inject the live token from the provider
+      # token file BEFORE the verification subshell so ${!_CMA_KIMICODE_OAUTH_}
+      # resolves correctly inside the verifier's ${!KEYVAR} expansion.
+      if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
+        local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/kimi-for-coding.token"
+        [[ -f "$_kimi_tokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_kimi_tokf" 2>/dev/null)"
+      fi
       vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi

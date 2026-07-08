@@ -3,3 +3,4 @@ providers installed: 19
 ccr installed: yes
 LLMsVerifier binary: not-built
 aggregate: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-summary.json
+aggregate: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-summary.json

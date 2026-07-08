@@ -538,7 +538,14 @@ cma_run_provider() {
   # Suppress xtrace around the indirect key read so an active `set -x` in the
   # user's shell can't echo the secret to the terminal or a redirected log.
   case $- in *x*) _cma_xt=1; set +x ;; esac
-  eval "token=\"\${$CMA_PROVIDER_KEYVAR:-}\""
+  # Kimi Code OAuth sentinel: read the OAuth token from the provider token
+  # file (written by detect_kimicode_record at sync time).
+  if [[ "$CMA_PROVIDER_KEYVAR" == "_CMA_KIMICODE_OAUTH_" ]]; then
+    local _cma_ktok="$pdir/${CMA_PROVIDER_ID}.token"
+    [[ -f "$_cma_ktok" ]] && token="$(cat "$_cma_ktok" 2>/dev/null)" || token=""
+  else
+    eval "token="\${$CMA_PROVIDER_KEYVAR:-}""
+  fi
   [[ -n "$_cma_xt" ]] && set -x
   if [[ -z "$token" ]]; then
     printf 'claude-providers: $%s is empty (set it in %s)\n' "$CMA_PROVIDER_KEYVAR" "$keysf" >&2

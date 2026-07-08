@@ -220,7 +220,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zhipuai-semantic.txt",
