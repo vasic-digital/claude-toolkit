@@ -275,7 +275,7 @@ detect_kimicode_record() {
   # Write token for verification/launch paths (chmod 600 — no group/world read).
   local tdir; tdir="$(cma_providers_dir)"; mkdir -p "$tdir"
   local tokf="$tdir/kimi-for-coding.token"
-  printf '%s' "$token" > "$tokf" && chmod 600 "$tokf" 2>/dev/null || true
+  ( umask 077; printf '%s' "$token" > "$tokf" ) || true
 
   jq -n \
     --arg pid "kimi-for-coding" \
