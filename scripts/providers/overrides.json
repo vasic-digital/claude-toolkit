@@ -50,5 +50,11 @@
   },
   "xai": {
     "base_url": "https://api.x.ai/v1"
+  },
+  "fireworks-ai": {
+    "alias": "fireworks"
+  },
+  "deepinfra": {
+    "base_url": "https://api.deepinfra.com/v1/openai"
   }
 }

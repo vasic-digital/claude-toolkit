@@ -8,5 +8,9 @@
   "ZEN_API_KEY": "opencode",
   "ApiKey_Opencode_Zen": "opencode",
   "POE_API_KEY": "poe",
-  "ApiKey_Poe": "poe"
+  "ApiKey_Poe": "poe",
+  "SAKANA_API_KEY": "sakana",
+  "FIREWORKS_API_KEY": "fireworks-ai",
+  "DEEPINFRA_API_KEY": "deepinfra",
+  "MOONSHOT_API_KEY": "moonshotai"
 }
