@@ -54,7 +54,12 @@ fi
 # --- Strategy 2: lightweight HTTP probe ------------------------------------
 key="${!KEYVAR:-}"
 if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && [[ -n "$key" && -n "$BASEURL" ]]; then
-  probe="${BASEURL%/}/models"
+  # Strip transport-specific path segments so the /models endpoint resolves
+	  # correctly. Native-transport providers (base URL ending in /anthropic)
+	  # need the /anthropic stripped to reach the model list at the API root.
+	  probe="${BASEURL%/}"
+	  probe="${probe%/anthropic}"
+	  probe="${probe}/models"
   # Pass the bearer token via --config (a process-substituted fd), never via
   # -H on the command line, so the secret is not exposed in ps/argv. printf is
   # a shell builtin, so the key never appears as a process argument either.

@@ -655,6 +655,19 @@ cmd_sync_multi() {
       cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir" "$alias_ctx" "$alias_max" "$aname"
       cma_provider_write_alias "$aname" "$aname"
 
+      # Persist verification status to the status cache so the activation
+      # gate (cma_run_provider) can determine if this alias is usable.
+      # Use the strong-model's verification score from the manifest; aliases
+      # with score below MIN_SCORE are marked unverified with failing_layer
+      # "existence" (mirrors the cmd_sync pattern).
+      local ascore
+      ascore="$(jq -r ".aliases[$i].strong_score // 0 | floor" "$manifest_out" 2>/dev/null || echo 0)"
+      if (( ascore >= MIN_SCORE )); then
+        cma_status_write "$aname" verified "$strong" ""
+      else
+        cma_status_write "$aname" unverified "$strong" existence
+      fi
+
       cma_log "  alias '$aname': strong=$strong fast=$ffast [$alias_transport]"
       n_created=$((n_created+1))
       i=$((i+1))
