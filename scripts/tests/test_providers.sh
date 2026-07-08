@@ -1214,7 +1214,7 @@ python3 - "$HOME/nat.port" <<'PY' &
 import http.server, socketserver, sys, json
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/models":
+        if self.path == "/v1/models":
             self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers()
             self.wfile.write(json.dumps({"object":"list","data":[]}).encode())
         else:
