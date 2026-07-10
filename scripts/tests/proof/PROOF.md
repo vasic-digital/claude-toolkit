@@ -1,6 +1,6 @@
 # Toolkit proof of work
 
-- generated: `2026-07-08T18:57:27+0500`
+- generated: `2026-07-10T18:46:40+0500`
 - host: `Linux 6.12.41-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
@@ -33,8 +33,8 @@ exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
 ## Live alias verification (real provider + Claude aliases)
 ```
-PASS: 4 FAIL: 15 TOTAL: 19
+PASS: 6 FAIL: 13 TOTAL: 19
 ```
-exit code: `15`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
+exit code: `13`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
 
 Artifacts: `10-debug-config.json`, `21-skill-names.txt`, `31-mcp-list.clean.txt`, `50-providers-live.txt`, `43-live-aliases.log`.

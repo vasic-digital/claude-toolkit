@@ -2,6 +2,36 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.13.0 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)
+
+### Fixed
+- **Sessions were resumed for the wrong project when switching Claude Code
+  aliases.** When the global `~/.local/bin/claude-cwd-hook` symlink pointed
+  to one project's multitrack resolver (e.g. atmosphere's), every `claudeN`
+  alias launch was redirected into that project's worktree BEFORE
+  `claude-session` resolved the session — so the session was keyed to the
+  atmosphere track, not the project the user was actually working in
+  (e.g. `helix_ota`). Switching from `claude4` to `claude1` resumed an
+  atmosphere Track-4 session instead of the `helix_ota` session.
+  **Root cause:** `CMA_CWD_HOOK` was a single global singleton with no
+  per-project awareness; the hook fired unconditionally and the toolkit
+  had no mechanism for a repo to supply its own resolver.
+  **Fix:** `cma_run` now resolves the cwd-hook in a three-tier order:
+  1. `CMA_CWD_HOOK` env var (explicit override, unchanged),
+  2. `<git-toplevel>/.claude-cwd-hook` (per-project hook — each repo gets
+     its own multitrack resolver; prints nothing → stay in `$PWD`),
+  3. `~/.local/bin/claude-cwd-hook` (global fallback, backward-compatible).
+  A repo that needs its own track layout drops a `.claude-cwd-hook` at its
+  git root; a repo that doesn't simply omits it and keeps the global hook.
+  The migration self-heals outdated `cma_run` wrappers via a new
+  `_cma_hook_root` marker (detected on next `install.sh` / shell start).
+
+### Added
+- Regression tests in `test_lib.sh` and `test_wrapper_exec.sh` prove the
+  emitted `cma_run` body carries the project-scoped hook resolution code
+  (`_cma_hook_root` marker, `git rev-parse --show-toplevel`, `.claude-cwd-hook`
+  check) and respects the `CMA_CWD_HOOK` override + global fallback.
+
 ## v1.12.3 — 2026-07-05 — Session-name sanitization (kebab-case)
 
 ### Changed

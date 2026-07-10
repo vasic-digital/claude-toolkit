@@ -21,7 +21,7 @@ SKIP: layer-3 preconditions absent for chutes
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for chutes
 
   • semantic (layer 3) for 'deepseek' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for deepseek
+SKIP: layer-3 preconditions absent for deepseek
 
   • superpowers-TUI (layer 4) for 'deepseek' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for deepseek
@@ -57,7 +57,7 @@ SKIP: layer-3 preconditions absent for inference
     [32m[PASS][0m layer-4 superpowers-TUI PASS for kilo
 
   • semantic (layer 3) for 'kimi-for-coding' — PASS/SKIP, never a faked pass
-SKIP: layer-3 preconditions absent for kimi-for-coding
+    [32m[PASS][0m layer-3 semantic PASS for kimi-for-coding
 
   • superpowers-TUI (layer 4) for 'kimi-for-coding' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for kimi-for-coding
@@ -87,10 +87,10 @@ SKIP: layer-3 preconditions absent for openrouter
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for openrouter
 
   • semantic (layer 3) for 'poe' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for poe
+    [32m[PASS][0m layer-3 semantic ran (verdict: unverified) for poe
 
   • superpowers-TUI (layer 4) for 'poe' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for poe
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for poe
 
   • semantic (layer 3) for 'siliconflow' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for siliconflow
@@ -111,7 +111,7 @@ SKIP: layer-3 preconditions absent for upstage
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for upstage
 
   • semantic (layer 3) for 'xiaomi' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic ran (verdict: unverified) for xiaomi
+    [32m[PASS][0m layer-3 semantic PASS for xiaomi
 
   • superpowers-TUI (layer 4) for 'xiaomi' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for xiaomi

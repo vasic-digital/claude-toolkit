@@ -1,12 +1,10 @@
-Alias verification: Wed Jul  8 07:15:38 PM +05 2026
+Alias verification: Fri Jul 10 07:04:05 PM +05 2026
 Testing 19 aliases
-✗ chutes: FAIL — basic(400) 
 ✗ deepseek: FAIL — basic(000) 
 ✗ fireworks-ai: FAIL — basic(PRECONDITION_FAILED) 
 ✗ github-models: FAIL — basic(000) 
 ✗ huggingface: FAIL — basic(000) 
 ✗ inference: FAIL — basic(400) 
-✗ kimi-for-coding: FAIL — basic(400) 
 ✗ novita-ai: FAIL — basic(400) 
 ✗ nvidia: FAIL — basic(400) 
 ✗ openrouter: FAIL — basic(402) 
@@ -16,4 +14,4 @@ Testing 19 aliases
 ✗ xiaomi: FAIL — basic(000) 
 ✗ zhipuai: FAIL — basic(1113) 
 
-PASS: 4 FAIL: 15 TOTAL: 19
+PASS: 6 FAIL: 13 TOTAL: 19

@@ -346,6 +346,7 @@ EOF
      && { ! printf '%s\n' "$_cma_run_body" | grep -q 'unset ANTHROPIC_' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-cwd-hook' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q '_cma_hook_root' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
@@ -354,7 +355,7 @@ EOF
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
     mv "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (provider-env isolation + auto-session)"
+    cma_log "migrated outdated cma_run (provider-env isolation + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
@@ -372,14 +373,27 @@ cma_run() {
   # those persist and would otherwise leak into this native launch (claude1
   # silently using a provider's endpoint). Clear them so native is always clean.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
-  # Optional project-agnostic working-dir hook (opt-in; no-op when absent). A
-  # consuming project can bind each alias to its own checkout (e.g. one git
-  # worktree per track) so parallel aliases don't contend on a single shared
-  # tree. The toolkit knows NOTHING about what the hook resolves — it only cd's
-  # into a real directory the hook prints on stdout (nothing printed => stay put).
-  # Runs before claude-session below so the auto-session keys to the worktree
-  # root. Escape hatch: MULTITRACK_DISABLE=1 (honored inside the hook itself).
-  local _cma_cwd_hook="${CMA_CWD_HOOK:-$HOME/.local/bin/claude-cwd-hook}" _cma_cwd_label _cma_cwd_target
+  # Working-dir hook (opt-in; no-op when absent). Resolution order:
+  #   1. CMA_CWD_HOOK env var               — explicit user override
+  #   2. <git-toplevel>/.claude-cwd-hook     — per-project hook (each repo
+  #      gets its own multitrack resolver, preventing a single global hook
+  #      from hijacking every project’s sessions)
+  #   3. ~/.local/bin/claude-cwd-hook        — global fallback
+  # The hook runs before claude-session (below) so auto-session keys to the
+  # resolved worktree root. Escape hatch: MULTITRACK_DISABLE=1 (honored
+  # inside the hook itself; the toolkit does not check it).
+  local _cma_cwd_hook _cma_cwd_label _cma_cwd_target
+  if [[ -n "${CMA_CWD_HOOK:-}" ]]; then
+    _cma_cwd_hook="$CMA_CWD_HOOK"
+  else
+    local _cma_hook_root
+    _cma_hook_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    if [[ -x "$_cma_hook_root/.claude-cwd-hook" ]]; then
+      _cma_cwd_hook="$_cma_hook_root/.claude-cwd-hook"
+    else
+      _cma_cwd_hook="$HOME/.local/bin/claude-cwd-hook"
+    fi
+  fi
   if [[ -x "$_cma_cwd_hook" ]]; then
     _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
     _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"

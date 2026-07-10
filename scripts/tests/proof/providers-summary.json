@@ -1,6 +1,6 @@
 {
   "chutes": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -12,10 +12,10 @@
     }
   },
   "deepseek": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -87,7 +87,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -147,8 +147,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "verified"
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-poe-semantic.txt",
@@ -195,7 +195,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "unverified",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {

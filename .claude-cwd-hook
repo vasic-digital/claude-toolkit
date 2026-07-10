@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Project-local cwd-hook for claude_toolkit.
+# Prints nothing (exit 0) so cma_run stays in $PWD instead of being
+# redirected by the global atmosphere hook.
+# When this project gets its own multitrack setup, replace with the
+# real multitrack resolver.
+exit 0
