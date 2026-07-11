@@ -21,7 +21,7 @@ SKIP: layer-3 preconditions absent for chutes
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for chutes
 
   • semantic (layer 3) for 'deepseek' — PASS/SKIP, never a faked pass
-SKIP: layer-3 preconditions absent for deepseek
+    [32m[PASS][0m layer-3 semantic PASS for deepseek
 
   • superpowers-TUI (layer 4) for 'deepseek' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for deepseek
@@ -69,7 +69,7 @@ SKIP: layer-3 preconditions absent for novita-ai
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for novita-ai
 
   • semantic (layer 3) for 'nvidia' — PASS/SKIP, never a faked pass
-SKIP: layer-3 preconditions absent for nvidia
+    [32m[PASS][0m layer-3 semantic PASS for nvidia
 
   • superpowers-TUI (layer 4) for 'nvidia' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for nvidia
@@ -78,7 +78,7 @@ SKIP: layer-3 preconditions absent for nvidia
 SKIP: layer-3 preconditions absent for opencode
 
   • superpowers-TUI (layer 4) for 'opencode' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for opencode
 
   • semantic (layer 3) for 'openrouter' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for openrouter
@@ -87,7 +87,7 @@ SKIP: layer-3 preconditions absent for openrouter
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for openrouter
 
   • semantic (layer 3) for 'poe' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic ran (verdict: unverified) for poe
+    [32m[PASS][0m layer-3 semantic PASS for poe
 
   • superpowers-TUI (layer 4) for 'poe' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for poe
@@ -132,4 +132,4 @@ SKIP: layer-3 preconditions absent for zhipuai
     [32m[PASS][0m layer-4 classifier honesty: neutral prompt via 'chutes' correctly did NOT match the engagement marker
 evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/50-providers-live.txt
 
-[32m✓ 29 passed, 0 failed[0m
+[32m✓ 31 passed, 0 failed[0m

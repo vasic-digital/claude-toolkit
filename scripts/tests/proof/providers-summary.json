@@ -1,6 +1,6 @@
 {
   "chutes": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -12,10 +12,10 @@
     }
   },
   "deepseek": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -84,7 +84,7 @@
     }
   },
   "kimi-for-coding": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "verified",
@@ -111,7 +111,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -124,7 +124,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-semantic.txt",
@@ -147,7 +147,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "unverified",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -156,7 +156,7 @@
     }
   },
   "siliconflow": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "skip",

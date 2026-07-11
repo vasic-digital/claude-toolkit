@@ -1,6 +1,6 @@
 # Toolkit proof of work
 
-- generated: `2026-07-10T18:46:40+0500`
+- generated: `2026-07-11T13:43:36+0500`
 - host: `Linux 6.12.41-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
@@ -27,7 +27,7 @@ result: `SKIP: opencode not installed on this host — live verification skipped
 
 ## Live provider-alias verification (real installed state)
 ```
-✓ 29 passed, 0 failed
+✓ 31 passed, 0 failed
 ```
 exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
