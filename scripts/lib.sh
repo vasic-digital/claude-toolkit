@@ -394,7 +394,7 @@ cma_run() {
       _cma_cwd_hook="$HOME/.local/bin/claude-cwd-hook"
     fi
   fi
-  if [[ -x "$_cma_cwd_hook" ]]; then
+  if [[ -x "$_cma_cwd_hook" ]] && ! git rev-parse --show-toplevel >/dev/null 2>&1; then
     _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
     _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"
     if [[ -n "$_cma_cwd_target" && -d "$_cma_cwd_target" ]]; then cd "$_cma_cwd_target" 2>/dev/null || true; fi
@@ -533,7 +533,7 @@ cma_run_provider() {
       _cma_cwd_hook="$HOME/.local/bin/claude-cwd-hook"
     fi
   fi
-  if [[ -x "$_cma_cwd_hook" ]]; then
+  if [[ -x "$_cma_cwd_hook" ]] && ! git rev-parse --show-toplevel >/dev/null 2>&1; then
     _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
     _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"
     if [[ -n "$_cma_cwd_target" && -d "$_cma_cwd_target" ]]; then cd "$_cma_cwd_target" 2>/dev/null || true; fi
