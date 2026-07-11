@@ -476,7 +476,8 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL'; then
+       ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '_cma_cwd_hook'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -485,7 +486,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -516,6 +517,27 @@ cma_run_provider() {
   # cma_run (the native claudeN wrapper) isolates its ANTHROPIC_* vars.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
   unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  # Working-dir hook (same 3-tier resolution as cma_run). This must run
+  # BEFORE sync-state pull + session flags so the resolved directory is the
+  # session's canonical cwd. Without this, provider aliases ignore the
+  # multitrack resolver and launch in whatever $PWD the user happened to be in.
+  local _cma_cwd_hook _cma_cwd_label _cma_cwd_target
+  if [[ -n "${CMA_CWD_HOOK:-}" ]]; then
+    _cma_cwd_hook="$CMA_CWD_HOOK"
+  else
+    local _cma_hook_root
+    _cma_hook_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    if [[ -x "$_cma_hook_root/.claude-cwd-hook" ]]; then
+      _cma_cwd_hook="$_cma_hook_root/.claude-cwd-hook"
+    else
+      _cma_cwd_hook="$HOME/.local/bin/claude-cwd-hook"
+    fi
+  fi
+  if [[ -x "$_cma_cwd_hook" ]]; then
+    _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
+    _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"
+    if [[ -n "$_cma_cwd_target" && -d "$_cma_cwd_target" ]]; then cd "$_cma_cwd_target" 2>/dev/null || true; fi
+  fi
   # Activation gate: only a 'verified' alias launches Claude Code. A non-verified
   # alias (unverified / failed / pending) prints a clear, actionable message and
   # refuses to launch, so a broken provider never surfaces as a confusing
