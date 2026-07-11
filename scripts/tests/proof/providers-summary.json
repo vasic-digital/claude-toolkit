@@ -3,7 +3,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -15,7 +15,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -84,7 +84,7 @@
     }
   },
   "kimi-for-coding": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
       "semantic": "verified",
@@ -123,8 +123,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "semantic": "verified",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-semantic.txt",
@@ -156,7 +156,7 @@
     }
   },
   "siliconflow": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
       "semantic": "skip",

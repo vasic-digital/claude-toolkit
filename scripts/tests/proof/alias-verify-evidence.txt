@@ -1,7 +1,7 @@
-Alias verification: Sat Jul 11 01:58:27 PM +05 2026
+Alias verification: Sat Jul 11 02:35:05 PM +05 2026
 Testing 19 aliases
 --- chutes (zai-org/GLM-5.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=12chunks test6(tool)=[{'id': 'call_dac0f3
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=12chunks test6(tool)=[{'id': 'call_fd7906
 verdict=PASS
 --- deepseek (deepseek-v4-pro) ---
 test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
@@ -19,17 +19,17 @@ verdict=FAIL
 test1(basic)=400 test2(no_params)=Invalid model provided. View supported m test3(ref)=Invalid model provided. View supported m test4(cache)=Invalid model provided. View supported m test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- kilo (nvidia/nemotron-3-super-120b-a12b:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=[{'type': 'function'
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
 verdict=PASS
 --- kimi-for-coding (kimi-for-coding) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=[{'index': 0, 'id': 
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=no
 verdict=PASS
 --- novita-ai (deepseek/deepseek-v3.2) ---
 test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- nvidia (z-ai/glm-5.2) ---
-test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=5chunks test6(tool)=no
+verdict=PASS
 --- opencode (big-pickle) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=no
 verdict=PASS
@@ -52,10 +52,10 @@ verdict=FAIL
 test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- zai-coding-plan (glm-5.2) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=16chunks test6(tool)=[{'function': {'argu
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'function': {'argu
 verdict=PASS
 --- zhipuai (glm-5.2) ---
 test1(basic)=1113 test2(no_params)=余额不足或无可用资源包,请充值。 test3(ref)=余额不足或无可用资源包,请充值。 test4(cache)=余额不足或无可用资源包,请充值。 test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 
-PASS: 6 FAIL: 13 TOTAL: 19
+PASS: 7 FAIL: 12 TOTAL: 19

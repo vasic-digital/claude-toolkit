@@ -1,4 +1,4 @@
-Alias verification: Sat Jul 11 01:58:27 PM +05 2026
+Alias verification: Sat Jul 11 02:35:05 PM +05 2026
 Testing 19 aliases
 ✗ deepseek: FAIL — basic(000) 
 ✗ fireworks-ai: FAIL — basic(PRECONDITION_FAILED) 
@@ -6,7 +6,6 @@ Testing 19 aliases
 ✗ huggingface: FAIL — basic(000) 
 ✗ inference: FAIL — basic(400) 
 ✗ novita-ai: FAIL — basic(400) 
-✗ nvidia: FAIL — basic(400) 
 ✗ openrouter: FAIL — basic(402) 
 ✗ poe: FAIL — tools-params 
 ✗ tencent-tokenhub: FAIL — basic(401002) 
@@ -14,4 +13,4 @@ Testing 19 aliases
 ✗ xiaomi: FAIL — basic(000) 
 ✗ zhipuai: FAIL — basic(1113) 
 
-PASS: 6 FAIL: 13 TOTAL: 19
+PASS: 7 FAIL: 12 TOTAL: 19
