@@ -477,7 +477,7 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '_cma_cwd_hook'; then
+       ! printf '%s\n' "$_prov_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -486,7 +486,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook)"
+      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook-gated)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
