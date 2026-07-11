@@ -347,6 +347,7 @@ EOF
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-cwd-hook' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q '_cma_hook_root' \
+	          || ! printf '%s\n' "$_cma_run_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
