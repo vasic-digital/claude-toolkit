@@ -1,153 +1,61 @@
-Alias verification: Mon Jun 22 10:37:40 MSK 2026
-Testing 33 aliases
---- nvidia3 (nvidia/nemotron-3-super-120b-a12b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
+Alias verification: Sat Jul 11 02:35:05 PM +05 2026
+Testing 19 aliases
 --- chutes (zai-org/GLM-5.2-TEE) ---
-test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- deepseek (deepseek-reasoner) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=12chunks test6(tool)=[{'id': 'call_fd7906
+verdict=PASS
+--- deepseek (deepseek-v4-pro) ---
 test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
---- deepseek2 (deepseek-v4-pro) ---
-test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- fireworks-ai (accounts/fireworks/models/glm-5p2) ---
+--- fireworks-ai (accounts/fireworks/routers/glm-5p2-fast) ---
 test1(basic)=PRECONDITION_FAILED test2(no_params)=Account milos85vasic-qmb1xfu is suspende test3(ref)=Account milos85vasic-qmb1xfu is suspende test4(cache)=Account milos85vasic-qmb1xfu is suspende test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- github-models (deepseek/deepseek-r1-0528) ---
 test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
---- nvidia4 (meta/llama-3.2-11b-vision-instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- huggingface (moonshotai/Kimi-K2.5) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'id': 'functions.c
-verdict=PASS
---- nvidia5 (meta/llama-3.2-90b-vision-instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- huggingface2 (Qwen/Qwen3-Coder-Next) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- opencode (north-mini-code-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=[{'id': 'calc_tx1bep
-verdict=PASS
---- huggingface3 (moonshotai/Kimi-K2-Instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- opencode2 (big-pickle) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=no
-verdict=PASS
---- huggingface4 (Qwen/Qwen3-Next-80B-A3B-Instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=PASS
+--- huggingface (Qwen/Qwen3-Coder-480B-A35B-Instruct) ---
+test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
 --- inference (google/gemma-3) ---
-test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+test1(basic)=400 test2(no_params)=Invalid model provided. View supported m test3(ref)=Invalid model provided. View supported m test4(cache)=Invalid model provided. View supported m test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
---- kilo (x-ai/grok-build-0.1) ---
-test1(basic)=400 test2(no_params)=Add credits to continue, or switch to a  test3(ref)=Add credits to continue, or switch to a  test4(cache)=Add credits to continue, or switch to a  test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- kimi-for-coding (k2p7) ---
-test1(basic)=400 test2(no_params)=You've reached kimi monthly usage limit  test3(ref)=You've reached kimi monthly usage limit  test4(cache)=You've reached kimi monthly usage limit  test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- novita-ai (qwen/qwen3.7-max) ---
+--- kilo (nvidia/nemotron-3-super-120b-a12b:free) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
+verdict=PASS
+--- kimi-for-coding (kimi-for-coding) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=no
+verdict=PASS
+--- novita-ai (deepseek/deepseek-v3.2) ---
 test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
---- nvidia (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=5chunks test6(tool)=[]
+--- nvidia (z-ai/glm-5.2) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=5chunks test6(tool)=no
 verdict=PASS
---- nvidia2 (openai/gpt-oss-120b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- nvidia3 (nvidia/nemotron-3-super-120b-a12b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- opencode3 (nemotron-3-ultra-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=no
-verdict=PASS
---- openrouter (google/gemini-3-pro-image) ---
-test1(basic)=402 test2(no_params)=Insufficient credits. Add more using htt test3(ref)=Insufficient credits. Add more using htt test4(cache)=Insufficient credits. Add more using htt test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- poe (claude-sonnet-4.6) ---
-test1(basic)=insufficient_quota test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- poe2 (gpt-5.5) ---
-test1(basic)=insufficient_quota test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- poe3 (grok-4) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=33chunks test6(tool)=[{'id': 'call-c044f4
-verdict=PASS
---- siliconflow (zai-org/GLM-5.2) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- nvidia4 (meta/llama-3.2-11b-vision-instruct) ---
-test1(basic)=400 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- tencent-tokenhub (hy3-preview) ---
-test1(basic)=401002 test2(no_params)=invalid api key test3(ref)=invalid api key test4(cache)=invalid api key test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- nvidia5 (meta/llama-3.2-90b-vision-instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- upstage (solar-pro3) ---
-test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- xiaomi (mimo-v2.5-pro) ---
-test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- opencode (north-mini-code-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=19chunks test6(tool)=no
-verdict=PASS
---- zai-coding-plan (glm-5.2) ---
-test1(basic)=1313 test2(no_params)=Your account's current usage pattern doe test3(ref)=Your account's current usage pattern doe test4(cache)=Your account's current usage pattern doe test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- opencode2 (big-pickle) ---
+--- opencode (big-pickle) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=no
 verdict=PASS
---- zai (glm-5v-turbo) ---
-test1(basic)=1113 test2(no_params)=Insufficient balance or no resource pack test3(ref)=Insufficient balance or no resource pack test4(cache)=Insufficient balance or no resource pack test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- zhipuai (glm-5.2) ---
-test1(basic)=1113 test2(no_params)=余额不足或无可用资源包,请充值。 test3(ref)=余额不足或无可用资源包,请充值。 test4(cache)=余额不足或无可用资源包,请充值。 test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
-
-PASS: 14 FAIL: 18 TOTAL: 33
---- opencode3 (nemotron-3-ultra-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
-verdict=PASS
---- openrouter (google/gemini-3-pro-image) ---
+--- openrouter (openai/gpt-5.6-sol-pro) ---
 test1(basic)=402 test2(no_params)=Insufficient credits. Add more using htt test3(ref)=Insufficient credits. Add more using htt test4(cache)=Insufficient credits. Add more using htt test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- poe (claude-sonnet-4.6) ---
-test1(basic)=insufficient_quota test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
+test1(basic)=200 test2(no_params)=Invalid 'tools': Field required test3(ref)= test4(cache)= test5(stream)=3chunks test6(tool)=no
 verdict=FAIL
---- poe2 (gpt-5.5) ---
-test1(basic)=insufficient_quota test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- poe3 (grok-4) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=no
-verdict=PASS
 --- siliconflow (zai-org/GLM-5.2) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'index': 0, 'id': 
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
 verdict=PASS
 --- tencent-tokenhub (hy3-preview) ---
-test1(basic)=401002 test2(no_params)=invalid api key test3(ref)=invalid api key test4(cache)=invalid api key test5(stream)=0chunks test6(tool)=no
+test1(basic)=401002 test2(no_params)=The API Key does not exist or signature  test3(ref)=The API Key does not exist or signature  test4(cache)=The API Key does not exist or signature  test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- upstage (solar-pro3) ---
-test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
+test1(basic)=api_key_is_not_allowed test2(no_params)=API key suspended due to insufficient cr test3(ref)=API key suspended due to insufficient cr test4(cache)=API key suspended due to insufficient cr test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- xiaomi (mimo-v2.5-pro) ---
 test1(basic)=000 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 --- zai-coding-plan (glm-5.2) ---
-test1(basic)=1313 test2(no_params)=Your account's current usage pattern doe test3(ref)=Your account's current usage pattern doe test4(cache)=Your account's current usage pattern doe test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
---- zai (glm-5v-turbo) ---
-test1(basic)=1113 test2(no_params)=Insufficient balance or no resource pack test3(ref)=Insufficient balance or no resource pack test4(cache)=Insufficient balance or no resource pack test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'function': {'argu
+verdict=PASS
 --- zhipuai (glm-5.2) ---
 test1(basic)=1113 test2(no_params)=余额不足或无可用资源包,请充值。 test3(ref)=余额不足或无可用资源包,请充值。 test4(cache)=余额不足或无可用资源包,请充值。 test5(stream)=0chunks test6(tool)=no
 verdict=FAIL
 
-PASS: 13 FAIL: 19 TOTAL: 33
+PASS: 7 FAIL: 12 TOTAL: 19

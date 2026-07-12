@@ -106,6 +106,16 @@ push_n="$(grep -n 'sync-state push' "$order_log" | head -1 | cut -d: -f1)"
 ord=1; [[ -n "$pull_n" && -n "$push_n" && "$pull_n" -lt "$push_n" ]] && ord=0
 assert_eq 0 "$ord" "pull (line $pull_n) ran before push (line $push_n)"
 
+# ── 3b. project-scoped cwd-hook: git-toplevel .claude-cwd-hook preempts global fallback ──
+it "cma_run EXECUTION: project-scoped hook resolution code present in wrapper"
+# Extract the cma_run body from the alias file (same technique as test_claude.sh)
+_cma_b="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+echo "$_cma_b" | grep -qF '_cma_hook_root'; assert_eq 0 $? "cma_run has project-scoped hook resolution (_cma_hook_root marker)"
+echo "$_cma_b" | grep -qF 'git rev-parse'; assert_eq 0 $? "cma_run resolves git toplevel for project-local hook"
+echo "$_cma_b" | grep -qF '.claude-cwd-hook'; assert_eq 0 $? "cma_run checks for .claude-cwd-hook in git toplevel"
+# Reset order_log for remaining test
+: > "$order_log"
+
 # ── 4. explicit args are respected verbatim (no auto-session injection) ──
 it "cma_run EXECUTION: explicit args are passed through unchanged (no session flags injected)"
 : > "$rec_args"; : > "$order_log"

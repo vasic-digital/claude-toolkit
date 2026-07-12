@@ -82,4 +82,28 @@ assert_eq 1 "$cma_run_count" "cma_run defined exactly once after re-run"
 path_line_count="$(grep -F -c -- "$PATH_LINE" "$RC_FILE" || true)"
 assert_eq 1 "$path_line_count" "PATH line not duplicated after re-run"
 
+# ── install.sh against pre-existing account dirs ─────────────────────────────
+# Regression: install.sh symlinked scripts and created the alias file, but did
+# NOT register claude<N> aliases for ~/.claude-* dirs that already existed.
+# Users saw "claude1: command not found" after a "successful" install.
+
+it "install.sh registers claude<N> aliases for pre-existing account dirs"
+# Start fresh: new sandbox HOME with no prior state.
+make_sandbox
+: > "$RC_FILE"
+# Create two account dirs that look like real Claude accounts.
+mkdir -p "$HOME/.claude-1/projects" "$HOME/.claude-2/projects"
+printf '{"account":"one"}\n' > "$HOME/.claude-1/.credentials.json"
+printf '{"account":"two"}\n' > "$HOME/.claude-2/.credentials.json"
+printf '{"name":"one"}\n' > "$HOME/.claude-1/.claude.json"
+printf '{"name":"two"}\n' > "$HOME/.claude-2/.claude.json"
+run_install
+rc=$?
+assert_eq 0 "$rc" "install.sh exit code with pre-existing accounts"
+[[ $rc -eq 0 ]] || sed 's/^/    install.log| /' "$install_log"
+assert_file_contains "$ALIAS_FILE" "alias claude1=\"CLAUDE_CONFIG_DIR=$HOME/.claude-1 cma_run\"" "claude1 alias registered"
+assert_file_contains "$ALIAS_FILE" "alias claude2=\"CLAUDE_CONFIG_DIR=$HOME/.claude-2 cma_run\"" "claude2 alias registered"
+alias_count="$(grep -cE '^alias claude[0-9]+=' "$ALIAS_FILE" || true)"
+assert_eq 2 "$alias_count" "exactly two claudeN aliases registered"
+
 summary

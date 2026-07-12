@@ -2,7 +2,7 @@
 # test_session.sh — hermetic tests for claude-session.sh.
 #
 # Covers:
-#   1. name   – snake_case conversion from dir basename
+#   1. name   – kebab-case sanitization from dir basename
 #   2. id     – stable, valid, unique UUID per project root
 #   3. color  – palette membership and determinism
 #   4. flags (first-run) – outputs --session-id + --name when no session file exists
@@ -36,33 +36,51 @@ run_session_from() {
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 1. name – snake_case conversion
+# 1. name – kebab-case sanitization
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-it "name: 'My_Cool-Project' → 'my_cool_project'"
+it "name: 'My_Cool-Project' → 'my-cool-project'"
 proj_name1="$SANDBOX_HOME/My_Cool-Project"
 mkdir -p "$proj_name1"
 out1="$(bash "$SESSION_SH" name "$proj_name1")"
-assert_eq "my_cool_project" "$out1" "mixed-case with dash → snake_case"
+assert_eq "my-cool-project" "$out1" "mixed-case with dash/underscore → kebab-case"
 
-it "name: 'Android 15' → 'android_15'"
+it "name: 'Android 15' → 'android-15'"
 proj_name2="$SANDBOX_HOME/Android 15"
 mkdir -p "$proj_name2"
 out2="$(bash "$SESSION_SH" name "$proj_name2")"
-assert_eq "android_15" "$out2" "space in name → underscore"
+assert_eq "android-15" "$out2" "space in name → hyphen"
 
-it "name: 'claude_toolkit' → 'claude_toolkit'"
+it "name: 'claude_toolkit' → 'claude-toolkit'"
 proj_name3="$SANDBOX_HOME/claude_toolkit"
 mkdir -p "$proj_name3"
 out3="$(bash "$SESSION_SH" name "$proj_name3")"
-assert_eq "claude_toolkit" "$out3" "already snake_case passes through unchanged"
+assert_eq "claude-toolkit" "$out3" "underscores converted to hyphens"
 
-it "name: no leading, trailing, or double underscores in output"
+it "name: no leading, trailing, or double hyphens in output"
 proj_name4="$SANDBOX_HOME/__Weird--Name__"
 mkdir -p "$proj_name4"
 out4="$(bash "$SESSION_SH" name "$proj_name4")"
-cond=1; [[ "$out4" != _* && "$out4" != *_ && "$out4" != *__* ]] && cond=0
-assert_eq 0 "$cond" "no leading/trailing/double underscores (got: '$out4')"
+cond=1; [[ "$out4" != -* && "$out4" != *- && "$out4" != *--* ]] && cond=0
+assert_eq 0 "$cond" "no leading/trailing/double hyphens (got: '$out4')"
+
+it "name: strips leading and trailing whitespace"
+proj_name5="$SANDBOX_HOME/  Spaced Out  "
+mkdir -p "$proj_name5"
+out5="$(bash "$SESSION_SH" name "$proj_name5")"
+assert_eq "spaced-out" "$out5" "leading/trailing whitespace trimmed"
+
+it "name: collapses multiple internal spaces to a single hyphen"
+proj_name6="$SANDBOX_HOME/Too   Many    Spaces"
+mkdir -p "$proj_name6"
+out6="$(bash "$SESSION_SH" name "$proj_name6")"
+assert_eq "too-many-spaces" "$out6" "multiple spaces collapsed to one hyphen"
+
+it "name: strips special invalid characters (keeping alphanumerics and hyphens)"
+proj_name7="$SANDBOX_HOME/My!@#Cool\$%^Project&*()"
+mkdir -p "$proj_name7"
+out7="$(bash "$SESSION_SH" name "$proj_name7")"
+assert_eq "my-cool-project" "$out7" "special chars stripped, words joined by hyphen"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 2. id – stable UUID
@@ -130,10 +148,10 @@ assert_eq 0 "$cond" "first-run output contains --name"
 cond=1; [[ "$flags_fr" != *"--resume"* ]] && cond=0
 assert_eq 0 "$cond" "first-run output does NOT contain --resume"
 
-it "flags first-run: --name matches the snake_case of the project dir basename"
-expected_snake="first_run_proj"
-cond=1; [[ "$flags_fr" == *"--name $expected_snake"* ]] && cond=0
-assert_eq 0 "$cond" "flags --name is '$expected_snake' (got: $flags_fr)"
+it "flags first-run: --name matches the kebab-case of the project dir basename"
+expected_kebab="first-run-proj"
+cond=1; [[ "$flags_fr" == *"--name $expected_kebab"* ]] && cond=0
+assert_eq 0 "$cond" "flags --name is '$expected_kebab' (got: $flags_fr)"
 
 it "flags first-run: --session-id is a valid UUID"
 # Extract the word immediately following --session-id.
@@ -145,7 +163,7 @@ assert_eq 0 "$cond" "flags --session-id is a valid UUID (got: $sid_fr)"
 # 5. flags – resume (session .jsonl already exists)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-it "flags resume: when session .jsonl exists, output is '--resume <uuid> --name <snake>'"
+it "flags resume: when session .jsonl exists, output is '--resume <uuid> --name <kebab>'"
 proj_res="$SANDBOX_HOME/resume_proj"
 cfg_res="$SANDBOX_HOME/cfg_resume"
 mkdir -p "$proj_res" "$cfg_res"
@@ -288,7 +306,7 @@ hint_out="$(run_session_from "$hint_proj" hint claude2 2>/dev/null)"            
 hint_err="$(run_session_from "$hint_proj" hint claude2 2>&1 1>/dev/null)"; hint_rc=$?
 assert_eq 0 "$hint_rc" "hint exits 0 (no set -e abort)"
 assert_eq "" "$hint_out" "hint writes nothing to stdout (must not pollute the launch)"
-printf '%s\n' "$hint_err" | grep -q 'hint_demo';   assert_eq 0 $? "hint stderr names the snake_case project"
+printf '%s\n' "$hint_err" | grep -q 'hint-demo';   assert_eq 0 $? "hint stderr names the kebab-case project"
 printf '%s\n' "$hint_err" | grep -q 'alias color:'; assert_eq 0 $? "hint stderr states the alias colour"
 
 it "hint: EXECUTES with an empty label (edge case) without aborting"
@@ -303,13 +321,13 @@ if command -v git >/dev/null 2>&1; then
   gitrepo="$SANDBOX_HOME/My_Repo"; mkdir -p "$gitrepo/src/deep"
   git -C "$gitrepo" init -q >/dev/null 2>&1
   name_git="$(bash "$SESSION_SH" name "$gitrepo/src/deep")"
-  assert_eq "my_repo" "$name_git" "git subdir resolves to repo toplevel basename, snake_cased"
+  assert_eq "my-repo" "$name_git" "git subdir resolves to repo toplevel basename, kebab-cased"
 fi
 
 it "name: a symlinked project dir resolves to its physical basename (pwd -P branch)"
 phys="$SANDBOX_HOME/Phys_Proj"; mkdir -p "$phys"
 ln -s "$phys" "$SANDBOX_HOME/link_proj" 2>/dev/null
 name_link="$(bash "$SESSION_SH" name "$SANDBOX_HOME/link_proj")"
-assert_eq "phys_proj" "$name_link" "symlinked dir resolves via pwd -P to the physical basename"
+assert_eq "phys-proj" "$name_link" "symlinked dir resolves via pwd -P to the physical basename"
 
 summary

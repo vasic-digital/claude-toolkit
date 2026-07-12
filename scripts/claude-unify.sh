@@ -437,5 +437,58 @@ sync_claude_md
 cma_merge_claude_json "${ACCOUNTS[@]}"
 cma_log "ok: .claude.json (projects/session index merged; auth keys preserved per-account)"
 
+# Ensure every detected account has an invocable alias. install.sh and direct
+# unify runs may discover pre-existing ~/.claude-* dirs that were never
+# registered (e.g. the user ran install.sh after creating the dirs). Without
+# this step `claude1` etc. are undefined even though the dirs exist.
+cma_ensure_alias_file
+declare -A ALIAS_OF_DIR=()
+if [[ -f "$ALIAS_FILE" ]]; then
+  while IFS= read -r line; do
+    [[ "$line" =~ ^alias[[:space:]]+([a-zA-Z0-9_-]+)=.*CLAUDE_CONFIG_DIR=([^[:space:]]+) ]] || continue
+    ALIAS_OF_DIR["${BASH_REMATCH[2]}"]="${BASH_REMATCH[1]}"
+  done < "$ALIAS_FILE"
+fi
+# First pass: dirs whose suffix (after ~/.claude-) is already "claude<N>"
+# (e.g. ~/.claude-claude4) keep that number, so user expectations about named
+# dirs are preserved.
+for acct in "${ACCOUNTS[@]}"; do
+  if [[ -z "${ALIAS_OF_DIR[$acct]:-}" ]]; then
+    base="$(basename "$acct")"
+    suffix="${base#${ACCOUNT_PREFIX}}"
+    if [[ "$suffix" =~ ^claude([0-9]+)$ ]]; then
+      wanted="claude${BASH_REMATCH[1]}"
+      if ! cma_existing_aliases | grep -qx "$wanted"; then
+        cma_write_alias "$wanted" "$acct"
+        cma_log "registered alias: $wanted -> $acct"
+        continue
+      fi
+    fi
+  fi
+done
+# Lowest free claude<N> (fills gaps left by explicit claudeM basenames).
+_cma_lowest_free_clauden() {
+  local n=1
+  while cma_existing_aliases | grep -qx "claude$n"; do
+    n=$((n + 1))
+    (( n < 1000 )) || { cma_warn "could not find a free claude<N> alias"; return 1; }
+  done
+  printf 'claude%s\n' "$n"
+}
+
+# Second pass: anything still unaliased gets the lowest free claude<N>.
+for acct in "${ACCOUNTS[@]}"; do
+  if [[ -z "${ALIAS_OF_DIR[$acct]:-}" ]]; then
+    if grep -qE "alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=$acct([[:space:]]|$)" "$ALIAS_FILE"; then
+      # A newly-written pass-1 alias now points at this dir; update our map.
+      ALIAS_OF_DIR[$acct]="$(grep -E "alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=$acct([[:space:]]|$)" "$ALIAS_FILE" | head -1 | sed -E 's/^alias[[:space:]]+([^=]+)=.*/\1/')"
+      continue
+    fi
+    next_alias="$(_cma_lowest_free_clauden)"
+    cma_write_alias "$next_alias" "$acct"
+    cma_log "registered alias: $next_alias -> $acct"
+  fi
+done
+
 cma_log "done. shared: $SHARED_DIR"
 cma_log "private per-account: ${PRIVATE_ITEMS[*]}"

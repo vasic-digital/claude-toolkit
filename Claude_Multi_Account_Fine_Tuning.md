@@ -795,11 +795,13 @@ working-tree root if you are inside a repo, otherwise `$PWD`), so every alias �
 and every subdirectory of the repo — maps to the *same* session: switch aliases
 and you continue the same ongoing work.
 
-The session is named in lowercase `snake_case` from the project root
-directory's basename (e.g. `claude_toolkit`; `Android 15` → `android_15`). The
-name is applied on **both create and resume**, so a session created *without* a
-name — by an older wrapper or a plain `claude` invocation — finally gets named
-the next time you bare-launch an alias into it.
+The session is named in lowercase `kebab-case` from the project root
+directory's basename (e.g. `claude_toolkit` → `claude-toolkit`; `Android 15` →
+`android-15`). Whitespace and special characters are sanitized to hyphens, and
+leading/trailing separators are trimmed. The name is applied on **both create
+and resume**, so a session created *without* a name — by an older wrapper or a
+plain `claude` invocation — finally gets named the next time you bare-launch an
+alias into it.
 
 The moment you pass any argument (a prompt, `-p`, `--resume`, `--session-id`,
 any flag), the wrapper steps aside and your arguments go to `claude` verbatim —

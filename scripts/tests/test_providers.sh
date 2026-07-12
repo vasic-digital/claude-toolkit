@@ -206,6 +206,13 @@ it "the stale mimo-v2.5-pro-ultraspeed id is never selected"
 cond=1; [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY strong_model)" != "mimo-v2.5-pro-ultraspeed" ]] && cond=0; assert_eq 0 "$cond" "ultraspeed not strong"
 cond=1; [[ "$(rfield "$OUT" XIAOMI_MIMO_API_KEY fast_model)" != "mimo-v2.5-pro-ultraspeed" ]] && cond=0; assert_eq 0 "$cond" "ultraspeed not fast"
 
+it "xai override provides the base_url the null-api catalog lacks (v1.12.1 resolve-gap fix)"
+# The real overrides.json must carry the xai base_url so xai stops resolving to
+# 'unmapped' (catalog api:null -> "router provider missing base_url"). The
+# override->base_url resolution mechanism itself is proven by the xiaomi test above;
+# this guards the xai entry's presence + correctness in the shipped overrides.json.
+assert_eq "https://api.x.ai/v1" "$(jq -r '.xai.base_url // "MISSING"' "$SCRIPTS_DIR/providers/overrides.json")" "overrides.json xai base_url present + correct"
+
 it "opencode resolves from the key-alias mapping on ZEN_API_KEY"
 assert_eq "opencode" "$(rfield "$OUT" ZEN_API_KEY provider_id)" "opencode provider_id"
 assert_eq "resolved" "$(rfield "$OUT" ZEN_API_KEY status)" "opencode resolved"
@@ -305,6 +312,24 @@ bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2
 grep -q '_cma_force' "$ALIAS_FILE"; assert_eq 0 $? "cmd_sync healed the stale wrapper (_cma_force restored)"
 # (refresh-vs-refresh byte-idempotence is covered separately by the "--refresh-aliases
 #  is idempotent" test; cmd_sync output need not equal refresh(cmd_sync output).)
+
+it "present_key_vars dies clearly when CMA_KEYS_FILE is a directory (v1.12.1 5a)"
+# -e (kept for FIFO/process-substitution keys files) also passes a DIRECTORY, which
+# then yields a silent "0 key vars" (grep on a dir). A directory must die clearly.
+_kd="$(mktemp -d "${TMPDIR:-/tmp}/cma-kd.XXXXXX")"
+_kderr="$( bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$_kd" 2>&1 >/dev/null )"; _kdrc=$?
+printf '%s' "$_kderr" | grep -qi 'is a directory'; assert_eq 0 $? "directory keys-file -> clear 'is a directory' die"
+[[ "$_kdrc" -ne 0 ]]; assert_eq 0 $? "directory keys-file -> non-zero exit (not silent 0 key vars)"
+rm -rf "$_kd"
+
+it "cmd_sync_multi ALSO dies clearly on a directory keys-file (v1.12.1 5a, --multi path)"
+# The --multi path resolves keys through the same subshell pattern, so it needs its
+# own main-process guard too (final-review IMPORTANT: cmd_sync had it, cmd_sync_multi did not).
+_kd2="$(mktemp -d "${TMPDIR:-/tmp}/cma-kd2.XXXXXX")"
+_kd2err="$( bash "$PROVIDERS_SH" sync --multi --offline --keys-file "$_kd2" 2>&1 >/dev/null )"; _kd2rc=$?
+printf '%s' "$_kd2err" | grep -qi 'is a directory'; assert_eq 0 $? "--multi directory keys-file -> clear die"
+[[ "$_kd2rc" -ne 0 ]]; assert_eq 0 $? "--multi directory keys-file -> non-zero exit (not silent 0 key vars)"
+rm -rf "$_kd2"
 
 it "sync persists per-provider verification status (--no-verify -> unverified)"
 # With --no-verify, vstatus defaults to 'unverified' for every resolved
@@ -863,6 +888,33 @@ out="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_K
 assert_eq "verified" "$out" "pass -> verified"
 assert_eq 0 "$rc" "pass -> exit 0"
 
+# The adapter SOURCES judge.env/template (which sets CMA_JUDGE_BASE_URL), so control
+# the judge config via a CMA_JUDGE_ENV file, not an env var the template would clobber.
+it "providers-semantic WARNs when judge endpoint == model-under-test endpoint (v1.12.1 1A independence guard)"
+_mk_stub_driver 0 true
+printf 'CMA_JUDGE_BASE_URL="https://api.deepseek.com"\nCMA_JUDGE_MODEL="deepseek-chat"\nCMA_JUDGE_KEYVAR="DEEPSEEK_API_KEY"\n' > "$HOME/judge-same.env"
+err="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-same.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+        bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+        --base-url https://api.deepseek.com 2>&1 >/dev/null )"
+printf '%s' "$err" | grep -qi 'same-family judge is NOT independent'; assert_eq 0 $? "same-endpoint judge -> independence WARNING on stderr"
+
+it "providers-semantic does NOT warn when judge endpoint differs (independent judge)"
+_mk_stub_driver 0 true
+printf 'CMA_JUDGE_BASE_URL="https://api.groq.com/openai"\nCMA_JUDGE_MODEL="llama-3.1-8b-instant"\nCMA_JUDGE_KEYVAR="GROQ_API_KEY"\n' > "$HOME/judge-diff.env"
+err2="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-diff.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+         bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+         --base-url https://api.deepseek.com 2>&1 >/dev/null )"
+printf '%s' "$err2" | grep -qi 'same-family judge is NOT independent' && _w=1 || _w=0
+assert_eq 0 "$_w" "different-endpoint judge -> NO independence warning"
+
+it "providers-semantic maps Go exit 3 (transport/infra) -> 'skip', not 'unverified' (v1.12.1 I-1 no-downgrade)"
+_mk_stub_driver 3 false
+out3="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-diff.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
+         bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
+         --base-url https://api.deepseek.com 2>/dev/null )"; rc3=$?
+assert_eq "skip" "$out3" "Go exit 3 (infra) -> skip (a transient judge/model error must not demote)"
+assert_eq 2 "$rc3" "skip -> adapter exit 2"
+
 it "providers-semantic maps overall_pass=false -> 'unverified' exit 1"
 _mk_stub_driver 1 false
 out="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
@@ -1150,3 +1202,101 @@ XAI_API_KEY=sk-test out="$( XAI_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-ver
 assert_eq "verified" "$out" "xAI /v1/models 200 -> verified (no special-case)"
 
 summary
+
+# ---------------------------------------------------------------------------
+# Section 10 — HTTP probe URL normalization (providers-verify.sh)
+# Native-transport providers (/anthropic base URL) must probe /models
+# correctly (not /anthropic/models). Loopback HTTP server test.
+# ---------------------------------------------------------------------------
+
+it "providers-verify strips /anthropic from probe URL for native-transport providers"
+python3 - "$HOME/nat.port" <<'PY' &
+import http.server, socketserver, sys, json
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/v1/models":
+            self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers()
+            self.wfile.write(json.dumps({"object":"list","data":[]}).encode())
+        else:
+            self.send_response(404); self.end_headers()
+    def log_message(self,*a): pass
+with socketserver.TCPServer(("127.0.0.1",0),H) as s:
+    open(sys.argv[1],"w").write(str(s.server_address[1])); s.handle_request()
+PY
+for _ in $(seq 1 50); do [[ -s "$HOME/nat.port" ]] && break; sleep 0.05; done
+natport="$(cat "$HOME/nat.port" 2>/dev/null)"
+NATIVE_ANTHROPIC_API_KEY=sk-test out="$(
+  NATIVE_ANTHROPIC_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-verify.sh" \
+    --provider native --model mimo-x --key-var NATIVE_ANTHROPIC_API_KEY \
+    --base-url "http://127.0.0.1:${natport}/anthropic" 2>/dev/null )"
+assert_eq "verified" "$out" "native /anthropic base -> verified (correct /models probe)"
+
+# ---------------------------------------------------------------------------
+# Section 11 — cma_run_provider env isolation (emitted body check)
+# ---------------------------------------------------------------------------
+
+it "emitted cma_run_provider carries env-isolation unset for ANTHROPIC_*"
+grep -qF 'unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL' "$ALIAS_FILE"
+assert_eq 0 $? "full ANTHROPIC_* unset line present in alias file"
+
+it "emitted cma_run_provider carries env-isolation unset for CLAUDE_CODE_*"
+grep -qF 'unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS' "$ALIAS_FILE"
+assert_eq 0 $? "CLAUDE_CODE_* unset line present in alias file"
+
+it "env-isolation markers appear in cma_run_provider body before activation gate"
+_gate_line="$(grep -n '_cma_force' "$ALIAS_FILE" | grep -v '^[0-9]*:.*grep\|^[0-9]*:.*_gate_line' | head -1 | cut -d: -f1)"
+_unset_line="$(grep -n 'unset ANTHROPIC_BASE_URL' "$ALIAS_FILE" | head -1 | cut -d: -f1)"
+[[ -n "$_unset_line" && -n "$_gate_line" && "$_unset_line" -lt "$_gate_line" ]]
+assert_eq 0 $? "env-isolation unset lines precede the activation gate"
+
+it "migration check detects missing env-isolation marker"
+_bare_body='cma_run_provider() { :; }'
+printf '%s\n' "$_bare_body" | grep -qF 'unset ANTHROPIC_BASE_URL' && _has=1 || _has=0
+assert_eq 0 "$_has" "bare body without env-isolation triggers missing check"
+
+# ---------------------------------------------------------------------------
+# Section 12 — multi-alias status persistence (direct status cache + gate test)
+# ---------------------------------------------------------------------------
+
+it "cma_status_write works for a multi-alias name (numeric suffix pattern)"
+cma_status_write "acme2" "verified" "acme-big" ""
+assert_eq "verified" "$(cma_status_read acme2)" "multi-alias acme2 reads as verified"
+assert_jq "$(cma_status_cache)" '.acme2.model' "acme-big" "multi-alias carries model name"
+assert_jq "$(cma_status_cache)" '.acme2.failing_layer' "" "verified has empty failing_layer"
+
+it "cma_status_write for multi-alias with low score -> unverified (existence)"
+cma_status_write "acme4" "unverified" "acme-tiny" "existence"
+assert_eq "unverified" "$(cma_status_read acme4)" "low-score multi-alias -> unverified"
+assert_jq "$(cma_status_cache)" '.acme4.failing_layer' "existence" "low-score -> existence"
+
+it "multi-alias activation gate: verified alias launches (cma_run_provider rc 0)"
+cma_status_write "acme2" "verified" "acme-big" ""
+mkdir -p "$HOME/.claude-prov-acme2"
+_pdir="$(cma_providers_dir)"; mkdir -p "$_pdir"
+cat > "$_pdir/acme2.env" <<ENVEOF
+CMA_PROVIDER_ID='acme2'
+CMA_PROVIDER_KEYVAR='ACME_API_KEY'
+CMA_PROVIDER_TRANSPORT='native'
+CMA_PROVIDER_BASE_URL=''
+CMA_PROVIDER_MODEL='acme-big'
+CMA_PROVIDER_FAST_MODEL='acme-small'
+CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-acme2'
+ENVEOF
+( ACME_API_KEY=sk-test CLAUDE_BIN=/usr/bin/true source "$ALIAS_FILE"; cma_run_provider acme2 ) >/dev/null 2>&1
+assert_eq 0 $? "multi-alias verified acme2 launches (rc 0)"
+
+it "multi-alias activation gate: unverified alias blocks (rc 3)"
+# Create env file first (needed for cma_run_provider to find it)
+cat > "$_pdir/acme4.env" <<ENVEOF
+CMA_PROVIDER_ID='acme4'
+CMA_PROVIDER_KEYVAR='ACME_API_KEY'
+CMA_PROVIDER_TRANSPORT='native'
+CMA_PROVIDER_BASE_URL=''
+CMA_PROVIDER_MODEL='acme-tiny'
+CMA_PROVIDER_FAST_MODEL='acme-small'
+CMA_PROVIDER_CONFIG_DIR='$HOME/.claude-prov-acme4'
+ENVEOF
+mkdir -p "$HOME/.claude-prov-acme4"
+cma_status_write "acme4" "unverified" "acme-tiny" "existence"
+( CLAUDE_BIN=/usr/bin/true ACME_API_KEY=sk-test source "$ALIAS_FILE"; cma_run_provider acme4 ) >/dev/null 2>&1; _grc=$?
+assert_eq 3 "$_grc" "unverified multi-alias acme4 blocked by gate (rc 3)"

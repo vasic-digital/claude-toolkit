@@ -54,7 +54,16 @@ fi
 # --- Strategy 2: lightweight HTTP probe ------------------------------------
 key="${!KEYVAR:-}"
 if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && [[ -n "$key" && -n "$BASEURL" ]]; then
-  probe="${BASEURL%/}/models"
+  # Normalize the base URL to a standard OpenAI-compatible models endpoint
+	  # (/v1/models). Strip transport-specific path segments (native-transport
+	  # providers use /anthropic; others may use /coding, /chat/completions, or
+	  # /v1), then probe at /v1/models — the universal OpenAI model list endpoint.
+	  probe="${BASEURL%/}"
+	  probe="${probe%/anthropic}"
+	  probe="${probe%/coding}"
+	  probe="${probe%/chat/completions}"
+	  probe="${probe%/v1}"
+	  probe="${probe}/v1/models"
   # Pass the bearer token via --config (a process-substituted fd), never via
   # -H on the command line, so the secret is not exposed in ps/argv. printf is
   # a shell builtin, so the key never appears as a process argument either.

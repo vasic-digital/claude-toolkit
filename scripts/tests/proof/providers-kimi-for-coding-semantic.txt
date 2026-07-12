@@ -1,0 +1,2 @@
+providers-semantic[kimi-for-coding]: layer-3 sentinel+judge PASS
+semantic verdict: verified

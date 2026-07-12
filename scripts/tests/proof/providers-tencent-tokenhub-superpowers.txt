@@ -1,0 +1,4 @@
+claude-providers: alias tencent-tokenhub is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for tencent-tokenhub)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

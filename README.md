@@ -50,7 +50,7 @@ deepseek    # the same ecosystem, running on DeepSeek's best model
   versa. Auth keys never cross.
 - **🏷️ Per-project auto-session naming.** Every bare alias launch resumes — or
   first-time creates — **one long-lived session per project root**, named after
-  the directory in `snake_case` (`Android 15` → `android_15`). Open `claude2` in
+  the directory in `kebab-case` (`Android 15` → `android-15`). Open `claude2` in
   a project and you're back in the same ongoing work, properly named — even if
   the session was previously unnamed. *(Color: a deterministic per-alias `/color`
   hint is printed; Claude Code's `/color` is TUI-only and can't be auto-applied —

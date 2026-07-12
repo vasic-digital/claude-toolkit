@@ -1,10 +1,19 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-05
-**Last HEAD:** `ea9891b` (✅ **v1.12.0 RELEASED** — semantic layer-3 + live layer-4. Tag `v1.12.0` on all 4 mirrors; gh + glab release objects live. Final whole-branch review READY-TO-MERGE, its I-2/M-1/M-2 fixed pre-release, live-proven end-to-end.)
+**Last HEAD:** `main @ v1.12.3` (✅ **v1.12.3 RELEASED** — session-name sanitization to kebab-case. Tag `v1.12.3` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
 **Working tree:** clean
 **Active branch:** `main`
-**Next action:** v1.12.1 hardening (all tracked in `.superpowers/sdd/phase3-notes.md` with evidence + anchors): (1) `judge.env.template` default → a DIFFERENT model family than the common subject (deep-research-confirmed self-grade bias, arXiv:2508.06709; groq/llama-3.1-8b-instant proven-working-as-judge live); (2) xAI `overrides.json` base-url entry (resolve gap — existence probe already covers it); (3) final-review I-1 — give the submodule semantic-code-visibility command a DISTINCT infra/transport exit code (e.g. 3) that the adapter maps to `skip`, so a transient judge/endpoint error never downgrades the model-under-test; (4) submodule boundary-contract constitution id (CONST-052 collision → CONST-069); (5) the 2 deferred minors (`-e` dir-accept clearer die; base-url compound-suffix). Release format: plain `vX.Y.Z` tag + gh/glab + 4 mirrors; submodule push-before-main (§11.4.71).
+**Next action:** v1.12.2 shipped. Remaining work is OPTIONAL deep-research hardenings (not scheduled — evidence in `.superpowers/sdd/phase3-notes.md`): RISK 2 rubric-anchor each 0-3 judge level + reasoning-before-score; RISK 3 atomic-claim/QAGS probe for borderline (score==threshold) cases; RISK 4 minimize sentinel↔criteria lexical overlap. Release format: plain `vX.Y.Z` tag + gh/glab + 4 mirrors; submodule push-before-main (§11.4.71).
+
+## v1.12.3 — DELIVERED
+`claude-session.sh` now sanitizes auto-derived session names to kebab-case: lowercase, trim leading/trailing whitespace, collapse whitespace/underscores to `-`, strip remaining characters that are not `[a-z0-9-]`, collapse consecutive `-`, and trim leading/trailing `-`. Tests added to `test_session.sh` for whitespace trimming, multi-space collapse, and special-character stripping. Full suite 20/20 green; install.sh re-run on real HOME; doc artifacts regenerated. Submodules clean.
+
+## v1.12.2 — DELIVERED
+`claude-unify.sh` now auto-registers `claude<N>` aliases for every pre-existing account dir, so existing users no longer have to run `claude-add-account` to get working `claude1..claude4` aliases. `lib.sh` account detection hardened to ignore `~/.claude-code-router` and `~/.claude-*.lock` dirs that share the `.claude-` prefix. Tests added to `test_unify.sh` (auto-registration on existing accounts) and `test_install.sh` (no bogus aliases for router/lock dirs). Full suite 20/20 green; install.sh re-run on real HOME verified all four native aliases resolve correctly. Doc artifacts regenerated. Submodules clean.
+
+## v1.12.1 — DELIVERED (commits 4240e76..7382007)
+judge.env.template default → groq/llama (different family; self-grade bias arXiv:2508.06709, verified live); providers-semantic.sh independence WARN (same-endpoint judge) + explicit exit-3→skip; overrides.json xai base_url https://api.x.ai/v1 (endpoint confirmed live); claude-providers.sh directory-keys-file clear die on BOTH cmd_sync + cmd_sync_multi; submodule I-1 (semantic cmd exit 3 for transport/infra vs exit 1 genuine-fail, 11/11 go tests) + CONST-069 (17b4bfb6). Suite 20/20 deterministic; final review READY.
 
 ## Phase 2 — DELIVERED (commits ea4417f..1bedc95, 11 commits)
 - Task 1 driver `claude-semantic-visibility.sh` (ea4417f, tests 25ab80f). Task 2 adapter `providers-semantic.sh` + cmd_sync/cmd_verify (ed70c14). Submodule reconciled+pushed 7a3ae9a6 (pointer f084d9c). Task 3 layer-4 `verify_superpowers_tui.sh` (d1972b5, review-fixes f4b5ebb). Task 4 xAI generic /v1/models tests — NO-OP (f596c75). Task 5 Tier-B live verifier + live negative-case honesty PASS (1bedc95).

@@ -131,6 +131,9 @@ present_key_vars() {
   # <(...)) is a legitimate way to supply keys and is NOT a POSIX "regular
   # file" per -f, but it is a readable, existing path per -e.
   [[ -e "$CMA_KEYS_FILE" ]] || cma_die "keys file not found: $CMA_KEYS_FILE (pass --keys-file)"
+  # -e accepts a FIFO/process-substitution but ALSO a directory; a directory would
+  # slip past -e and then yield a silent "0 key vars" (grep on a dir). Die clearly.
+  [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
   # `|| true`: a keys file with no assignments must yield an empty list, not a
   # grep exit-1 that aborts the script under `set -e`/pipefail.
   local names
@@ -155,16 +158,194 @@ present_key_vars() {
 # Validate that the catalog cache is parseable JSON.
 _catalog_valid() { python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1" 2>/dev/null; }
 
+# --- local HelixAgent PATH-detection (decoupled; providers_resolve.py stays pure)
+# HelixAgent is a LOCAL binary with no cloud API key, so it never appears in the
+# models.dev catalog and the env-key-name pipeline can't discover it. This
+# detector gates on `command -v helixagent` (the PATH), enumerates the served
+# models from the LIVE OpenAI-compatible `/v1/models` endpoint (single source of
+# truth — no hardcoded model list, mirrors CONST-036), and emits ONE
+# `resolved`-shaped JSON record that flows through the SAME
+# cma_provider_write_env / cma_provider_write_alias / verification loop as every
+# other provider (see cmd_sync). Everything is env-overridable (CMA_HELIXAGENT_*)
+# so no host-specific path is baked in (CONST-045). Server-down is HONEST: the
+# alias is still registered off the configured pins, and verification marks it
+# 'unverified' rather than fabricate a live model list (§11.4.6).
+#
+# transport = router: HelixAgent's /v1 is OpenAI-compatible (NOT Anthropic-
+# native), so the alias routes through ccr (claude-code-router) exactly like
+# every other OpenAI-style provider. A future Anthropic-native HelixAgent
+# endpoint can be promoted via CMA_HELIXAGENT_TRANSPORT=native.
+detect_helixagent_record() {
+  : "${CMA_HELIXAGENT_BIN:=helixagent}"
+  : "${CMA_HELIXAGENT_ID:=helixagent}"
+  : "${CMA_HELIXAGENT_HOST:=localhost}"
+  : "${CMA_HELIXAGENT_PORT:=8100}"
+  : "${CMA_HELIXAGENT_KEYVAR:=HELIXAGENT_API_KEY}"
+  : "${CMA_HELIXAGENT_TRANSPORT:=router}"
+  : "${CMA_HELIXAGENT_STRONG:=helix-debate}"
+  : "${CMA_HELIXAGENT_FAST:=helix-llm}"
+  : "${CMA_HELIXAGENT_CONTEXT_LIMIT:=128000}"
+  : "${CMA_HELIXAGENT_MAX_OUTPUT:=8192}"
+  local base="${CMA_HELIXAGENT_BASE_URL:-http://${CMA_HELIXAGENT_HOST}:${CMA_HELIXAGENT_PORT}/v1}"
+
+  # PATH gate: no helixagent binary -> no record (honest; the whole feature is
+  # opt-in on the binary being installed).
+  command -v "$CMA_HELIXAGENT_BIN" >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+
+  # Enumerate models from the live endpoint. The auth token (if any) is read by
+  # NAME from the environment and passed via `curl --config -` (stdin), never on
+  # argv (no secret leak, §11.4.10). During resolve the key-var is usually not
+  # exported (present_key_vars sources the keys file only in a subshell), so an
+  # unauthenticated /v1/models listing is the common path — acceptable + honest.
+  local ids="" key=""
+  key="${!CMA_HELIXAGENT_KEYVAR:-}"
+  if command -v curl >/dev/null 2>&1; then
+    local t="${CMA_HELIXAGENT_HTTP_TIMEOUT:-8}"
+    if [[ -n "$key" ]]; then
+      ids="$(printf 'header = "Authorization: Bearer %s"\n' "$key" \
+             | curl -s --max-time "$t" --config - "${base%/}/models" 2>/dev/null \
+             | jq -r '.data[].id? // empty' 2>/dev/null || true)"
+    else
+      ids="$(curl -s --max-time "$t" "${base%/}/models" 2>/dev/null \
+             | jq -r '.data[].id? // empty' 2>/dev/null || true)"
+    fi
+  fi
+
+  local strong="" fast=""
+  if [[ -n "$ids" ]]; then
+    # Data-driven selection from the LIVE id list: prefer the configured strong/
+    # fast ids when the server serves them, else fall back to positional picks.
+    if printf '%s\n' "$ids" | grep -qxF -- "$CMA_HELIXAGENT_STRONG"; then
+      strong="$CMA_HELIXAGENT_STRONG"
+    else
+      strong="$(printf '%s\n' "$ids" | head -n1)"
+    fi
+    if printf '%s\n' "$ids" | grep -qxF -- "$CMA_HELIXAGENT_FAST"; then
+      fast="$CMA_HELIXAGENT_FAST"
+    else
+      fast="$(printf '%s\n' "$ids" | sed -n '2p')"
+      [[ -z "$fast" ]] && fast="$strong"
+    fi
+  else
+    # Server unreachable / no models returned: honest fallback to the configured
+    # pins so the alias still exists (verification will mark it 'unverified').
+    strong="$CMA_HELIXAGENT_STRONG"; fast="$CMA_HELIXAGENT_FAST"
+  fi
+
+  # Emit ONE record with the exact schema providers_resolve.py produces.
+  jq -cn \
+    --arg key_var "$CMA_HELIXAGENT_KEYVAR" \
+    --arg pid     "$CMA_HELIXAGENT_ID" \
+    --arg alias   "$CMA_HELIXAGENT_ID" \
+    --arg base    "$base" \
+    --arg transport "$CMA_HELIXAGENT_TRANSPORT" \
+    --arg strong  "$strong" \
+    --arg fast    "$fast" \
+    --argjson ctx "${CMA_HELIXAGENT_CONTEXT_LIMIT:-null}" \
+    --argjson out "${CMA_HELIXAGENT_MAX_OUTPUT:-null}" \
+    '[{key_var:$key_var, classification:"llm", provider_id:$pid, alias:$alias,
+       base_url:$base, transport:$transport, strong_model:$strong,
+       fast_model:$fast, context_limit:$ctx, max_output:$out,
+       status:"resolved", reason:"helixagent detected on PATH"}]'
+}
+
+# --- local Kimi Code OAuth PATH-detection -----------------------------------
+# Kimi Code uses OAuth tokens (15-min expiry), not static API keys. The token
+# lives in ~/.kimi-code/credentials/kimi-code.json. Gates on `command -v kimi`.
+# The sentinel key_var _CMA_KIMICODE_OAUTH_ signals to both the verification
+# path and the launch wrapper to read the token from the provider token file
+# ($PROVIDER_DIR/kimi-for-coding.token). Token is refreshed at sync time.
+detect_kimicode_record() {
+  command -v kimi >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+  local cred_file="$HOME/.kimi-code/credentials/kimi-code.json"
+  [[ -f "$cred_file" ]] || { printf '[]\n'; return 0; }
+
+  # Token refresh: if expired, run kimi -p to trigger OAuth refresh.
+  local now expires token
+  now="$(date +%s)"
+  expires="$(jq -r '.expires_at // 0' "$cred_file" 2>/dev/null || echo 0)"
+  if (( expires <= now )); then
+    timeout 20 kimi -p "hi" --output-format text >/dev/null 2>&1 || true
+    expires="$(jq -r '.expires_at // 0' "$cred_file" 2>/dev/null || echo 0)"
+  fi
+
+  token="$(jq -r '.access_token // ""' "$cred_file" 2>/dev/null)"
+  [[ -n "$token" ]] || { printf '[]\n'; return 0; }
+
+  # Write token for verification/launch paths (chmod 600 — no group/world read).
+  local tdir; tdir="$(cma_providers_dir)"; mkdir -p "$tdir"
+  local tokf="$tdir/kimi-for-coding.token"
+  ( umask 077; printf '%s' "$token" > "$tokf" ) || true
+
+  jq -n \
+    --arg pid "kimi-for-coding" \
+    --arg alias "kimi-for-coding" \
+    --arg keyvar "_CMA_KIMICODE_OAUTH_" \
+    --arg base "https://api.kimi.com/coding/v1" \
+    --arg transport "router" \
+    --arg strong "kimi-for-coding" \
+    --arg fast "kimi-for-coding" \
+    --argjson ctx 262144 \
+    '[{key_var:$keyvar, classification:"llm", provider_id:$pid, alias:$alias,
+       base_url:$base, transport:$transport, strong_model:$strong,
+       fast_model:$fast, context_limit:$ctx, max_output:null,
+       status:"resolved", reason:"kimi-code detected on PATH (OAuth token)"}]'
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
   [[ -f "$KEY_ALIASES" ]] && args+=(--key-aliases "$KEY_ALIASES")
   [[ -f "$OVERRIDES" ]] && args+=(--overrides "$OVERRIDES")
-  python3 "$RESOLVER" "${args[@]}"
+  local base_records extra rc
+  # Capture BOTH the output and the real exit code explicitly. Do not rely on
+  # `set -e` here: resolve_records() is itself invoked via a command
+  # substitution (`records="$(resolve_records)"` in cmd_sync/cmd_sync_multi),
+  # and a failing `var="$(cmd)"` assignment INSIDE a function that is itself
+  # only reached through another command substitution does not reliably
+  # trigger errexit in bash (a well-known nested-command-substitution
+  # quirk) — a hard resolver crash could otherwise read as success with
+  # $base_records silently left empty.
+  base_records="$(python3 "$RESOLVER" "${args[@]}")"; rc=$?
+  if (( rc != 0 )); then
+    cma_die "providers_resolve.py failed (exit $rc) — refusing to merge in an empty/partial provider list"
+  fi
+  # A resolver that exits 0 but prints empty/invalid JSON is exactly as
+  # dangerous as a nonzero exit: merging THAT in used to silently drop every
+  # real provider (the old `jq -s` merge slurped both process-substitution
+  # streams into one flat array and indexed into it by position — an empty
+  # first stream shifted the HelixAgent record into `.[0]`, so the sync ran
+  # with ONLY the local HelixAgent provider and zero real providers, exit 0,
+  # no warning). Validate before ever reaching the merge.
+  if ! printf '%s' "$base_records" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "providers_resolve.py produced no/invalid JSON output — refusing to merge (would silently drop all providers)"
+  fi
+  # Merge the local-detector record(s) into the resolver output BEFORE cmd_sync
+  # consumes it, so PATH-detected providers reuse the whole env/alias/verify
+  # loop verbatim. Guard against emitting a HelixAgent/KimiCode record whose
+  # provider_id a key-var already resolved to (cmd_sync also dedupes).
+  extra="$(detect_helixagent_record)"
+  if ! printf '%s' "$extra" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_helixagent_record produced no/invalid JSON output"
+  fi
+  extra_kc="$(detect_kimicode_record)" || true
+  if ! printf '%s' "$extra_kc" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_kimicode_record produced no/invalid JSON output"
+  fi
+  # Merge all three sources: resolver records + HelixAgent + Kimi Code, deduped.
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" '
+    ($base | map(.provider_id)) as $ids
+    | $base + ($e1 + $e2 | map(select(.provider_id as $p | ($ids | index($p)) | not)))
+  '
 }
+
+
 
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
+  # Fail fast + clearly if the keys file is a directory (present_key_vars also warns,
+  # but it runs in a subshell so its die can't abort the main sync — v1.12.1 5a).
+  [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
   ensure_catalog
   # Heal a stale/outdated alias file ONCE per full sync (idempotent): the self-heal
   # path for an outdated cma_run_provider wrapper (e.g. a pre-Phase-2 one lacking the
@@ -205,7 +386,7 @@ cmd_sync() {
       local vargs=(--provider "$pid" --model "$model" --key-var "$keyvar")
       [[ -n "$base" && "$base" != "null" ]] && vargs+=(--base-url "$base")
       (( OFFLINE )) && vargs+=(--offline)
-      # Source keys so the verifier/probe can read the secret (subshell only).
+            # Source keys so the verifier/probe can read the secret (subshell only).
       # Disable nounset while sourcing: the user-controlled keys file may
       # contain dangling references (e.g. `export X=$UNSET`), which under the
       # inherited `set -u` would abort the source mid-file — silently leaving
@@ -213,6 +394,13 @@ cmd_sync() {
       # verification ("unverified") and a stream of "unbound variable" errors
       # spams stderr. `+u` makes the source tolerant; it is subshell-local.
       # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
+      # Kimi Code OAuth sentinel: inject the live token from the provider
+      # token file BEFORE the verification subshell so ${!_CMA_KIMICODE_OAUTH_}
+      # resolves correctly inside the verifier's ${!KEYVAR} expansion.
+      if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
+        local _kimi_tokf; _kimi_tokf="$(cma_providers_dir)/kimi-for-coding.token"
+        [[ -f "$_kimi_tokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_kimi_tokf" 2>/dev/null)"
+      fi
       vstatus="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; bash "$VERIFY" "${vargs[@]}" 2>/dev/null ) )" || true
       [[ -z "$vstatus" ]] && vstatus="unverified"
     fi
@@ -399,6 +587,9 @@ cmd_add() {
 # Verify ALL models for each provider, score them, and create multiple aliases
 # (provider, provider2, provider3...) with paired strong+fast models.
 cmd_sync_multi() {
+  # Same clear-die-on-directory guard as cmd_sync — present_key_vars dies only in a
+  # subshell here too, so the --multi path needs its own main-process check (v1.12.1 5a).
+  [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
   cma_require python3
   cma_require jq
   ensure_catalog
@@ -516,6 +707,19 @@ cmd_sync_multi() {
       cma_provider_write_env "$aname" "$keyvar" "$alias_transport" "$alias_url" "$strong" "$ffast" "$cdir" "$alias_ctx" "$alias_max" "$aname"
       cma_provider_write_alias "$aname" "$aname"
 
+      # Persist verification status to the status cache so the activation
+      # gate (cma_run_provider) can determine if this alias is usable.
+      # Use the strong-model's verification score from the manifest; aliases
+      # with score below MIN_SCORE are marked unverified with failing_layer
+      # "existence" (mirrors the cmd_sync pattern).
+      local ascore
+      ascore="$(jq -r ".aliases[$i].strong_score // 0 | floor" "$manifest_out" 2>/dev/null || echo 0)"
+      if (( ascore >= MIN_SCORE )); then
+        cma_status_write "$aname" verified "$strong" ""
+      else
+        cma_status_write "$aname" unverified "$strong" existence
+      fi
+
       cma_log "  alias '$aname': strong=$strong fast=$ffast [$alias_transport]"
       n_created=$((n_created+1))
       i=$((i+1))
@@ -553,6 +757,16 @@ while (( $# )); do
   esac
 done
 
+# Source-guard the executable entrypoint so the module can be sourced (for unit
+# tests / to call detect_helixagent_record directly) WITHOUT running dispatch.
+# Under normal execution BASH_SOURCE[0] == $0 (both the script path) so this is a
+# no-op for real invocations; when sourced, $0 is the caller so this guard skips
+# ONLY the --refresh-aliases fast path + the final SUBCMD dispatch (case) below —
+# the function definitions above AND the top-level arg-parsing loop (which sets
+# SUBCMD/POSITIONAL/flags from whatever "$@" the sourcing context had) still run
+# unconditionally either way.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+
 # --refresh-aliases: rebuild every provider's alias shell line from its cached
 # env file — NO network, NO probe. This is the session hook's fast path (run on
 # each interactive shell start). Runs before dispatch so `list --refresh-aliases`
@@ -584,3 +798,5 @@ case "$SUBCMD" in
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
 esac
+
+fi  # end source-guard (BASH_SOURCE == $0)

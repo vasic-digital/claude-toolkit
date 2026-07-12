@@ -190,6 +190,9 @@ cma_detect_accounts() {
     # exactly like *-shared. This is the linchpin that keeps the existing
     # claudeN accounts and add-account untouched by the provider feature.
     [[ "$(basename "$d")" == "${ACCOUNT_PREFIX}prov-"* ]] && continue
+    # The claude-code-router config dir and any *.lock dir are not accounts.
+    [[ "$(basename "$d")" == "${ACCOUNT_PREFIX}code-router" ]] && continue
+    [[ "$(basename "$d")" == *.lock ]] && continue
     # Empty dirs always count (a brand-new account before any claude run).
     if [[ -z "$(ls -A "$d" 2>/dev/null)" ]]; then
       echo "$d"
@@ -313,7 +316,21 @@ EOF
       sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
       mv "$tmp_cb" "$ALIAS_FILE"
       cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
-    fi
+    fi  fi
+  # Migration: the 'export CLAUDE_BIN=' header line is entirely missing (corrupted
+  # alias file -- every alias launches an empty command). Prepend it so the
+  # inline self-heal in cma_run/cma_run_provider does not have to fire on every
+  # single invocation. Idempotent: does nothing when the line is already present.
+  if ! grep -q '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null; then
+    local _cb_new; _cb_new="$(cma_resolve_claude_bin)"
+    local _cb_tmp; _cb_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+    {
+      printf '# Managed by claude-multi-account. Do not edit by hand; use\n'
+      printf '# ~/.local/bin/claude-add-account to add accounts.\n'
+      printf 'export CLAUDE_BIN="%s"\n' "$_cb_new"
+      cat "$ALIAS_FILE"
+    } > "$_cb_tmp" && mv "$_cb_tmp" "$ALIAS_FILE"
+    cma_log "restored missing export CLAUDE_BIN line -> $_cb_new"
   fi
   # Migration: regenerate an outdated cma_run that lacks the provider-env
   # isolation guard (the 'unset ANTHROPIC_' marker). Without it, a native
@@ -343,7 +360,10 @@ EOF
      && { ! printf '%s\n' "$_cma_run_body" | grep -q 'unset ANTHROPIC_' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-cwd-hook' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color'; }; then
+          || ! printf '%s\n' "$_cma_run_body" | grep -q '_cma_hook_root' \
+	          || ! printf '%s\n' "$_cma_run_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'command -v "\${CLAUDE_BIN:-}"'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -351,7 +371,7 @@ EOF
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
     mv "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (provider-env isolation + auto-session)"
+    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
@@ -364,20 +384,52 @@ EOF
 # one before claude runs; pushes the post-session state back out after exit.
 # Cheap (jq deep-merge of one ~50KB file per account), runs unconditionally.
 cma_run() {
+  # Self-heal CLAUDE_BIN: the alias file normally exports it at the top, but if
+  # that header line is missing (corrupted or hand-edited alias file) every
+  # invocation would silently expand to an empty command ("-bash: : command
+  # not found"). Mirrors cma_resolve_claude_bin inline so the function body is
+  # self-contained regardless of the header state. §11.4.185.
+  if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+    if command -v claude >/dev/null 2>&1; then
+      CLAUDE_BIN="$(command -v claude)"
+    else
+      for _cma_cb in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" \
+                     /opt/homebrew/bin/claude /usr/local/bin/claude; do
+        [ -x "$_cma_cb" ] && { CLAUDE_BIN="$_cma_cb"; break; }
+      done
+      if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+        printf 'cma_run: claude binary not found — check PATH or re-run install.sh\n' >&2
+        return 127
+      fi
+    fi
+  fi
   # Provider-env isolation: native claudeN must talk to the real Anthropic API.
   # A provider alias run earlier in THIS shell exports ANTHROPIC_BASE_URL etc.;
   # those persist and would otherwise leak into this native launch (claude1
   # silently using a provider's endpoint). Clear them so native is always clean.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
-  # Optional project-agnostic working-dir hook (opt-in; no-op when absent). A
-  # consuming project can bind each alias to its own checkout (e.g. one git
-  # worktree per track) so parallel aliases don't contend on a single shared
-  # tree. The toolkit knows NOTHING about what the hook resolves — it only cd's
-  # into a real directory the hook prints on stdout (nothing printed => stay put).
-  # Runs before claude-session below so the auto-session keys to the worktree
-  # root. Escape hatch: MULTITRACK_DISABLE=1 (honored inside the hook itself).
-  local _cma_cwd_hook="${CMA_CWD_HOOK:-$HOME/.local/bin/claude-cwd-hook}" _cma_cwd_label _cma_cwd_target
-  if [[ -x "$_cma_cwd_hook" ]]; then
+  # Working-dir hook (opt-in; no-op when absent). Resolution order:
+  #   1. CMA_CWD_HOOK env var               — explicit user override
+  #   2. <git-toplevel>/.claude-cwd-hook     — per-project hook (each repo
+  #      gets its own multitrack resolver, preventing a single global hook
+  #      from hijacking every project’s sessions)
+  #   3. ~/.local/bin/claude-cwd-hook        — global fallback
+  # The hook runs before claude-session (below) so auto-session keys to the
+  # resolved worktree root. Escape hatch: MULTITRACK_DISABLE=1 (honored
+  # inside the hook itself; the toolkit does not check it).
+  local _cma_cwd_hook _cma_cwd_label _cma_cwd_target
+  if [[ -n "${CMA_CWD_HOOK:-}" ]]; then
+    _cma_cwd_hook="$CMA_CWD_HOOK"
+  else
+    local _cma_hook_root
+    _cma_hook_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    if [[ -x "$_cma_hook_root/.claude-cwd-hook" ]]; then
+      _cma_cwd_hook="$_cma_hook_root/.claude-cwd-hook"
+    else
+      _cma_cwd_hook="$HOME/.local/bin/claude-cwd-hook"
+    fi
+  fi
+  if [[ -x "$_cma_cwd_hook" ]] && ! git rev-parse --show-toplevel >/dev/null 2>&1; then
     _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
     _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"
     if [[ -n "$_cma_cwd_target" && -d "$_cma_cwd_target" ]]; then cd "$_cma_cwd_target" 2>/dev/null || true; fi
@@ -390,7 +442,7 @@ cma_run() {
   # trust the workspace, and hint the alias color. Only when bare so explicit
   # user flags (-p, --resume, a prompt, …) are always respected verbatim.
   # claude-session emits only "--resume <uuid>" or "--session-id <uuid> --name
-  # <snake>" (no shell metacharacters), so eval-splitting is safe and works in
+  # <kebab>" (no shell metacharacters), so eval-splitting is safe and works in
   # both bash and zsh (zsh does not word-split unquoted expansions).
   local _cma_label=""
   if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
@@ -454,11 +506,14 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'claude-session' || \
        ! printf '%s\n' "$_prov_body" | grep -q 'apply-color' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' || \
+       ! printf '%s\n' "$_prov_body" | grep -q '_cma_compact_cap' || \
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"'; then
+       ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v "${CLAUDE_BIN:-}"'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -467,13 +522,30 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window + activation-gate)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook-gated)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
 
 cma_run_provider() {
+  # Self-heal CLAUDE_BIN (same as cma_run — §11.4.185). Prevents "-bash: : command
+  # not found" when the alias-file header export line is missing. Also resolves
+  # the binary for the native-transport path ("$CLAUDE_BIN" "$@") below.
+  if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+    if command -v claude >/dev/null 2>&1; then
+      CLAUDE_BIN="$(command -v claude)"
+    else
+      for _cma_cb in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" \
+                     /opt/homebrew/bin/claude /usr/local/bin/claude; do
+        [ -x "$_cma_cb" ] && { CLAUDE_BIN="$_cma_cb"; break; }
+      done
+    fi
+  fi
+  if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+    printf 'claude-providers: claude binary not found — check PATH or re-run install.sh\n' >&2
+    return 127
+  fi
   # --force bypasses the activation gate (operator override). Accepted BOTH as
   # the very first arg (direct call: cma_run_provider --force <id>) and as the
   # first arg after the id (alias path: `<alias> --force` expands to
@@ -490,6 +562,35 @@ cma_run_provider() {
   fi
   # shellcheck disable=SC1090
   source "$envf"
+  # Cross-alias env isolation: unset any ANTHROPIC_*/CLAUDE_CODE_* vars that
+  # leaked from a PREVIOUS cma_run_provider invocation in this shell. The
+  # transport-specific branches below re-export them from this provider's
+  # CMA_PROVIDER_* vars (fresh from source "$envf"), so the unset here is
+  # only clearing the leftover from the previous alias — identical to how
+  # cma_run (the native claudeN wrapper) isolates its ANTHROPIC_* vars.
+  unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  # Working-dir hook (same 3-tier resolution as cma_run). This must run
+  # BEFORE sync-state pull + session flags so the resolved directory is the
+  # session's canonical cwd. Without this, provider aliases ignore the
+  # multitrack resolver and launch in whatever $PWD the user happened to be in.
+  local _cma_cwd_hook _cma_cwd_label _cma_cwd_target
+  if [[ -n "${CMA_CWD_HOOK:-}" ]]; then
+    _cma_cwd_hook="$CMA_CWD_HOOK"
+  else
+    local _cma_hook_root
+    _cma_hook_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    if [[ -x "$_cma_hook_root/.claude-cwd-hook" ]]; then
+      _cma_cwd_hook="$_cma_hook_root/.claude-cwd-hook"
+    else
+      _cma_cwd_hook="$HOME/.local/bin/claude-cwd-hook"
+    fi
+  fi
+  if [[ -x "$_cma_cwd_hook" ]] && ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+    _cma_cwd_label="$(basename "${CLAUDE_CONFIG_DIR:-claude}")"; _cma_cwd_label="${_cma_cwd_label#.claude-}"
+    _cma_cwd_target="$("$_cma_cwd_hook" "$_cma_cwd_label" 2>/dev/null || true)"
+    if [[ -n "$_cma_cwd_target" && -d "$_cma_cwd_target" ]]; then cd "$_cma_cwd_target" 2>/dev/null || true; fi
+  fi
   # Activation gate: only a 'verified' alias launches Claude Code. A non-verified
   # alias (unverified / failed / pending) prints a clear, actionable message and
   # refuses to launch, so a broken provider never surfaces as a confusing
@@ -526,7 +627,14 @@ cma_run_provider() {
   # Suppress xtrace around the indirect key read so an active `set -x` in the
   # user's shell can't echo the secret to the terminal or a redirected log.
   case $- in *x*) _cma_xt=1; set +x ;; esac
-  eval "token=\"\${$CMA_PROVIDER_KEYVAR:-}\""
+  # Kimi Code OAuth sentinel: read the OAuth token from the provider token
+  # file (written by detect_kimicode_record at sync time).
+  if [[ "$CMA_PROVIDER_KEYVAR" == "_CMA_KIMICODE_OAUTH_" ]]; then
+    local _cma_ktok="$pdir/${CMA_PROVIDER_ID}.token"
+    [[ -f "$_cma_ktok" ]] && token="$(cat "$_cma_ktok" 2>/dev/null)" || token=""
+  else
+    eval "token="\${$CMA_PROVIDER_KEYVAR:-}""
+  fi
   [[ -n "$_cma_xt" ]] && set -x
   if [[ -z "$token" ]]; then
     printf 'claude-providers: $%s is empty (set it in %s)\n' "$CMA_PROVIDER_KEYVAR" "$keysf" >&2
@@ -543,8 +651,14 @@ cma_run_provider() {
   # transports (native + router), so every provider alias is protected.
   # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below on
   # the native path) caps OUTPUT — the two are independent halves of the guard.
-  [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] && \
+  # Auto-compact cap: only lower the window; never raise it above ~200K.
+  # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need this
+  # guard — exporting their full window disables auto-compaction until ~987K,
+  # filling the session before compacting. CMA_AUTO_COMPACT_CAP overrides.
+  local _cma_compact_cap="${CMA_AUTO_COMPACT_CAP:-200000}"
+  if [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" && "${CMA_PROVIDER_CONTEXT_LIMIT}" -le "$_cma_compact_cap" ]]; then
     export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
+  fi
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
   # Pull merged state before launch; push post-session state after exit.

@@ -21,31 +21,34 @@ On a bare launch the wrapper calls `claude-session flags`, which:
 
 1. Resolves the **project root** — the git working-tree root if you are inside a repo (`git rev-parse --show-toplevel`), otherwise the current directory (`$PWD`). Because the whole repo shares one root, every subdirectory of a repo maps to the same session.
 2. Derives a **stable session UUID** from that root path (md5 of `cma-session:<root>`, formatted as a UUID). The same project path always yields the same id, so the session is shared across all aliases and stable over time.
-3. Derives a **session name** = the root directory's basename in lowercase `snake_case`.
+3. Derives a **session name** = the root directory's basename in lowercase `kebab-case`, sanitized: leading/trailing whitespace is trimmed, internal whitespace and underscores are collapsed to `-`, and any remaining characters that are not `[a-z0-9-]` are stripped.
 4. Emits the launch flags:
-   - **First time** (no session file on disk yet): `--session-id <uuid> --name <snake>` — creates the session with that id and name.
-   - **Afterwards** (session file exists): `--resume <uuid> --name <snake>` — resumes the same session and re-applies the name.
+   - **First time** (no session file on disk yet): `--session-id <uuid> --name <kebab>` — creates the session with that id and name.
+   - **Afterwards** (session file exists): `--resume <uuid> --name <kebab>` — resumes the same session and re-applies the name.
 
 It also marks the project as trusted in the launching account's `.claude.json` (suppresses the "workspace has not been trusted" prompt). This is best-effort and never blocks the launch.
 
-### The snake_case naming rule
+### The kebab-case naming rule
 
-The root directory's basename is lowercased and every run of non-`[a-z0-9]` characters is collapsed to a single `_`, with leading/trailing underscores trimmed:
+The root directory's basename is lowercased, leading/trailing whitespace is trimmed, whitespace and underscores are collapsed to a single `-`, and any remaining characters that are not `[a-z0-9-]` are stripped. Consecutive `-` are collapsed and leading/trailing `-` are trimmed:
 
 | Project directory | Session name |
 |---|---|
-| `claude_toolkit` | `claude_toolkit` |
-| `Android 15` | `android_15` |
-| `My-Cool Project` | `my_cool_project` |
+| `claude_toolkit` | `claude-toolkit` |
+| `Android 15` | `android-15` |
+| `My-Cool Project` | `my-cool-project` |
+| `  My!!!   Project  ` | `my-project` |
 
 > Verified by running `bash scripts/claude-session.sh name <path>`:
 > ```
 > $ bash scripts/claude-session.sh name "$PWD"          # claude_toolkit repo
-> claude_toolkit
+> claude-toolkit
 > $ bash scripts/claude-session.sh name "/tmp/cma-demo/Android 15"
-> android_15
+> android-15
 > $ bash scripts/claude-session.sh name "/tmp/cma-demo/My-Cool Project"
-> my_cool_project
+> my-cool-project
+> $ bash scripts/claude-session.sh name "/tmp/cma-demo/  My!!!   Project  "
+> my-project
 > ```
 
 ### Stable id = shared session
@@ -158,7 +161,7 @@ The flags `claude-session` emits contain no shell metacharacters (just a UUID an
 ## FAQ
 
 **Why did my old session suddenly get a name?**
-Because the name is re-applied on resume. The first time you bare-launch any alias into a project whose session predates this feature (or was created by plain `claude`), the wrapper runs `--resume <id> --name <project_snake>`, which renames the previously-unnamed session. Verified live on `claude 2.1.195`.
+Because the name is re-applied on resume. The first time you bare-launch any alias into a project whose session predates this feature (or was created by plain `claude`), the wrapper runs `--resume <id> --name <project_kebab>`, which renames the previously-unnamed session. Verified live on `claude 2.1.195`.
 
 **Is the color automatic?**
 Yes, since v1.10.0. On a bare launch the wrapper writes the alias's deterministic color into the session as an `agent-color` record — the same record `/color` writes — via `claude-session apply-color`. Claude Code exposes no CLI flag, settings key, or env var for the color (verified against `claude 2.1.195` and the official docs), and `claude -p '/color x'` is a no-op, so injecting that record is the only non-interactive mechanism. It is idempotent and persists across `--resume`. The toolkit can't see the TUI, so confirm the prompt-bar rendering visually on first launch.
@@ -176,7 +179,7 @@ Yes — the session id is derived from the project root path, not from the alias
 - Implementation: `scripts/claude-session.sh` (`cma_project_root`, `cma_session_name`, `cma_session_id`, `cma_label_color`, `cma_trust_project`).
 - Alias wrappers that call it: `cma_run` and `cma_run_provider` in `scripts/lib.sh`.
 - Subcommands you can run yourself:
-  - `claude-session name [path]` — print the snake_case session name.
+  - `claude-session name [path]` — print the kebab-case session name.
   - `claude-session id [path]` — print the stable session UUID.
   - `claude-session color <label>` — print the mapped color for an alias label.
   - `claude-session apply-color <config_dir> <label>` — write the alias's `agent-color` record into the project session's `.jsonl` (idempotent; used by the wrappers to auto-apply the color).

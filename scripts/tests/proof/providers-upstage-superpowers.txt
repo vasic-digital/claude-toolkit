@@ -1,0 +1,4 @@
+claude-providers: alias upstage is unverified — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for upstage)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

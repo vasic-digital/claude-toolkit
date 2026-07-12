@@ -27,7 +27,7 @@ claude-list-accounts      # show the resulting setup
 | `claude-rollback.sh`        | Convenience wrapper for `claude-unify.sh --rollback`: restore the `.preunify.*` backups, archive the shared store. |
 | `claude-bootstrap.sh`       | Clean-slate provisioning on a host with zero logged-in accounts: create N empty account dirs, the shared store, and `claudeN` aliases. |
 | `claude-sync-state.sh`      | Fast (no-rsync) per-launch merge of every account's `.claude.json` session/project index; called by the alias wrapper before and after each launch. |
-| `claude-session.sh`         | Derive per-project session launch flags (one long-lived session per project root, snake_case-named) plus the per-alias `/color` hint for the alias wrappers. |
+| `claude-session.sh`         | Derive per-project session launch flags (one long-lived session per project root, kebab-case-named) plus the per-alias `/color` hint for the alias wrappers. |
 | `claude-providers.sh`       | Create/refresh/list/remove Claude Code aliases for non-Anthropic LLM providers, driven by the models.dev catalog + editable config. |
 | `claude-opencode-sync.sh`   | Mirror the host's Claude plugin Skills, MCP servers, and CLAUDE.md into OpenCode's config. Additive + idempotent. |
 | `claude-export-docs.sh`     | Render the multi-account markdown doc to self-contained `.html` and `.pdf` siblings. |

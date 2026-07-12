@@ -1,0 +1,4 @@
+claude-providers: alias zai-coding-plan is unverified — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for zai-coding-plan)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

@@ -2,6 +2,102 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.13.0 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)
+
+### Fixed
+- **Sessions were resumed for the wrong project when switching Claude Code
+  aliases.** When the global `~/.local/bin/claude-cwd-hook` symlink pointed
+  to one project's multitrack resolver (e.g. atmosphere's), every `claudeN`
+  alias launch was redirected into that project's worktree BEFORE
+  `claude-session` resolved the session — so the session was keyed to the
+  atmosphere track, not the project the user was actually working in
+  (e.g. `helix_ota`). Switching from `claude4` to `claude1` resumed an
+  atmosphere Track-4 session instead of the `helix_ota` session.
+  **Root cause:** `CMA_CWD_HOOK` was a single global singleton with no
+  per-project awareness; the hook fired unconditionally and the toolkit
+  had no mechanism for a repo to supply its own resolver.
+  **Fix:** `cma_run` now resolves the cwd-hook in a three-tier order:
+  1. `CMA_CWD_HOOK` env var (explicit override, unchanged),
+  2. `<git-toplevel>/.claude-cwd-hook` (per-project hook — each repo gets
+     its own multitrack resolver; prints nothing → stay in `$PWD`),
+  3. `~/.local/bin/claude-cwd-hook` (global fallback, backward-compatible).
+  A repo that needs its own track layout drops a `.claude-cwd-hook` at its
+  git root; a repo that doesn't simply omits it and keeps the global hook.
+  The migration self-heals outdated `cma_run` wrappers via a new
+  `_cma_hook_root` marker (detected on next `install.sh` / shell start).
+
+### Added
+- Regression tests in `test_lib.sh` and `test_wrapper_exec.sh` prove the
+  emitted `cma_run` body carries the project-scoped hook resolution code
+  (`_cma_hook_root` marker, `git rev-parse --show-toplevel`, `.claude-cwd-hook`
+  check) and respects the `CMA_CWD_HOOK` override + global fallback.
+
+## v1.12.3 — 2026-07-05 — Session-name sanitization (kebab-case)
+
+### Changed
+- **Auto-derived session names are now sanitized to kebab-case.**
+  `claude-session.sh` derives the session name from the project directory's
+  basename. It now: lowercases the name; trims leading/trailing whitespace;
+  collapses internal whitespace and underscores to `-`; strips any remaining
+  characters that are not `[a-z0-9-]`; and collapses consecutive `-` before
+  trimming leading/trailing `-`. This makes session names safe for the CLI and
+  filesystem while remaining human-readable.
+
+### Added
+- New regression tests in `test_session.sh` cover leading/trailing whitespace,
+  multiple consecutive spaces, and stripping of special invalid characters.
+
+## v1.12.2 — 2026-07-05 — Native alias auto-registration + account-detection hardening
+
+### Fixed
+- **Native `claude<N>` aliases were never created for pre-existing account dirs.**
+  Running `install.sh` or `claude-unify.sh` only merged shared state; if account
+  directories already existed (e.g. `~/.claude-milos85vasic`), no shell aliases were
+  registered, so `claude1`/`claude2`/etc. were undefined. `claude-unify.sh` now
+  auto-registers a `claude<N>` alias for every detected account that lacks one.
+- **Smart alias numbering:** an account dir literally named `~/.claude-claude4`
+  keeps the `claude4` alias; remaining dirs fill the lowest free `claude<N>` slot
+  instead of skipping over reserved numbers.
+- **Bogus account detection:** `~/.claude-code-router` and `~/.claude-*.lock`
+  directories are no longer treated as Claude accounts, preventing them from
+  stealing alias slots or being merged into shared state.
+
+### Added
+- Regression tests in `test_unify.sh` and `test_install.sh` prove that install/unify
+  register native aliases for existing account dirs and preserve `claude<N>`
+  basenames while filling gaps.
+
+## v1.12.1 — 2026-07-05 — Judge independence + resolve/robustness hardening
+
+Addresses the v1.12.0 final whole-branch review's deferred items and the deep-research
+findings on LLM-as-judge bias.
+
+### Changed
+- **Round-2 judge default is now a DIFFERENT model family.** `providers/judge.env.template`
+  defaults to Groq / Llama-3.1 (`llama-3.1-8b-instant`) instead of DeepSeek. 2024-2026
+  research (arXiv:2508.06709 and others) shows a judge systematically favors its own model
+  family — including validating that family's *wrong* answers, the exact failure layer-3
+  exists to catch — so defaulting the judge to a common subject (DeepSeek) was the worst
+  case. Verified working live as an independent judge.
+- **The semantic command distinguishes transport/infra failures from genuine verdicts.** The
+  LLMsVerifier `semantic-code-visibility` command now exits **3** when a round-1/round-2 API
+  call cannot complete (non-2xx, timeout, empty, connection error), vs exit **1** for a real
+  negative verdict. `providers-semantic.sh` maps exit 3 → `skip`, so a transient judge/model
+  hiccup is an honest SKIP and never downgrades the model-under-test (final-review I-1).
+
+### Added
+- **Independence warning:** `providers-semantic.sh` warns (never fails) when the judge
+  endpoint equals the model-under-test endpoint (same provider = same family = not independent).
+- **xAI is now resolvable:** `providers/overrides.json` gains `xai` → `https://api.x.ai/v1`
+  (the catalog lists xAI with no API base, so it previously resolved `unmapped`). Endpoint
+  confirmed live.
+- CONST-069 capability-boundary mandate in the LLMsVerifier submodule constitution (records the
+  CONST-051 project-agnostic boundary under a non-colliding id).
+
+### Fixed
+- A directory passed as the keys file (`CMA_KEYS_FILE` / `--keys-file`) now dies with a clear
+  message instead of silently yielding "0 key vars".
+
 ## v1.12.0 — 2026-07-05 — Semantic code-visibility (layer 3) + live TUI verification (layer 4)
 
 Adds two new provider-verification layers on top of the Phase-1 existence/tool-call
