@@ -316,7 +316,21 @@ EOF
       sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
       mv "$tmp_cb" "$ALIAS_FILE"
       cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
-    fi
+    fi  fi
+  # Migration: the 'export CLAUDE_BIN=' header line is entirely missing (corrupted
+  # alias file -- every alias launches an empty command). Prepend it so the
+  # inline self-heal in cma_run/cma_run_provider does not have to fire on every
+  # single invocation. Idempotent: does nothing when the line is already present.
+  if ! grep -q '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null; then
+    local _cb_new; _cb_new="$(cma_resolve_claude_bin)"
+    local _cb_tmp; _cb_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+    {
+      printf '# Managed by claude-multi-account. Do not edit by hand; use\n'
+      printf '# ~/.local/bin/claude-add-account to add accounts.\n'
+      printf 'export CLAUDE_BIN="%s"\n' "$_cb_new"
+      cat "$ALIAS_FILE"
+    } > "$_cb_tmp" && mv "$_cb_tmp" "$ALIAS_FILE"
+    cma_log "restored missing export CLAUDE_BIN line -> $_cb_new"
   fi
   # Migration: regenerate an outdated cma_run that lacks the provider-env
   # isolation guard (the 'unset ANTHROPIC_' marker). Without it, a native
@@ -348,7 +362,8 @@ EOF
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-cwd-hook' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q '_cma_hook_root' \
 	          || ! printf '%s\n' "$_cma_run_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color'; }; then
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'command -v "\${CLAUDE_BIN:-}"'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -356,7 +371,7 @@ EOF
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
     mv "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (provider-env isolation + auto-session + project-scoped cwd-hook)"
+    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
@@ -369,6 +384,25 @@ EOF
 # one before claude runs; pushes the post-session state back out after exit.
 # Cheap (jq deep-merge of one ~50KB file per account), runs unconditionally.
 cma_run() {
+  # Self-heal CLAUDE_BIN: the alias file normally exports it at the top, but if
+  # that header line is missing (corrupted or hand-edited alias file) every
+  # invocation would silently expand to an empty command ("-bash: : command
+  # not found"). Mirrors cma_resolve_claude_bin inline so the function body is
+  # self-contained regardless of the header state. §11.4.185.
+  if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+    if command -v claude >/dev/null 2>&1; then
+      CLAUDE_BIN="$(command -v claude)"
+    else
+      for _cma_cb in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" \
+                     /opt/homebrew/bin/claude /usr/local/bin/claude; do
+        [ -x "$_cma_cb" ] && { CLAUDE_BIN="$_cma_cb"; break; }
+      done
+      if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+        printf 'cma_run: claude binary not found — check PATH or re-run install.sh\n' >&2
+        return 127
+      fi
+    fi
+  fi
   # Provider-env isolation: native claudeN must talk to the real Anthropic API.
   # A provider alias run earlier in THIS shell exports ANTHROPIC_BASE_URL etc.;
   # those persist and would otherwise leak into this native launch (claude1
@@ -478,7 +512,8 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1'; then
+       ! printf '%s\n' "$_prov_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v "${CLAUDE_BIN:-}"'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -487,13 +522,30 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook-gated)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook-gated)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     cat >> "$ALIAS_FILE" <<'EOF'
 
 cma_run_provider() {
+  # Self-heal CLAUDE_BIN (same as cma_run — §11.4.185). Prevents "-bash: : command
+  # not found" when the alias-file header export line is missing. Also resolves
+  # the binary for the native-transport path ("$CLAUDE_BIN" "$@") below.
+  if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+    if command -v claude >/dev/null 2>&1; then
+      CLAUDE_BIN="$(command -v claude)"
+    else
+      for _cma_cb in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" \
+                     /opt/homebrew/bin/claude /usr/local/bin/claude; do
+        [ -x "$_cma_cb" ] && { CLAUDE_BIN="$_cma_cb"; break; }
+      done
+    fi
+  fi
+  if ! command -v "${CLAUDE_BIN:-}" >/dev/null 2>&1; then
+    printf 'claude-providers: claude binary not found — check PATH or re-run install.sh\n' >&2
+    return 127
+  fi
   # --force bypasses the activation gate (operator override). Accepted BOTH as
   # the very first arg (direct call: cma_run_provider --force <id>) and as the
   # first arg after the id (alias path: `<alias> --force` expands to
