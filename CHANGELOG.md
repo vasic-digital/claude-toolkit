@@ -2,6 +2,34 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.13.3 — 2026-07-17 — Session-sharing pipefail fix
+
+### Fixed
+- **All aliases created separate, unshared sessions for the same project.**
+  Switching between `claude1`, `claude2`, `deepseek`, `xiaomi`, etc. in the
+  same project directory started a fresh conversation instead of resuming the
+  shared one — no memory, context, or history continuity across aliases.
+  **Root cause:** `claude-session.sh` has `set -o pipefail`. When
+  `cma_latest_session_id()` scanned for existing sessions with
+  `ls -t ... | grep | head -1`, `head` closed stdin after one line, sending
+  SIGPIPE to `grep`. With `pipefail`, the pipeline exited 141, and `set -e`
+  aborted the script BEFORE it could return the session UUID. Every launch
+  was treated as a first run, creating a new random-UUID session.
+  **Fix:** Added `|| true` guard on the `head -1` pipeline in
+  `cma_latest_session_id()` (`scripts/claude-session.sh` line 111).
+  The guard catches SIGPIPE without affecting the captured output — `head`
+  already printed the first line before exiting, so `latest` gets the
+  correct UUID. All aliases now resolve to the same `--resume <uuid>`.
+  **Verified with 200-file stress test** that exercises the exact pipefail
+  condition.
+
+### Added
+- 200-file stress test in `test_session.sh` that proves `claude-session flags`
+  returns `--resume` (not `--session-id`) even with many session files, and
+  that `latest-id` returns the most recent session.
+- Investigation document at `docs/investigations/2026-07-17-session-sharing-root-cause.md`
+  with full root cause analysis, evidence, and architecture notes.
+
 ## v1.13.0 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)
 
 ### Fixed
