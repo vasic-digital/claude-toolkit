@@ -106,9 +106,15 @@ cma_latest_session_id() {
   sess_dir="$config_dir/projects/$proj_slug"
   # ls -t sorts by mtime DESC; skip subagent dirs
   if [[ -d "$sess_dir" ]]; then
+    # The `|| true` guard on head is load-bearing: with `set -o pipefail`
+    # (line 30), `head -1` exits after reading one line, which sends SIGPIPE
+    # to grep; pipefail turns that into exit 141, and `set -e` aborts the
+    # script BEFORE the fallback to cma_session_id.  Without this guard,
+    # EVERY launch is a "first run" — creating a fresh session instead of
+    # resuming the shared one.  §12.7.0 session-sharing.
     latest="$(ls -t "$sess_dir"/*.jsonl 2>/dev/null \
       | grep -v '/subagents/' \
-      | head -1)"
+      | head -1 || true)"
     latest="$(basename "${latest:-}" .jsonl 2>/dev/null)" || latest=""
   fi
   if [[ -n "${latest:-}" ]]; then

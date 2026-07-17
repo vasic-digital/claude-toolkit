@@ -330,4 +330,34 @@ ln -s "$phys" "$SANDBOX_HOME/link_proj" 2>/dev/null
 name_link="$(bash "$SESSION_SH" name "$SANDBOX_HOME/link_proj")"
 assert_eq "phys-proj" "$name_link" "symlinked dir resolves via pwd -P to the physical basename"
 
+# --- S12.7.0 pipefail + head SIGPIPE regression guard ---
+# When a project has many session files, `ls -t ... | head -1`
+# triggers SIGPIPE because head exits before grep, and `set -o pipefail`
+# turns that into exit 141 which `set -e` treats as fatal.  Without
+# the `|| true` guard in cma_latest_session_id, EVERY launch becomes a
+# "first run" creating a brand-new session instead of resuming the
+# shared one.  This test creates 200 dummy session files and proves
+# the resolution still finds the most recent AND returns --resume.
+it "flags: many-session stress (200 files) to exercise pipefail SIGPIPE guard"
+many_proj="$SANDBOX_HOME/Many_Sessions_Proj"; mkdir -p "$many_proj"
+many_cfg="$SANDBOX_HOME/.claude-many"
+many_proj_slug="$(printf '%s' "$many_proj" | sed -E 's/[^A-Za-z0-9]/-/g')"
+many_sess_dir="$many_cfg/projects/$many_proj_slug"
+mkdir -p "$many_sess_dir"
+for _m_i in $(seq 1 200); do
+  touch "$many_sess_dir/dummy-$_m_i-$(printf '%032s' "$_m_i" | tr ' ' '0').jsonl"
+done
+sleep 1
+_m_known_id="$(bash "$SESSION_SH" id "$many_proj")"
+_m_known_name="$(bash "$SESSION_SH" name "$many_proj")"
+mkdir -p "$many_sess_dir"
+touch "$many_sess_dir/$_m_known_id.jsonl"
+_m_flags="$(run_session_from "$many_proj" flags "$many_cfg")"
+printf '%s\n' "$_m_flags" | grep -q "^--resume $_m_known_id"; rc=$?
+assert_eq 0 $rc "stress: flags returns --resume with 200 files pipefail guard"
+printf '%s\n' "$_m_flags" | grep -q "$_m_known_name"; rc=$?
+assert_eq 0 $rc "stress: flags carries --name $_m_known_name"
+_m_latest="$(run_session_from "$many_proj" latest-id "$many_cfg")"
+assert_eq "$_m_known_id" "$_m_latest" "stress: latest-id returns the most recent session"
+
 summary
