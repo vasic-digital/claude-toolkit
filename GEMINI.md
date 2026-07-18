@@ -73,7 +73,13 @@ Verification is strict (v1.14.0+) — an alias is launchable only when every app
 
 In the `--multi` path `model_verify.py` applies the same anti-bluff rules: the sentinel must be present, `verified` requires a passed tool-calling probe, and the 24h verification cache carries a schema version so results from older, weaker logic are never replayed.
 
+**Kimi Code (OAuth subscription)**: when the `kimi` CLI is signed in, `detect_kimicode_record` discovers every model the subscription serves (`GET /coding/v1/models` ∪ catalog) and emits one alias per model (`kimi-k3`, `kimi-k2p7`, `kimi-for-coding-highspeed`, `kimi-for-coding`) with the same `_CMA_KIMICODE_OAUTH_` sentinel keyvar; OAuth records take precedence over `KIMI_API_KEY`/`ApiKey_Kimi` records (`unique_by` merge, detector first). The launch wrapper refreshes the ~15-minute OAuth token at launch (live credentials file → CLI refresh → snapshot), and routes all `kimi-*` aliases through `proxy/kimi_proxy.py` (`<family>_proxy.py` discovery), which normalizes tool schemas to the moonshot `#/$defs/` flavor k3 requires.
+
 Statuses live in `~/.local/share/claude-multi-account/providers/status.json`; `claude-providers list` shows only `verified`, `list-all` everything, `list-faulty` the filtered-out rest. The launch wrapper refuses non-`verified` aliases unless `--force`.
+
+**Cross-alias continuity:** `daemon/` + `jobs/` (Claude Code's background-agent registry) are shared items with a roster union merge (`cma_union_rosters`, newer `updatedAt` wins per worker); `_cma_session_flags` applies per-project session resolution to BOTH transports and injects `--resume` for conversation args (via `claude-session existing-id` — never a never-created fallback id). A session or background agent left under one alias is visible and resumable from every other alias.
+
+**Token-limit guards (both transports):** the wrapper exports `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (input cap from the model's real context limit, ≤200K) and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` (output cap from the model's real `limit.output`, `_cma_out_guard` — router providers included; without it they ran with Claude Code's 128000 generic default and long responses died). Proxies may clamp further API-side (sarvam_proxy's tier clamp).
 
 **Account-dir detection (`cma_detect_accounts`)**: matches `~/.claude-*` but skips (a) `*-shared` and (b) non-empty dirs that don't contain any Claude marker file (`projects/`, `todos/`, `plugins/`, `.claude.json`, `.credentials.json`, `history.jsonl`). This excludes tool-config dirs that share the prefix by coincidence (e.g. `.claude-server-commander` for an MCP server).
 

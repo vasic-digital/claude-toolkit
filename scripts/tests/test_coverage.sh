@@ -109,7 +109,7 @@ printf 'alias claude1="CLAUDE_CONFIG_DIR=%s/.claude-acct1 cma_run"\n' "$HOME" >>
 cma_ensure_alias_file
 # (a) The new cma_run_provider() body must contain claude-sync-state.
 _b9_body="$(awk '/^cma_run_provider\(\)/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-b9_has_sync=1; printf '%s\n' "$_b9_body" | grep -q 'claude-sync-state' && b9_has_sync=0
+b9_has_sync=1; grep -q 'claude-sync-state' <<<"$_b9_body" && b9_has_sync=0
 assert_eq 0 "$b9_has_sync" "migrated cma_run_provider body contains claude-sync-state"
 # (b) alias claude1= must survive — this is the line the old bug chopped.
 assert_file_contains "$ALIAS_FILE" "alias claude1=" "alias claude1 line preserved after cma_run_provider migration"
@@ -381,19 +381,19 @@ _b6_run="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
 _b6_prov="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
 
 it "cma_run body wires per-project auto-session (claude-session flags + bare-launch guard + apply + hint)"
-b6=1; printf '%s\n' "$_b6_run" | grep -q 'claude-session' && b6=0
+b6=1; grep -q 'claude-session' <<<"$_b6_run" && b6=0
 assert_eq 0 "$b6" "cma_run calls claude-session"
-b6=1; printf '%s\n' "$_b6_run" | grep -q ' flags ' && b6=0
+b6=1; grep -q ' flags ' <<<"$_b6_run" && b6=0
 assert_eq 0 "$b6" "cma_run uses 'claude-session flags'"
-b6=1; printf '%s\n' "$_b6_run" | grep -qF '$# -eq 0' && b6=0
+b6=1; grep -qF '$# -eq 0' <<<"$_b6_run" && b6=0
 assert_eq 0 "$b6" "cma_run gates auto-session on a bare launch"
-b6=1; printf '%s\n' "$_b6_run" | grep -qF 'eval "set -- ' && b6=0
+b6=1; grep -qF 'eval "set -- ' <<<"$_b6_run" && b6=0
 assert_eq 0 "$b6" "cma_run applies the session flags (eval set --)"
-b6=1; printf '%s\n' "$_b6_run" | grep -qF ' hint ' && b6=0
+b6=1; grep -qF ' hint ' <<<"$_b6_run" && b6=0
 assert_eq 0 "$b6" "cma_run emits the per-alias color hint"
 
 it "cma_run_provider body also wires per-project auto-session"
-b6=1; printf '%s\n' "$_b6_prov" | grep -q 'claude-session' && b6=0
+b6=1; grep -q 'claude-session' <<<"$_b6_prov" && b6=0
 assert_eq 0 "$b6" "cma_run_provider calls claude-session"
 
 it "self-heal: a cma_run missing the claude-session marker is regenerated"
@@ -412,9 +412,9 @@ rm -f "$ALIAS_FILE"; mkdir -p "$(dirname "$ALIAS_FILE")"
 } > "$ALIAS_FILE"
 cma_ensure_alias_file
 _b6_run2="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-b6=1; printf '%s\n' "$_b6_run2" | grep -q 'claude-session' && b6=0
+b6=1; grep -q 'claude-session' <<<"$_b6_run2" && b6=0
 assert_eq 0 "$b6" "stale cma_run (no claude-session) was regenerated with auto-session"
-b6=1; printf '%s\n' "$_b6_run2" | grep -q 'unset ANTHROPIC_' && b6=0
+b6=1; grep -q 'unset ANTHROPIC_' <<<"$_b6_run2" && b6=0
 assert_eq 0 "$b6" "regenerated cma_run still has provider-env isolation"
 b6_cnt="$(grep -c '^cma_run()' "$ALIAS_FILE")"
 assert_eq 1 "$b6_cnt" "exactly one cma_run() after self-heal (no duplication)"
@@ -490,9 +490,9 @@ ALIAS_FILE="$SANDBOX_HOME/aliases_b9.sh"; mkdir -p "$(dirname "$ALIAS_FILE")"; r
 cma_ensure_alias_file
 _b9_run="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
 _b9_prov="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-b9=1; printf '%s\n' "$_b9_run"  | grep -q 'apply-color' && b9=0
+b9=1; grep -q 'apply-color' <<<"$_b9_run" && b9=0
 assert_eq 0 "$b9" "cma_run calls apply-color"
-b9=1; printf '%s\n' "$_b9_prov" | grep -q 'apply-color' && b9=0
+b9=1; grep -q 'apply-color' <<<"$_b9_prov" && b9=0
 assert_eq 0 "$b9" "cma_run_provider calls apply-color"
 
 summary

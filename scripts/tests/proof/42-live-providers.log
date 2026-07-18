@@ -15,7 +15,7 @@
     [32m[PASS][0m no provider dir detected as account (1)
 
   • semantic (layer 3) for 'chutes2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes2
+SKIP: layer-3 preconditions absent for chutes2
 
   • superpowers-TUI (layer 4) for 'chutes2' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for chutes2
@@ -42,7 +42,7 @@ SKIP: layer-3 preconditions absent for deepseek2
 SKIP: layer-3 preconditions absent for deepseek
 
   • superpowers-TUI (layer 4) for 'deepseek' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for deepseek
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for deepseek
 
   • semantic (layer 3) for 'kilo' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for kilo
@@ -51,10 +51,28 @@ SKIP: layer-3 preconditions absent for deepseek
     [32m[PASS][0m layer-4 superpowers-TUI PASS for kilo
 
   • semantic (layer 3) for 'kimi-for-coding' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for kimi-for-coding
+SKIP: layer-3 preconditions absent for kimi-for-coding
 
   • superpowers-TUI (layer 4) for 'kimi-for-coding' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for kimi-for-coding
+SKIP: SKIP: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+
+  • semantic (layer 3) for 'kimi-for-coding-highspeed' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for kimi-for-coding-highspeed
+
+  • superpowers-TUI (layer 4) for 'kimi-for-coding-highspeed' — PASS/SKIP
+SKIP: SKIP: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding-highspeed'
+
+  • semantic (layer 3) for 'kimi-k2p7' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for kimi-k2p7
+
+  • superpowers-TUI (layer 4) for 'kimi-k2p7' — PASS/SKIP
+SKIP: SKIP: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-k2p7'
+
+  • semantic (layer 3) for 'kimi-k3' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for kimi-k3
+
+  • superpowers-TUI (layer 4) for 'kimi-k3' — PASS/SKIP
+SKIP: SKIP: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-k3'
 
   • semantic (layer 3) for 'nvidia2' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for nvidia2
@@ -69,16 +87,10 @@ SKIP: layer-3 preconditions absent for nvidia3
     [32m[PASS][0m layer-4 superpowers-TUI PASS for nvidia3
 
   • semantic (layer 3) for 'nvidia4' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for nvidia4
+SKIP: layer-3 preconditions absent for nvidia4
 
   • superpowers-TUI (layer 4) for 'nvidia4' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for nvidia4
-
-  • semantic (layer 3) for 'nvidia5' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for nvidia5
-
-  • superpowers-TUI (layer 4) for 'nvidia5' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for nvidia5
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for nvidia4
 
   • semantic (layer 3) for 'nvidia' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for nvidia
@@ -87,10 +99,10 @@ SKIP: layer-3 preconditions absent for nvidia3
     [32m[PASS][0m layer-4 superpowers-TUI PASS for nvidia
 
   • semantic (layer 3) for 'opencode2' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for opencode2
+SKIP: layer-3 preconditions absent for opencode2
 
   • superpowers-TUI (layer 4) for 'opencode2' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode2
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for opencode2
 
   • semantic (layer 3) for 'opencode3' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for opencode3
@@ -102,13 +114,13 @@ SKIP: layer-3 preconditions absent for nvidia3
 SKIP: layer-3 preconditions absent for opencode
 
   • superpowers-TUI (layer 4) for 'opencode' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for opencode
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for opencode
 
   • semantic (layer 3) for 'openrouter2' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for openrouter2
 
   • superpowers-TUI (layer 4) for 'openrouter2' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for openrouter2
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for openrouter2
 
   • semantic (layer 3) for 'openrouter3' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for openrouter3
@@ -146,6 +158,12 @@ SKIP: layer-3 preconditions absent for opencode
   • superpowers-TUI (layer 4) for 'poe' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for poe
 
+  • semantic (layer 3) for 'sarvam' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for sarvam
+
+  • superpowers-TUI (layer 4) for 'sarvam' — PASS/SKIP
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for sarvam
+
   • semantic (layer 3) for 'siliconflow2' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for siliconflow2
 
@@ -156,13 +174,13 @@ SKIP: layer-3 preconditions absent for opencode
     [32m[PASS][0m layer-3 semantic PASS for siliconflow3
 
   • superpowers-TUI (layer 4) for 'siliconflow3' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for siliconflow3
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for siliconflow3
 
   • semantic (layer 3) for 'siliconflow4' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for siliconflow4
+SKIP: layer-3 preconditions absent for siliconflow4
 
   • superpowers-TUI (layer 4) for 'siliconflow4' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for siliconflow4
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for siliconflow4
 
   • semantic (layer 3) for 'siliconflow5' — PASS/SKIP, never a faked pass
 SKIP: layer-3 preconditions absent for siliconflow5
@@ -177,13 +195,25 @@ SKIP: layer-3 preconditions absent for siliconflow
     [32m[PASS][0m layer-4 superpowers-TUI PASS for siliconflow
 
   • semantic (layer 3) for 'xiaomi' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for xiaomi
+SKIP: layer-3 preconditions absent for xiaomi
 
   • superpowers-TUI (layer 4) for 'xiaomi' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI PASS for xiaomi
+
+  • semantic (layer 3) for 'zai-coding-plan' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for zai-coding-plan
+
+  • superpowers-TUI (layer 4) for 'zai-coding-plan' — PASS/SKIP
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for zai-coding-plan
+
+  • semantic (layer 3) for 'zhipuai-coding-plan' — PASS/SKIP, never a faked pass
+SKIP: layer-3 preconditions absent for zhipuai-coding-plan
+
+  • superpowers-TUI (layer 4) for 'zhipuai-coding-plan' — PASS/SKIP
+    [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for zhipuai-coding-plan
 
   • layer-4 classifier honesty: a neutral, non-superpowers response must NOT verify (negative-case, Task-3 review)
     [32m[PASS][0m layer-4 classifier honesty: neutral prompt via 'chutes2' correctly did NOT match the engagement marker
 evidence: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/50-providers-live.txt
 
-[32m✓ 54 passed, 0 failed[0m
+[32m✓ 48 passed, 0 failed[0m

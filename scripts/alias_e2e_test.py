@@ -205,6 +205,7 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
 
     Returns dict with test results.
     """
+    providers_dir = os.path.expanduser("~/.local/share/claude-multi-account/providers")
     result = {
         "alias": alias_name,
         "model": env.get("CMA_PROVIDER_MODEL", ""),
@@ -227,10 +228,40 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     # take only /chat/completions — see chat_endpoint_for).
     test_url, native = chat_endpoint_for(base_url, transport)
 
-    # Get API key from keys file
+    # Get API key. The Kimi Code OAuth sentinel has no var in the keys file —
+    # its token comes from the live credentials file (fresh) or the per-alias
+    # token-file snapshot (fallback), same freshness order as the launch wrapper.
     key_var = env.get("CMA_PROVIDER_KEYVAR", "")
     api_key = ""
-    if key_var:
+    if key_var == "_CMA_KIMICODE_OAUTH_":
+        cred = os.path.expanduser("~/.kimi-code/credentials/kimi-code.json")
+        if os.path.exists(cred):
+            try:
+                with open(cred) as f:
+                    c = json.load(f)
+                if int(c.get("expires_at", 0)) > time.time() + 60:
+                    api_key = c.get("access_token", "")
+            except Exception:
+                pass
+        if not api_key and os.path.exists(cred):
+            # Expired live token: refresh via the CLI (same chain as the
+            # launch wrapper), then re-read the credentials file.
+            try:
+                import shutil
+                import subprocess
+                if shutil.which("kimi"):
+                    subprocess.run(["kimi", "-p", "hi", "--output-format", "text"],
+                                   capture_output=True, timeout=20)
+                    with open(cred) as f:
+                        api_key = json.load(f).get("access_token", "")
+            except Exception:
+                pass
+        if not api_key:
+            tok_file = os.path.join(providers_dir, f"{alias_name}.token")
+            if os.path.exists(tok_file):
+                with open(tok_file) as f:
+                    api_key = f.read().strip()
+    elif key_var:
         keys_file = os.path.expanduser("~/api_keys.sh")
         if os.path.exists(keys_file):
             # Parse the keys file to find the value
@@ -253,6 +284,24 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     if not api_key:
         result["tests"].append({"name": "key_check", "pass": False, "error": f"No API key for {key_var}"})
         return result
+
+    # Aliases the activation gate has already filtered out (unverified/failed/
+    # pending) are intentionally not launchable — skip them honestly instead of
+    # scoring a guaranteed failure.
+    status_file = os.path.join(providers_dir, "status.json")
+    if os.path.exists(status_file):
+        try:
+            with open(status_file) as f:
+                st = json.load(f).get(alias_name, {}).get("status", "pending")
+        except Exception:
+            st = "pending"
+        if st != "verified":
+            result["gated_skip"] = True
+            result["tests"].append({
+                "name": "gated_check", "pass": False,
+                "error": f"SKIP-GATED (status={st} — filtered by the verification gate, not tested)",
+            })
+            return result
 
     # Test 1: Direct request (should work for OpenAI-compatible endpoints)
     model = env.get("CMA_PROVIDER_MODEL", "")
@@ -374,22 +423,31 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
         "messages": [{"role": "user", "content": "Calculate 7*6 using the test_calc tool"}],
         "tools": tool_schema,
     }
-    try:
+    def _tool_probe():
         data = json.dumps(tool_body).encode("utf-8")
         req = Request(tool_url, data=data, headers=tool_headers, method="POST")
         with urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             tool_result = json.loads(raw)
-            has_tool_calls = False
+            calls = False
             choices = tool_result.get("choices", [])
             if choices:
                 msg = choices[0].get("message", {})
-                has_tool_calls = bool(msg.get("tool_calls"))
-            if not has_tool_calls and isinstance(tool_result.get("content"), list):
-                has_tool_calls = any(
+                calls = bool(msg.get("tool_calls"))
+            if not calls and isinstance(tool_result.get("content"), list):
+                calls = any(
                     isinstance(b, dict) and b.get("type") == "tool_use"
                     for b in tool_result["content"]
                 )
+            return calls, raw
+
+    try:
+        has_tool_calls, raw = _tool_probe()
+        # Weak/free models flake on instructed tool calls (same retry policy
+        # as providers-verify.sh): exactly one retry before believing it.
+        if not has_tool_calls and not is_quota_error(raw) and not is_transient_error(raw):
+            time.sleep(3)
+            has_tool_calls, raw = _tool_probe()
             # A 200 carrying an error object (quota exhaustion smuggled as a
             # success) is an account state, not a tool-support failure.
             if not has_tool_calls and is_quota_error(raw):
@@ -454,6 +512,7 @@ def main(argv=None):
     failed = 0
     quota_skipped = 0
     transient_skipped = 0
+    gated_skipped = 0
 
     for alias_name in aliases:
         env_path = os.path.join(providers_dir, f"{alias_name}.env")
@@ -468,11 +527,13 @@ def main(argv=None):
         if result["overall_pass"]:
             passed += 1
             status = "✓"
-        elif result.get("quota_skip") or result.get("transient_skip"):
-            # Account/provider-side state — reported honestly, counted
-            # separately, never as a pass and never as a toolkit failure.
+        elif result.get("quota_skip") or result.get("transient_skip") or result.get("gated_skip"):
+            # Account/provider-side state or intentionally-gated alias —
+            # reported honestly, counted separately, never as a pass and never
+            # as a toolkit failure.
             quota_skipped += 1 if result.get("quota_skip") else 0
             transient_skipped += 1 if result.get("transient_skip") else 0
+            gated_skipped += 1 if result.get("gated_skip") else 0
             status = "◌"
         else:
             failed += 1
@@ -490,6 +551,7 @@ def main(argv=None):
         "failed": failed,
         "quota_skipped": quota_skipped,
         "transient_skipped": transient_skipped,
+        "gated_skipped": gated_skipped,
         "results": results,
     }
 

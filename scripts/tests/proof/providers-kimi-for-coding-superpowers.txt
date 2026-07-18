@@ -1,3 +1,13 @@
 Service not running, starting service...
 {"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":9893,"duration_api_ms":7615,"ttft_ms":8313,"ttft_stream_ms":4313,"time_to_request_ms":711,"num_turns":1,"result":"Using `superpowers:using-superpowers` to ensure skill-first execution for whatever task you want to tackle.\n\nThe framework is now active: I'll invoke relevant skills before exploring, planning, or implementing.\n\nWhat would you like to work on?","stop_reason":"end_turn","session_id":"d24f3ce8-2202-4694-988c-e547e00e1b48","total_cost_usd":0.0994698,"usage":{"input_tokens":30663,"cache_creation_input_tokens":0,"cache_read_input_tokens":1536,"output_tokens":468,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-sonnet-5":{"inputTokens":30663,"outputTokens":468,"cacheReadInputTokens":1536,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.0994698,"contextWindow":200000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"c9bc96e4-e3a7-41eb-9a4b-b15863113b7f"}
 # PASS
+# SKIP Sat Jul 18 07:03:47 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 07:56:29 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 08:42:16 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 09:54:19 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 11:21:52 AM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 12:42:31 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 01:42:55 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 04:10:34 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 05:21:46 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'
+# SKIP Sat Jul 18 06:30:09 PM MSK 2026: no key in $_CMA_KIMICODE_OAUTH_ for 'kimi-for-coding'

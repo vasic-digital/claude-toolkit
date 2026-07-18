@@ -108,10 +108,13 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
       -d "$1" "$url" 2>/dev/null || true
   }
 
+  # max_tokens 512, not 128: reasoning models (k3, deepseek-v4-pro) spend a
+  # large budget on chain-of-thought before any visible text; 128 reliably
+  # produced false "empty content / sentinel missing" failures on them.
   chat_body="$(jq -nc --arg m "$MODEL" \
-    '{model:$m,max_tokens:128,messages:[{role:"user",content:"Reply with exactly: VERIFY_OK"}]}')"
+    '{model:$m,max_tokens:512,messages:[{role:"user",content:"Reply with exactly: VERIFY_OK"}]}')"
   tools_body="$(jq -nc --arg m "$MODEL" --argjson t "$tools_json" \
-    '{model:$m,max_tokens:128,messages:[{role:"user",content:"What is the weather in Paris? Use the tool."}],tools:$t}')"
+    '{model:$m,max_tokens:512,messages:[{role:"user",content:"What is the weather in Paris? Use the tool."}],tools:$t}')"
 
   # Retry policy: auth/billing codes (401/402/403) are deterministic — never
   # retried. Other definitive-looking outcomes DO flap: 400/404/412/000 on

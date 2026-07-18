@@ -717,6 +717,38 @@ security, observability).</p></li>
 <span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Docs</span></span>
 <span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-export-docs</span>                    <span class="co"># regenerate HTML/PDF/DOCX</span></span></code></pre></div>
 <h2 id="individual-provider-notes">12. Individual provider notes</h2>
+<h3 id="kimi-code-oauth-subscription-kimi-for-coding-kimi-k3-kimi-k2p7-kimi-for-coding-highspeed">Kimi
+Code — OAuth subscription (kimi-for-coding, kimi-k3, kimi-k2p7,
+kimi-for-coding-highspeed)</h3>
+<p>If you are signed into <strong>Kimi Code</strong> (the
+<code>kimi</code> CLI), every model your subscription serves becomes an
+alias automatically — <strong>Kimi 3</strong> (<code>kimi-k3</code>, 1M
+context, reasoning), <strong>Kimi 2.7</strong> (<code>kimi-k2p7</code>),
+<code>kimi-for-coding-highspeed</code>, and the account default
+<code>kimi-for-coding</code>. No API key is required; the OAuth session
+in <code>~/.kimi-code/credentials/kimi-code.json</code> is used.</p>
+<ul>
+<li><strong>Discovery</strong>: <code>claude-providers sync</code>
+queries <code>GET /coding/v1/models</code> with your OAuth token and
+emits one alias per served model (unioned with the models.dev catalog,
+because the listing under-reports). Each alias is verified with the
+strict sentinel + tool-calling + semantic pipeline.</li>
+<li><strong>Token freshness</strong>: the OAuth token lives ~15 minutes.
+At every launch the wrapper reads the <strong>live</strong> credentials
+file (with expiry), refreshes via <code>kimi -p hi</code> when expired,
+and only then falls back to the sync-time snapshot — launches never die
+of a stale token.</li>
+<li><strong>kimi_proxy</strong>: k3 enforces a “moonshot-flavored” JSON
+schema for tools (every <code>$ref</code> must start with
+<code>#/$defs/</code>). Claude Code’s tool schemas would 400 without it,
+so all <code>kimi-*</code> launches route through a local normalizing
+proxy (<code>scripts/proxy/kimi_proxy.py</code>, installed by
+<code>install.sh</code>).</li>
+<li><strong>Precedence</strong>: an OAuth subscription wins over
+<code>KIMI_API_KEY</code> / <code>ApiKey_Kimi</code> records for
+<code>kimi-for-coding</code>; the API keys remain the fallback on hosts
+without the OAuth session.</li>
+</ul>
 <h3 id="z.ai-coding-plan-zai-coding-plan">z.ai Coding Plan
 (zai-coding-plan)</h3>
 <p>The <a href="https://z.ai">z.ai</a> Coding Max-Yearly Plan provides

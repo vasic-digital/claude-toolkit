@@ -113,7 +113,7 @@ cma_merge_claude_json() {
             .projects //= {}
             | reduce ($trusted[]) as $p (.; .projects[$p].hasTrustDialogAccepted = true)
           ' "$prev" > "$_tt" 2>/dev/null && jq -e . "$_tt" >/dev/null 2>&1; then
-        mv "$_tt" "$prev"
+        command mv -f "$_tt" "$prev"
       else rm -f "$_tt"; fi
     fi
   fi
@@ -141,7 +141,7 @@ cma_merge_claude_json() {
     fi
     # Final sanity: only replace if the output is parseable JSON.
     if jq -e . "$out" >/dev/null 2>&1; then
-      mv "$out" "$f"
+      command mv -f "$out" "$f"
     else
       rm -f "$out"
       cma_warn "merged .claude.json for $acct was invalid — leaving original file untouched"
@@ -256,7 +256,7 @@ cma_prune_stale_alias_sources() {
     fi
     printf '%s\n' "$line" >> "$tmp"
   done < "$rc"
-  if (( changed )); then mv "$tmp" "$rc"; cma_log "pruned stale aliases.sh source line(s) from $rc"; else rm -f "$tmp"; fi
+  if (( changed )); then command mv -f "$tmp" "$rc"; cma_log "pruned stale aliases.sh source line(s) from $rc"; else rm -f "$tmp"; fi
 }
 
 # True if $rc already sources a file resolving to $2 (across `.`/`source` and
@@ -294,7 +294,7 @@ EOF
     local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the sed pattern, matching alias file content
     sed -E 's|(^alias[[:space:]]+[^=]+=)"(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN"$|\1"\2 cma_run"|' "$ALIAS_FILE" > "$tmp"
-    mv "$tmp" "$ALIAS_FILE"
+    command mv -f "$tmp" "$ALIAS_FILE"
     cma_log "migrated existing aliases in $ALIAS_FILE to use cma_run wrapper"
   fi
   # Migration: an existing alias file may carry a stale CLAUDE_BIN pointing at a
@@ -314,7 +314,7 @@ EOF
     if [[ "$_new_cb" != "$_cur_cb" && -x "${_new_cb/#\$HOME/$HOME}" ]]; then
       local tmp_cb; tmp_cb="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
-      mv "$tmp_cb" "$ALIAS_FILE"
+      command mv -f "$tmp_cb" "$ALIAS_FILE"
       cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
     fi
   fi
@@ -330,7 +330,7 @@ EOF
       printf '# ~/.local/bin/claude-add-account to add accounts.\n'
       printf 'export CLAUDE_BIN="%s"\n' "$_cb_new"
       cat "$ALIAS_FILE"
-    } > "$_cb_tmp" && mv "$_cb_tmp" "$ALIAS_FILE"
+    } > "$_cb_tmp" && command mv -f "$_cb_tmp" "$ALIAS_FILE"
     cma_log "restored missing export CLAUDE_BIN line -> $_cb_new"
   fi
   # Migration: regenerate an outdated cma_run that lacks the provider-env
@@ -375,7 +375,7 @@ EOF
       skip && /^}/    { skip=0; next }
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
-    mv "$tmp_run" "$ALIAS_FILE"
+    command mv -f "$tmp_run" "$ALIAS_FILE"
     cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + token-guard isolation (CLAUDE_CODE_MAX_OUTPUT_TOKENS/AUTO_COMPACT_WINDOW) + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
@@ -515,9 +515,13 @@ EOF
   # keys sourcing ('set -a +u'), the per-project auto-session integration
   # ('claude-session'), the input-context token-limit guard
   # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), the SHARED_DIR-based proxy resolution
-  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies), or
-  # the <=128000 output-token clamp exported for BOTH transports
-  # ('CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' — distinct from the bare token
+  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies),
+  # the family proxy discovery ('_family_id', kimi_proxy for all kimi-*), the
+  # Kimi OAuth launch-time token freshness block
+  # ('kimi-code/credentials/kimi-code.json'), the both-transports session flags
+  # ('_cma_session_flags'), or the both-transports output cap
+  # ('_cma_out_guard' — clamped <=128000, so the marker is the clamped export
+  # 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"', distinct from the bare token
   # already present in the pre-clamp unset/raw-export body).
   # Each marker lives only in the current heredoc, so once regenerated the
   # function stops re-triggering.
@@ -531,6 +535,10 @@ EOF
        ! grep -q 'apply-color' <<<"$_prov_body" || \
        ! grep -q '_cma_compact_cap' <<<"$_prov_body" || \
        ! grep -q '_cma_proxy_dir' <<<"$_prov_body" || \
+       ! grep -qF '_family_id' <<<"$_prov_body" || \
+       ! grep -qF 'kimi-code/credentials/kimi-code.json' <<<"$_prov_body" || \
+       ! grep -qF '_cma_out_guard' <<<"$_prov_body" || \
+       ! grep -qF '_cma_session_flags' <<<"$_prov_body" || \
        ! grep -qF 'command -v cma_log' <<<"$_prov_body" || \
        ! grep -qF '_cma_force' <<<"$_prov_body" || \
        ! grep -qF '>| "$tmp"' <<<"$_prov_body" || \
@@ -548,8 +556,8 @@ EOF
         skip && /^}/            { skip=0; next }
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
-      mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)"
+      command mv -f "$tmp_prov" "$ALIAS_FILE"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -658,11 +666,27 @@ cma_run_provider() {
   # Suppress xtrace around the indirect key read so an active `set -x` in the
   # user's shell can't echo the secret to the terminal or a redirected log.
   case $- in *x*) _cma_xt=1; set +x ;; esac
-  # Kimi Code OAuth sentinel: read the OAuth token from the provider token
-  # file (written by detect_kimicode_record at sync time).
+  # Kimi Code OAuth sentinel: the OAuth token is SHORT-LIVED (~15 min), so a
+  # sync-time snapshot is stale by the next launch. Freshness order:
+  #  1. the LIVE kimi-code credentials file, when unexpired (60s skew);
+  #  2. a CLI-triggered refresh (kimi -p hi) followed by a re-read of 1;
+  #  3. the token-file snapshot written at sync (last resort only).
   if [[ "$CMA_PROVIDER_KEYVAR" == "_CMA_KIMICODE_OAUTH_" ]]; then
-    local _cma_ktok="$pdir/${CMA_PROVIDER_ID}.token"
-    [[ -f "$_cma_ktok" ]] && token="$(cat "$_cma_ktok" 2>/dev/null)" || token=""
+    local _cma_kcred="$HOME/.kimi-code/credentials/kimi-code.json"
+    if [[ -f "$_cma_kcred" ]] && command -v jq >/dev/null 2>&1; then
+      local _cma_kexp; _cma_kexp="$(jq -r '.expires_at // 0' "$_cma_kcred" 2>/dev/null || echo 0)"
+      if (( _cma_kexp > $(date +%s) + 60 )); then
+        token="$(jq -r '.access_token // ""' "$_cma_kcred" 2>/dev/null)"
+      fi
+    fi
+    if [[ -z "$token" && -f "$_cma_kcred" ]] && command -v kimi >/dev/null 2>&1; then
+      timeout 20 kimi -p "hi" --output-format text >/dev/null 2>&1 || true
+      token="$(jq -r '.access_token // ""' "$_cma_kcred" 2>/dev/null)"
+    fi
+    if [[ -z "$token" ]]; then
+      local _cma_ktok="$pdir/${CMA_PROVIDER_ID}.token"
+      [[ -f "$_cma_ktok" ]] && token="$(cat "$_cma_ktok" 2>/dev/null)" || token=""
+    fi
   else
     eval "token="\${$CMA_PROVIDER_KEYVAR:-}""
   fi
@@ -680,9 +704,9 @@ cma_run_provider() {
   # cap. Fully dynamic — the value is CMA_PROVIDER_CONTEXT_LIMIT, resolved from
   # the models.dev catalog (limit.context) per selected model. Applies to BOTH
   # transports (native + router), so every provider alias is protected.
-  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below, just
-  # before the transport branch, clamped <=128000) caps OUTPUT — the two are
-  # independent halves of the guard.
+  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set just
+  # below, before the transport branch, BOTH transports, clamped <=128000)
+  # caps OUTPUT — the two are independent halves of the guard.
   # Auto-compact cap: only lower the window; never raise it above ~200K.
   # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need this
   # guard — exporting their full window disables auto-compaction until ~987K,
@@ -691,46 +715,108 @@ cma_run_provider() {
   if [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" && "${CMA_PROVIDER_CONTEXT_LIMIT}" -le "$_cma_compact_cap" ]]; then
     export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
   fi
-  # Output-token clamp (§11.4.108/§11.4.111 — BOTH transports). Exporting the
-  # model's THEORETICAL limit.output (deepseek 384000, xiaomi 131072) makes
-  # Claude Code request its OWN unknown-model ceiling (128000) and then FATALLY
-  # abort any length-truncated response: "…exceeded the 128000 output token
-  # maximum… set CLAUDE_CODE_MAX_OUTPUT_TOKENS". The CLI hard-caps custom models
-  # to 128000 regardless, so any value >128000 is pointless. Clamp to
-  # min(CMA_PROVIDER_MAX_OUTPUT, 128000); a missing/non-numeric catalog value
-  # defaults to 128000 (never empty). Exported ONCE here, before the transport
-  # branch, so router AND native behave identically (previously only the native
-  # branch re-exported it — an unclamped, transport-asymmetric raw value).
-  # Clamp to a sane [1, 128000] window. Order is load-bearing (POSIX-shape so it
-  # behaves identically whether this body is sourced by bash or zsh):
-  #   1. empty / non-plain-integer (negatives, "1e6", "12.5") -> default 128000.
-  #   2. >6 digits (>= 1,000,000): necessarily > 128000 AND would OVERFLOW the
-  #      shell integer in the -gt/-lt tests below ([ N -gt .. ] errors on values
-  #      past 2^63-1 -> the '&&' fails -> the raw huge value would export
-  #      UNCLAMPED, resurrecting the ">128000" fatal). CMA_PROVIDER_MAX_OUTPUT
-  #      traces to the user-settable CMA_HELIXAGENT_MAX_OUTPUT, fed via
-  #      'jq --argjson' which preserves huge-int digits verbatim -> reachable.
-  #      Collapse to the cap WITHOUT any arithmetic on the raw value.
-  #   3. <=6 digits (0..999999): now safe for the integer tests. Floor 0/00/000
-  #      to the default (never export CLAUDE_CODE_MAX_OUTPUT_TOKENS=0), clamp the
-  #      rest at 128000. A leading-zero form like 007 tests as 7 here, stays
+  # _cma_out_guard (v1.16.0) + <=128000 clamp (§11.4.108/§11.4.111): output-
+  # token cap for BOTH transports, not just native. Without it, router
+  # providers run with Claude Code's generic default output cap (128000 for
+  # models it does not know) and long reasoning responses die with "Claude's
+  # response exceeded the 128000 output token maximum". The value starts from
+  # the provider model's REAL output limit (models.dev limit.output via
+  # CMA_PROVIDER_MAX_OUTPUT); proxies may clamp further API-side
+  # (sarvam_proxy's tier clamp). Exported ONCE here, before the transport
+  # branch, so router AND native behave identically (previously only the
+  # native branch re-exported it — an unclamped, transport-asymmetric raw
+  # value).
+  # Catalog caveat (live-proven on nvidia5): when limit.output >=
+  # limit.context the "output" number is really the context size — exporting
+  # it makes Claude Code request that many completion tokens, and
+  # input+request overshoots the shared window (400 "maximum context length
+  # is N … you requested M"). Only a genuinely separate output budget
+  # (output < context) is exported.
+  # Clamp caveat (live-proven, 128k Tier-1): exporting the model's THEORETICAL
+  # limit.output when it exceeds the CLI's own custom-model ceiling (deepseek
+  # 384000, xiaomi 131072) makes Claude Code request its OWN unknown-model
+  # ceiling (128000) and then FATALLY abort any length-truncated response:
+  # "…exceeded the 128000 output token maximum… set
+  # CLAUDE_CODE_MAX_OUTPUT_TOKENS". The CLI hard-caps custom models to 128000
+  # regardless, so any value >128000 is pointless — clamp to
+  # min(CMA_PROVIDER_MAX_OUTPUT, 128000).
+  # Sanitize-then-decide order is load-bearing (POSIX-shape so it behaves
+  # identically whether this body is sourced by bash or zsh), and NO
+  # arithmetic ever runs on an unsanitized value ([ N -gt .. ] errors past
+  # 2^63-1, and (( )) errors on non-integers — CMA_PROVIDER_MAX_OUTPUT traces
+  # to the user-settable CMA_HELIXAGENT_MAX_OUTPUT, fed via 'jq --argjson'
+  # which preserves huge-int digits verbatim, so both shapes are reachable):
+  #   1. empty / non-plain-integer (negatives, "1e6", "12.5") / zero -> NO
+  #      export: no real output budget is known, and the CLI's own
+  #      unknown-model default (128000) applies exactly as if the catalog had
+  #      no entry. (The pre-merge always-export-128000 default was
+  #      effect-equivalent for known models but could resurrect the nvidia5
+  #      overshoot on small-context catalog-gap models — the conditional
+  #      no-export subsumes it safely.)
+  #   2. >18 digits: past intmax — no test/(( )) arithmetic is safe. Any real
+  #      context (<=18 digits) is smaller, so with a usable context this is
+  #      the mislabel shape (-> NO export); with no usable context it
+  #      collapses to the 128000 cap WITHOUT arithmetic on the raw value.
+  #   3. <=18 digits (test-safe): floor 0/00/000 to no-export, apply the
+  #      nvidia5 mislabel skip (output >= context -> NO export), then the
+  #      128000 clamp. A leading-zero form like 007 tests as 7 here, stays
   #      <=128000, and exports as "007" (Claude Code parses it as decimal 7 —
-  #      min-semantics); a leading-zero 7+ digit form like 0128001 was already
-  #      collapsed by rule 2, so it is NEVER re-read as octal.
-  local _cma_out="${CMA_PROVIDER_MAX_OUTPUT:-}"
+  #      min-semantics); a leading-zero 19+ digit form was already collapsed
+  #      by rule 2, so it is NEVER re-read as octal.
+  local _cma_out="${CMA_PROVIDER_MAX_OUTPUT:-}" _cma_octx="${CMA_PROVIDER_CONTEXT_LIMIT:-}"
+  case "$_cma_octx" in
+    ''|*[!0-9]*) _cma_octx="" ;;
+    *) [ "${#_cma_octx}" -le 18 ] || _cma_octx="" ;;
+  esac
   case "$_cma_out" in
-    ''|*[!0-9]*)                     _cma_out=128000 ;;
-    *) if   [ "${#_cma_out}" -gt 6 ];   then _cma_out=128000
-       elif [ "$_cma_out" -lt 1 ];      then _cma_out=128000
+    ''|*[!0-9]*) _cma_out="" ;;
+    *) if [ "${#_cma_out}" -gt 18 ]; then
+         if [ -n "$_cma_octx" ]; then _cma_out=""; else _cma_out=128000; fi
+       elif [ "$_cma_out" -lt 1 ]; then _cma_out=""
+       elif [ -n "$_cma_octx" ] && [ "$_cma_out" -ge "$_cma_octx" ]; then _cma_out=""
        elif [ "$_cma_out" -gt 128000 ]; then _cma_out=128000
        fi ;;
   esac
-  export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"
+  if [ -n "$_cma_out" ]; then
+    export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"
+  fi
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
   # Pull merged state before launch; push post-session state after exit.
   if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
     "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+  fi
+  # _cma_session_flags (v1.17.0): per-project session resolution applies to
+  # BOTH transports — previously the flags block lived only in the native
+  # branch, so every router alias (kimi-*, poe, openrouter, …) always opened
+  # a FRESH session and could never see the project session another alias
+  # left behind. It also now covers conversation args: `alias -p "…"` used to
+  # skip resolution entirely (verbatim-args rule) and start a new session
+  # every time. Explicit session selectors and non-conversation subcommands
+  # are always left verbatim.
+  local _cma_psf=""
+  if [[ -x "$HOME/.local/bin/claude-session" ]]; then
+    if [[ $# -eq 0 ]]; then
+      _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+      "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
+      eval "set -- $_cma_psf"
+      # Auto-apply this provider alias's color to the session (idempotent).
+      "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
+      _cma_pcolor=1
+    else
+      case "$1" in
+        --resume|--session-id|--continue|--fork-session|-c) ;;
+        agents|mcp|export|doctor|install|update|config|plugin|setup|acp|server|web|provider) ;;
+        *)
+          # existing-id (NOT latest-id): latest-id falls back to the
+          # deterministic UUID for never-used projects, and injecting --resume
+          # with a session that was never created fails hard ("No conversation
+          # found with session ID"). Inject only for a session that EXISTS.
+          _cma_psf="$("$HOME/.local/bin/claude-session" existing-id "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+          [[ -n "$_cma_psf" ]] && set -- --resume "$_cma_psf" "$@"
+          ;;
+      esac
+    fi
   fi
   local rc
   local _proxy_pid=""
@@ -739,6 +825,17 @@ cma_run_provider() {
       printf 'claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n' "$id" >&2
       return 127
     fi
+    # Identity check (live issue 2026-07-18): a DIFFERENT tool named ccr on
+    # PATH (e.g. CCS's profile manager, `ccs`) shadows the real router and
+    # fails cryptically downstream — "Profile 'code' was not found or is
+    # disabled" — because `ccr code` to it means "launch profile 'code'".
+    # Refuse early with an actionable message.
+    local _ccr_ver; _ccr_ver="$(ccr version 2>&1 | head -1)"
+    case "$_ccr_ver" in
+      *claude-code-router*) ;;
+      *) printf 'claude-providers: ccr on PATH is not @musistudio/claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or: npm install -g @musistudio/claude-code-router\n' "$_ccr_ver" >&2
+         return 127 ;;
+    esac
     # Upsert THIS provider into ccr config with the live key (regenerated each
     # launch, chmod 600 — never stored by the toolkit), set it as the active
     # route, then launch through ccr.
@@ -775,11 +872,16 @@ cma_run_provider() {
     # a tool with no `parameters` — the poe_proxy injects it).
     local _cma_proxy_dir="${SHARED_DIR:-$HOME/.claude-shared}/proxy"
     local _base_id="${CMA_PROVIDER_ID%%[0-9]*}"
+    local _family_id="${CMA_PROVIDER_ID%%-*}"
     local _proxy_script=""
     if [[ -x "$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py" ]]; then
       _proxy_script="$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py"
     elif [[ -x "$_cma_proxy_dir/${_base_id}_proxy.py" ]]; then
       _proxy_script="$_cma_proxy_dir/${_base_id}_proxy.py"
+    elif [[ -x "$_cma_proxy_dir/${_family_id}_proxy.py" ]]; then
+      # Family fallback: all kimi-* aliases share kimi_proxy.py (the
+      # moonshot-flavored schema normalizer), like all poe* share poe_proxy.py.
+      _proxy_script="$_cma_proxy_dir/${_family_id}_proxy.py"
     fi
     if [[ -n "$_proxy_script" ]]; then
       local _proxy_port=3457
@@ -812,7 +914,7 @@ cma_run_provider() {
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
         ' "$cfg" >| "$tmp" 2>/dev/null; then
-        mv "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
+        command mv -f "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
         ccr restart >/dev/null 2>&1 || true
       else
         rm -f "$tmp"
@@ -837,20 +939,13 @@ cma_run_provider() {
     export ANTHROPIC_DEFAULT_SONNET_MODEL="$CMA_PROVIDER_MODEL"
     export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
     export ANTHROPIC_DEFAULT_FABLE_MODEL="$CMA_PROVIDER_MODEL"
-    # Output-token cap (CLAUDE_CODE_MAX_OUTPUT_TOKENS) is exported ABOVE, before
-    # the transport branch, CLAMPED to <=128000 for BOTH transports — see the
-    # "Output-token clamp" block. (Was formerly re-exported here as the RAW,
-    # unclamped CMA_PROVIDER_MAX_OUTPUT — the origin of the "128000" fatal.)
-    # Auto session-per-project (bare launch only — explicit args win verbatim).
-    if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
-      local _cma_psf
-      _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
-      "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
-      eval "set -- $_cma_psf"
-      # Auto-apply this provider alias's color to the session (idempotent).
-      "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
-      _cma_pcolor=1
-    fi
+    # Session flags are applied ABOVE for both transports (v1.17.0) — see
+    # _cma_session_flags. CLAUDE_CODE_MAX_OUTPUT_TOKENS is exported ABOVE too,
+    # before the transport branch, CLAMPED to <=128000 for BOTH transports —
+    # see the _cma_out_guard/output-token-clamp block. (Was formerly
+    # re-exported here as the RAW, unclamped CMA_PROVIDER_MAX_OUTPUT — the
+    # origin of the "128000" fatal.) CLAUDE_CODE_AUTO_COMPACT_WINDOW caps
+    # INPUT — the two are independent halves of the guard.
     "$CLAUDE_BIN" "$@"; rc=$?
   fi
   # Push post-session state back to all accounts/providers for cross-alias visibility.
@@ -914,7 +1009,7 @@ cma_write_alias() {
   # defined alongside in the alias file (added once by cma_ensure_alias_file).
   printf 'alias %s="CLAUDE_CONFIG_DIR=%s cma_run"\n' \
     "$alias_name" "$config_dir" >> "$tmp"
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # Remove an alias line. Idempotent.
@@ -923,7 +1018,7 @@ cma_remove_alias() {
   [[ -f "$ALIAS_FILE" ]] || return 0
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # ===========================================================================
@@ -936,6 +1031,7 @@ CMA_SHARED_ITEMS=(
   projects todos tasks plans file-history paste-cache shell-snapshots
   session-env telemetry sessions backups cache plugins
   stats-cache.json history.jsonl CLAUDE.md
+  daemon jobs
 )
 # NOTE (§11.4 own-settings): settings.json is DELIBERATELY NOT in the shared set.
 # Each config dir gets its OWN settings.json so per-alias permissions/model/hooks
@@ -945,6 +1041,12 @@ CMA_SHARED_ITEMS=(
 # shared template $SHARED_DIR/settings.json by cma_own_settings_seed (so
 # superpowers et al. stay enabled everywhere). See cma_link_shared_items +
 # cma_enable_plugins below.
+# NOTE (daemon/jobs): `daemon` is Claude Code's background-agent registry
+# (roster.json + dispatch). It MUST be shared or a background agent started
+# under one alias is invisible to every other alias — the registry is
+# config-dir-scoped, not session-scoped. `jobs` is its sibling job store.
+# daemon/roster.json is union-merged (not last-wins) — see
+# merge_daemon_roster in claude-unify.sh.
 
 cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
 
@@ -970,7 +1072,7 @@ cma_status_write() {
         --arg l "$layer" --arg t "$now" \
         '.[$id] = {status:$s, model:$m, checked_at:$t, failing_layer:$l}' \
         "$f" > "$tmp" 2>/dev/null; then
-    mv "$tmp" "$f"
+    command mv -f "$tmp" "$f"
   else
     rm -f "$tmp"; cma_warn "could not update status cache $f"
   fi
@@ -991,6 +1093,85 @@ cma_status_all() {
   jq -r 'to_entries[] | [.key, .value.status, (.value.model // ""),
          (.value.checked_at // ""), (.value.failing_layer // "")] | @tsv' \
      "$f" 2>/dev/null || true
+}
+
+# Union daemon/roster.json files into one registry. workers are merged by id
+# with the newer updatedAt winning per worker; proto and supervisorPid come
+# from the newest roster; top-level updatedAt is the max. Used by
+# claude-unify.sh (merge_daemon_roster) and cma_migrate_daemon_dirs_once.
+# Usage: cma_union_rosters OUTFILE roster1.json [roster2.json ...]
+cma_union_rosters() {
+  local out="$1"; shift
+  command -v jq >/dev/null 2>&1 || return 1
+  (( $# >= 1 )) || return 1
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  if jq -s '
+    def newer($a; $b): if (($a.updatedAt // 0) >= ($b.updatedAt // 0)) then $a else $b end;
+    ([.[] | {u: (.updatedAt // 0), p: (.proto // 1), s: (.supervisorPid // null), w: (.workers // {})}])
+    | (map(.u) | max // 0) as $maxu
+    | (sort_by(.u) | last) as $newest
+    | (reduce .[] as $r ({}; . as $acc
+        | reduce ($r.w | to_entries[]) as $e ($acc;
+            if ($acc[$e.key] == null) then . + {($e.key): $e.value}
+            else . + {($e.key): newer($acc[$e.key]; $e.value)} end))) as $workers
+    | {proto: $newest.p, supervisorPid: $newest.s, updatedAt: $maxu, workers: $workers}
+  ' "$@" >| "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+    command mv -f "$tmp" "$out"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+# One-time migration for pre-v1.17.0 LOCAL daemon/jobs dirs under provider
+# dirs: their contents (including background-agent rosters) must not be
+# stranded when daemon/jobs become shared items. Merges every real provider
+# daemon/jobs dir into $SHARED_DIR (roster.json excluded), backs it up,
+# replaces it with the shared symlink, then union-merges every collected
+# roster.json (incl. the shared one) with cma_union_rosters. Idempotent via a
+# marker file; cma_link_shared_items handles all NEW provider dirs.
+cma_migrate_daemon_dirs_once() {
+  command -v rsync >/dev/null 2>&1 || return 0
+  local marker="$SHARED_DIR/.daemon-migration-done"
+  [[ -e "$marker" ]] && return 0
+  local d item tgt roster_tmp=""
+  for d in "$HOME/${CMA_PROVIDER_DIR_PREFIX:-.claude-prov-}"*/; do
+    [[ -d "$d" ]] || continue
+    for item in daemon jobs; do
+      tgt="$d$item"
+      [[ -d "$tgt" && ! -L "$tgt" ]] || continue
+      mkdir -p "$SHARED_DIR/$item"
+      rsync -a --exclude 'roster.json' "$tgt/" "$SHARED_DIR/$item/" 2>/dev/null || true
+      if [[ -f "$tgt/roster.json" ]]; then
+        # Stash roster CONTENT before the dir moves — collecting paths and
+        # unioning afterwards would read the just-moved (missing) files.
+        [[ -z "$roster_tmp" ]] && roster_tmp="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
+        cp "$tgt/roster.json" "$roster_tmp/$(printf '%s' "$d" | md5sum | cut -c1-12).json"
+      fi
+      # Same backup convention as unify's backup_and_remove (defined there,
+      # not in lib.sh): rename to <path>.preunify.<timestamp> — recoverable.
+      command mv -f "$tgt" "${tgt}.preunify.$(date +%Y%m%d%H%M%S)"
+      ln -s "$SHARED_DIR/$item" "$tgt"
+    done
+  done
+  local srcs=()
+  [[ -f "$SHARED_DIR/daemon/roster.json" && ! -L "$SHARED_DIR/daemon/roster.json" ]] && \
+    srcs+=("$SHARED_DIR/daemon/roster.json")
+  [[ -n "$roster_tmp" ]] && srcs+=("$roster_tmp"/*.json)
+  if (( ${#srcs[@]} )); then
+    cma_union_rosters "$SHARED_DIR/daemon/roster.json" "${srcs[@]}" || \
+      cma_warn "daemon roster union failed during migration — last-wins file kept"
+  fi
+  [[ -n "$roster_tmp" ]] && rm -rf "$roster_tmp"
+  # $SHARED_DIR may not exist yet (fresh host / first sync before any shared
+  # item was linked). claude-providers.sh runs under `set -e`, so an unguarded
+  # `: > $marker` onto a missing directory ABORTS the whole cmd_sync (captured
+  # live: "line 1166: …/.claude-shared/.daemon-migration-done: No such file or
+  # directory" -> sync exit 1, zero providers registered). The marker is only
+  # a skip-optimization — the migration loop itself is idempotent (symlinked
+  # dirs are skipped) — so a failed marker write must never kill the sync.
+  mkdir -p "$SHARED_DIR" 2>/dev/null || true
+  : > "$marker" 2>/dev/null || true
 }
 
 # Symlink every shared item into a config dir (account or provider), creating
@@ -1047,7 +1228,7 @@ cma_own_settings_seed() {
   if jq -s '.[0] as $own | .[1] as $t
             | $own | .enabledPlugins = (($t.enabledPlugins // {}) + ($own.enabledPlugins // {}))' \
         "$own" "$tmpl" > "$tmp" 2>/dev/null && jq -e . "$tmp" >/dev/null 2>&1; then
-    mv "$tmp" "$own"
+    command mv -f "$tmp" "$own"
   else rm -f "$tmp"; fi
 }
 
@@ -1075,7 +1256,7 @@ cma_enable_plugins() {
   # ${args[@]+...} guards an empty array under set -u on bash 3.2 (reachable
   # via CMA_ALWAYS_ON_PLUGINS="" from non-re-exec'd claude-providers.sh).
   if jq ${args[@]+"${args[@]}"} "$prog" "$settings" > "$tmp" 2>/dev/null; then
-    mv "$tmp" "$settings"
+    command mv -f "$tmp" "$settings"
   else
     rm -f "$tmp"; cma_warn "could not update enabledPlugins in $settings"
   fi
@@ -1172,7 +1353,7 @@ cma_provider_write_alias() {
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # Install (idempotently) the provider session-refresh hook into $ALIAS_FILE. On
@@ -1213,7 +1394,7 @@ cma_providers_session_refresh
 HOOK
     printf '%s\n' "$end"
   } >> "$tmp"
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # True only when the toolkit may prompt the user interactively. Scripts read

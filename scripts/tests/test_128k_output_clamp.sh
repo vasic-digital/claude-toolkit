@@ -10,13 +10,24 @@
 # on the native transport ONLY; the CLI hard-caps unknown/custom models to
 # 128000, requests 128000, and echoes it in the fatal.
 #
-# Two-part fix, both proven here:
-#   (A) CLAMP the exported cap to min(CMA_PROVIDER_MAX_OUTPUT, 128000) — missing/
-#       non-numeric -> 128000 (never empty) — and export it ONCE for BOTH
-#       transports (router AND native), so behaviour is transport-independent.
+# Two-part fix, both proven here (merged with main's v1.16.0 _cma_out_guard —
+# the union keeps BOTH sides' live-proven behaviors):
+#   (A) CAP for BOTH transports (router AND native), exported ONCE before the
+#       transport branch, with the MERGED decision table:
+#         - real budget (output < context, or context unknown): export
+#           min(CMA_PROVIDER_MAX_OUTPUT, 128000) — the clamp (this file's
+#           original live-proven fix for the deepseek-384000/xiaomi-131072
+#           ">128000" fatal);
+#         - catalog mislabel (output >= context — main's live-proven nvidia5
+#           400-overshoot case): NO export (the CLI's adaptive default is the
+#           only safe choice);
+#         - missing / non-numeric / zero budget: NO export (the CLI's own
+#           unknown-model default, 128000, applies — effect-equivalent to the
+#           pre-merge always-export-128000 default, but also safe for
+#           small-context catalog-gap models).
 #   (B) ISOLATION: cma_run (the native claudeN launcher) MUST unset
 #       CLAUDE_CODE_MAX_OUTPUT_TOKENS + CLAUDE_CODE_AUTO_COMPACT_WINDOW, which
-#       cma_run_provider exports for EVERY provider alias and which PERSIST into
+#       cma_run_provider exports for provider aliases and which PERSIST into
 #       a subsequent native launch (wrongly capping native output / early
 #       compacting native context).
 #
@@ -24,11 +35,13 @@
 # installed aliases.sh; a change reaches the deployed artifact ONLY when each
 # per-function migration guard's marker set forces a re-emit. This test proves,
 # on the artifact cma_ensure_alias_file actually emits, that:
-#   (a) configured > 128000  -> exported 128000  (clamp)             [arithmetic]
-#   (b) configured < 128000  -> exported unchanged                   [arithmetic]
-#   (c) missing/non-numeric  -> 128000, never empty                 [arithmetic]
-#   (c') huge all-digit (>2^63-1) -> 128000, never leaked unclamped [arithmetic]
-#   (c'') floor: 0/00 -> 128000; leading zeros decimal, not octal   [arithmetic]
+#   (a) configured > 128000 (real budget) -> exported 128000 (clamp) [arithmetic]
+#   (b) configured < 128000 (real budget) -> exported unchanged      [arithmetic]
+#   (c) missing/non-numeric  -> NO export (UNSET)                   [arithmetic]
+#   (c') huge all-digit (>2^63-1), no ctx -> 128000, never leaked
+#        unclamped; with a known ctx it is the mislabel shape -> UNSET [arithmetic]
+#   (c'') floor: 0/00 -> UNSET; leading zeros decimal, not octal    [arithmetic]
+#   (c''') mislabel (output >= context) -> NO export (nvidia5)      [arithmetic]
 #   (d) the clamp export is present for BOTH transports; the RAW unclamped
 #       export is GONE                                              [static]
 #   (e) cma_run's isolation unset clears BOTH token guards          [static+sink]
@@ -65,19 +78,34 @@ run_body()  { awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE"
 # with a given CMA_PROVIDER_MAX_OUTPUT. This is a real §11.4.108 runtime
 # signature on the artifact, not a re-implemented copy.
 clamp_eval() {
-  local input_present="$1" input_val="${2:-}" probe out
+  # $1: 'unset' (missing input) or 'val'; $2: the CMA_PROVIDER_MAX_OUTPUT value;
+  # $3 (optional): CMA_PROVIDER_CONTEXT_LIMIT (unset when omitted — the merged
+  # guard skips the export when output >= context, so ctx-aware cases need it).
+  # Prints the exported cap, or the literal UNSET when the guard did not export.
+  local input_present="$1" input_val="${2:-}" ctx_val="${3:-}" probe out
   probe="$(mktemp "${TMPDIR:-/tmp}/clamp-probe.XXXXXX.sh")"
   {
     echo 'clamp_probe() {'
-    prov_body | awk 'index($0,"local _cma_out=\"${CMA_PROVIDER_MAX_OUTPUT"){f=1} f{print} f&&index($0,"export CLAUDE_CODE_MAX_OUTPUT_TOKENS=\"$_cma_out\""){exit}'
-    echo '  printf "%s" "$CLAUDE_CODE_MAX_OUTPUT_TOKENS"'
+    # The merged block ends with the conditional export:
+    #   if [ -n "$_cma_out" ]; then export ...="$_cma_out"; fi
+    # so extraction must run THROUGH the closing fi (exiting on the export
+    # line would emit an unterminated 'if').
+    prov_body | awk '
+      index($0,"local _cma_out=\"${CMA_PROVIDER_MAX_OUTPUT"){f=1}
+      f{print}
+      f && seen && $0 ~ /^[[:space:]]*fi$/ {exit}
+      f && index($0,"export CLAUDE_CODE_MAX_OUTPUT_TOKENS=\"$_cma_out\""){seen=1}
+    '
+    echo '  printf "%s" "${CLAUDE_CODE_MAX_OUTPUT_TOKENS-UNSET}"'
     echo '}'
   } > "$probe"
+  local -a envp=()
+  [[ -n "$ctx_val" ]] && envp+=("CMA_PROVIDER_CONTEXT_LIMIT=$ctx_val")
   if [[ "$input_present" == "unset" ]]; then
     # Truly-unset CMA_PROVIDER_MAX_OUTPUT (env -u), the "missing" case.
-    out="$(env -u CMA_PROVIDER_MAX_OUTPUT bash -c 'source "$1"; clamp_probe' _ "$probe")"
+    out="$(env -u CMA_PROVIDER_MAX_OUTPUT -u CMA_PROVIDER_CONTEXT_LIMIT ${envp[@]+"${envp[@]}"} bash -c 'source "$1"; clamp_probe' _ "$probe")"
   else
-    out="$(CMA_PROVIDER_MAX_OUTPUT="$input_val" bash -c 'source "$1"; clamp_probe' _ "$probe")"
+    out="$(env -u CMA_PROVIDER_CONTEXT_LIMIT ${envp[@]+"${envp[@]}"} "CMA_PROVIDER_MAX_OUTPUT=$input_val" bash -c 'source "$1"; clamp_probe' _ "$probe")"
   fi
   rm -f "$probe"
   printf '%s' "$out"
@@ -102,34 +130,54 @@ assert_eq 8192   "$(clamp_eval val 8192)"   "8192 unchanged (github-models/upsta
 assert_eq 127999 "$(clamp_eval val 127999)" "127999 unchanged (off-by-one below cap)"
 assert_eq 128000 "$(clamp_eval val 128000)" "128000 unchanged (exactly the cap)"
 
-it "clamp: missing/non-numeric -> 128000, never empty"
-assert_eq 128000 "$(clamp_eval val '')"    "empty -> 128000"
-assert_eq 128000 "$(clamp_eval unset)"     "unset  -> 128000"
-assert_eq 128000 "$(clamp_eval val abc)"   "non-numeric -> 128000"
-assert_eq 128000 "$(clamp_eval val 12x8)"  "partly-numeric -> 128000"
+it "no-budget: missing/non-numeric -> NO export (CLI's own unknown-model default applies)"
+# Merged semantics (v1.16.0 _cma_out_guard union): an unknown budget is NOT
+# exported — effect-equivalent to the pre-merge 128000 default for unknown
+# models, and additionally safe for small-context catalog-gap models (the
+# nvidia5-class overshoot an unconditional 128000 export could resurrect).
+assert_eq UNSET "$(clamp_eval val '')"    "empty -> no export"
+assert_eq UNSET "$(clamp_eval unset)"     "unset  -> no export"
+assert_eq UNSET "$(clamp_eval val abc)"   "non-numeric -> no export"
+assert_eq UNSET "$(clamp_eval val 12x8)"  "partly-numeric -> no export"
 
-# --- (c') huge all-digit value -> 128000, never leaked unclamped -------------
+# --- (c') huge all-digit value -> never leaked unclamped ---------------------
 # A user-settable CMA_HELIXAGENT_MAX_OUTPUT flows verbatim through 'jq --argjson'
 # into CMA_PROVIDER_MAX_OUTPUT. A value past the shell integer max (2^63-1, 19
 # digits) would make '[ N -gt 128000 ]' error and, via the failed '&&', leak the
 # raw value UNCLAMPED — resurrecting the ">128000" fatal. The length-guard must
-# collapse any 7+-digit value to the cap BEFORE the arithmetic runs.
-it "clamp: huge all-digit value (>2^63-1) -> 128000, never exported unclamped (F2)"
-assert_eq 128000 "$(clamp_eval val 99999999999999999999999)" "23-digit -> 128000 (no overflow leak)"
-assert_eq 128000 "$(clamp_eval val 9223372036854775808)"     "2^63 (19-digit) -> 128000"
-assert_eq 128000 "$(clamp_eval val 1000000)"                 "7-digit 1,000,000 -> 128000"
-assert_eq 128000 "$(clamp_eval val 999999)"                  "6-digit 999,999 (> cap) -> 128000"
+# collapse any >18-digit value WITHOUT arithmetic: with no usable context ->
+# the 128000 cap; with a known context (every real context is <=18 digits, so
+# the huge value >= it) -> the mislabel shape -> no export.
+it "clamp: huge all-digit value (>2^63-1) -> 128000 (no ctx) / UNSET (ctx known), never unclamped (F2)"
+assert_eq 128000 "$(clamp_eval val 99999999999999999999999)" "23-digit, no ctx -> 128000 (no overflow leak)"
+assert_eq 128000 "$(clamp_eval val 9223372036854775808)"     "2^63 (19-digit), no ctx -> 128000"
+assert_eq UNSET  "$(clamp_eval val 99999999999999999999999 262144)" "23-digit with known ctx -> mislabel shape, no export"
+assert_eq 128000 "$(clamp_eval val 1000000)"                 "7-digit 1,000,000, no ctx -> 128000"
+assert_eq 128000 "$(clamp_eval val 999999)"                  "6-digit 999,999 (> cap), no ctx -> 128000"
 
 # --- (c'') floor at 1; leading zeros are decimal, not octal ------------------
-# 0 must NEVER export CLAUDE_CODE_MAX_OUTPUT_TOKENS=0 (a zero cap). Leading-zero
-# forms are decimal: a big one (0128001, 7 chars) is collapsed by the length
-# guard (never re-read as octal); a small one (007) tests as decimal 7 and
-# exports "007", which Claude Code parses as decimal 7 (min-semantics decision).
-it "clamp: floor 0/00 -> 128000; leading zeros not octal (F3)"
-assert_eq 128000 "$(clamp_eval val 0)"       "0 -> 128000 (floor, never a zero cap)"
-assert_eq 128000 "$(clamp_eval val 00)"      "00 -> 128000 (floor)"
-assert_eq 128000 "$(clamp_eval val 0128001)" "leading-zero 7-digit -> 128000 (not octal)"
+# 0 must NEVER export CLAUDE_CODE_MAX_OUTPUT_TOKENS=0 (a zero cap): a zero
+# budget is a degenerate catalog value = no real info -> merged semantics
+# treat it like the missing case (NO export). Leading-zero forms are decimal:
+# a small one (007) tests as decimal 7 and exports "007", which Claude Code
+# parses as decimal 7 (min-semantics decision); 0128001 tests as 128001 ->
+# clamped (never re-read as octal).
+it "clamp: floor 0/00 -> no export; leading zeros not octal (F3)"
+assert_eq UNSET  "$(clamp_eval val 0)"       "0 -> no export (never a zero cap)"
+assert_eq UNSET  "$(clamp_eval val 00)"      "00 -> no export"
+assert_eq 128000 "$(clamp_eval val 0128001)" "leading-zero 0128001 tests as 128001 -> clamped 128000 (not octal)"
 assert_eq 007    "$(clamp_eval val 007)"     "leading-zero small stays decimal-7 (exports 007 -> parsed as 7)"
+
+# --- (c''') catalog mislabel: output >= context -> NO export (nvidia5) -------
+# Main's v1.16.0 live-proven case, preserved through the merge: when
+# limit.output >= limit.context the "output" number is really the context
+# size; exporting it (or any clamp of it) makes Claude Code request that many
+# completion tokens and input+request overshoots the shared window (400).
+it "mislabel: output >= context -> no export; real budget < context -> clamped/verbatim (nvidia5)"
+assert_eq UNSET  "$(clamp_eval val 131072 131072)"  "output == context -> no export (nvidia5 400 case)"
+assert_eq UNSET  "$(clamp_eval val 262144 131072)"  "output > context -> no export"
+assert_eq 8192   "$(clamp_eval val 8192 32768)"     "real small budget < context -> verbatim"
+assert_eq 128000 "$(clamp_eval val 384000 1048576)" "deepseek 384000 < ctx 1M -> clamped 128000 (not raw)"
 
 # --- (d) clamp export present for BOTH transports; RAW export GONE ------------
 it "cma_run_provider exports the CLAMPED cap once (BOTH transports), never the raw value"

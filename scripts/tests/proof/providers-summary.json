@@ -3,7 +3,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -52,7 +52,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-deepseek-semantic.txt",
@@ -75,12 +75,48 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "verified"
+      "semantic": "skip",
+      "superpowers_tui": "skip"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-semantic.txt",
       "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-superpowers.txt"
+    }
+  },
+  "kimi-for-coding-highspeed": {
+    "status": "verified",
+    "layers": {
+      "existence": true,
+      "semantic": "skip",
+      "superpowers_tui": "skip"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-highspeed-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-highspeed-superpowers.txt"
+    }
+  },
+  "kimi-k2p7": {
+    "status": "verified",
+    "layers": {
+      "existence": true,
+      "semantic": "skip",
+      "superpowers_tui": "skip"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-k2p7-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-k2p7-superpowers.txt"
+    }
+  },
+  "kimi-k3": {
+    "status": "verified",
+    "layers": {
+      "existence": true,
+      "semantic": "skip",
+      "superpowers_tui": "skip"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-k3-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-kimi-k3-superpowers.txt"
     }
   },
   "nvidia2": {
@@ -111,24 +147,12 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "semantic": "skip",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-nvidia4-semantic.txt",
       "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-nvidia4-superpowers.txt"
-    }
-  },
-  "nvidia5": {
-    "status": "verified",
-    "layers": {
-      "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "unverified"
-    },
-    "evidence": {
-      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-nvidia5-semantic.txt",
-      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-nvidia5-superpowers.txt"
     }
   },
   "nvidia": {
@@ -147,8 +171,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "verified"
+      "semantic": "skip",
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-opencode2-semantic.txt",
@@ -172,7 +196,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-opencode-semantic.txt",
@@ -184,7 +208,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-openrouter2-semantic.txt",
@@ -252,7 +276,7 @@
     }
   },
   "poe": {
-    "status": "verified",
+    "status": "failed",
     "layers": {
       "existence": true,
       "semantic": "unverified",
@@ -261,6 +285,18 @@
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-poe-semantic.txt",
       "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-poe-superpowers.txt"
+    }
+  },
+  "sarvam": {
+    "status": "verified",
+    "layers": {
+      "existence": true,
+      "semantic": "skip",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-sarvam-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-sarvam-superpowers.txt"
     }
   },
   "siliconflow2": {
@@ -280,7 +316,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-siliconflow3-semantic.txt",
@@ -291,8 +327,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "semantic": "skip",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-siliconflow4-semantic.txt",
@@ -327,12 +363,36 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-xiaomi-semantic.txt",
       "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-xiaomi-superpowers.txt"
+    }
+  },
+  "zai-coding-plan": {
+    "status": "unverified",
+    "layers": {
+      "existence": true,
+      "semantic": "skip",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-zai-coding-plan-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-zai-coding-plan-superpowers.txt"
+    }
+  },
+  "zhipuai-coding-plan": {
+    "status": "unverified",
+    "layers": {
+      "existence": true,
+      "semantic": "skip",
+      "superpowers_tui": "unverified"
+    },
+    "evidence": {
+      "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-zhipuai-coding-plan-semantic.txt",
+      "superpowers_tui": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-zhipuai-coding-plan-superpowers.txt"
     }
   }
 }

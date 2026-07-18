@@ -2,6 +2,194 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.17.0 — 2026-07-18 — Cross-alias session & background-agent continuity
+
+### Fixed
+- **A session left under one alias was invisible from every other alias.**
+  Opening a project from `xiaomi`, leaving the session with work in
+  progress, and then opening `deepseek` (or any other alias) showed nothing —
+  two independent root causes, both fixed and live-proven:
+  1. **Session resolution applied only to the native transport's bare
+     launches.** Every router alias (kimi-*, poe, openrouter, chutes…) always
+     opened a FRESH session, and `alias -p "…"` on any transport skipped
+     resolution entirely ("explicit args win verbatim"). **Fix:**
+     `_cma_session_flags` now runs before the transport split — both
+     transports resume — and conversation args get `--resume <sid>` injected
+     unless the user already chose a session (`--resume`/`--session-id`/
+     `--continue`/`-c`/`--fork-session`) or invoked a non-conversation
+     subcommand (`agents`, `mcp`, `export`, …). Injection uses the new
+     `claude-session existing-id`, which returns a session only when one
+     actually EXISTS — the older `latest-id` falls back to a deterministic
+     UUID for never-used projects, and resuming that fails hard with
+     "No conversation found with session ID".
+     **Live proof:** `xiaomi` (native) created a session in a test project;
+     `kimi-k3` (router) and `deepseek` (native) both resumed the identical
+     session id and answered from its memory.
+  2. **Background agents were registered per config dir.** Claude Code's
+     background-agent registry (`daemon/roster.json` + `dispatch/`, plus the
+     `jobs/` store) was local to each alias dir, so an agent started under
+     `xiaomi` was invisible to `deepseek`. **Fix:** `daemon` and `jobs` are
+     now shared items (`CMA_SHARED_ITEMS` + unify's `SHARED_ITEMS`, drift
+     guard enforced), `daemon/roster.json` is **union-merged** by
+     `cma_union_rosters` (newer `updatedAt` wins per worker — a per-file
+     last-wins would drop other aliases' workers), and
+     `cma_migrate_daemon_dirs_once` merges every existing provider daemon dir
+     into the shared store (roster content stashed before the backup move —
+     the first cut of the migration unioned paths that had already moved),
+     replaces it with the shared symlink, and is idempotent via a marker
+     file. Live-verified: rosters from four provider dirs unioned into one
+     shared registry; all provider daemon dirs are now symlinks.
+
+### Added
+- **Testing:** `scripts/tests/test_session_flags.sh` (12 assertions — both
+  transports resume on bare launch, `-p` injection, no double-injection,
+  subcommand passthrough, empty-session case, migration trigger);
+  `test_unify.sh` daemon section (roster union semantics, dir linking, jobs,
+  provider-dir migration with backup + idempotency — 107 assertions in the
+  file). Challenges/HelixQA: check 7 in `provider_aliases_challenge.sh`
+  (shared items, union merge, flags placement, existing-id, live daemon
+  symlinks — 23/23 PASS live) and bank case
+  `cma-pav-cross-alias-session-continuity` (bank now 12 cases).
+
+## v1.16.0 — 2026-07-18 — Output-token cap for router providers
+
+### Fixed
+- **"Claude's response exceeded the 128000 output token maximum" on router
+  providers.** `CLAUDE_CODE_MAX_OUTPUT_TOKENS` was exported **only on the
+  native transport path** — every router provider (kimi-k3, poe, openrouter,
+  …) launched with Claude Code's generic default output cap (128000 for
+  models it does not know), so long reasoning responses died with that API
+  error. **Fix:** the cap is now exported for **both** transports, before the
+  transport split (`_cma_out_guard`), valued from the provider model's real
+  `limit.output` (`CMA_PROVIDER_MAX_OUTPUT`, e.g. 131072 for k3). Live-verified
+  on the real wrapper: a `kimi-k3` router launch now carries
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS=131072`.
+- **Catalog-conflation guard:** models.dev sometimes reports
+  `limit.output == limit.context` (the "output" number is really the context
+  size) or an inflated `limit.context` (nvidia5's llama-3.2-11b-vision:
+  catalog claims 1M context; the provider's own error says 131072). Exporting
+  such a cap makes Claude Code request more completion tokens than the shared
+  window allows → `400 maximum context length … you requested N`. The guard
+  exports **only a genuinely separate output budget** (`output < context`).
+  `nvidia5` was removed (its catalog metadata is wrong on both axes; backed
+  up — self-heals via `sync --multi`).
+- **Wrapper migration now covers the output-cap fix** — `_cma_out_guard` was
+  added to the `cma_run_provider` self-heal marker chain, so wrappers written
+  before v1.16.0 regenerate automatically on the next `install.sh`/sync/shell
+  start (otherwise hosts would keep the native-only export indefinitely).
+- **e2e tool-call flake:** `alias_e2e_test.py`'s tool probe gets the same
+  one-retry policy as the layer-1 verifier (weak free models occasionally
+  skip an instructed tool call — opencode2 false-FAILed a proof leg).
+- **Router launch prompted interactively on some shells.** The wrapper's
+  ccr-config `mv` ran as a bare command; on hosts whose interactive shell
+  aliases `mv='mv -i'` (Fedora/RHEL defaults) the alias launch stopped at
+  `mv: overwrite '…/config.json'?` and hung or died on redirected stdin.
+  All 16 `mv` sites in lib.sh/emitted wrappers are now `command mv -f`
+  (bypasses aliases and shell functions, forces the overwrite).
+- **Cryptic failure when another tool named `ccr` shadows the router.**
+  On a host where `ccr` resolved to a different program (a CCS-style
+  profile manager), `ccr code` meant "launch profile 'code'" and the
+  alias died with `Profile "code" was not found or is disabled`. The
+  router path now verifies `ccr version` names the real
+  `@musistudio/claude-code-router` and refuses early with an actionable
+  message (fix PATH / remove the shadowing ccr / install command).
+
+### Added
+- **Testing:** new hermetic suite `scripts/tests/test_output_tokens.sh`
+  (8 assertions — native + router export, empty-limit case, guard-before-
+  split structure, migration trigger). Challenges/HelixQA: new bank case
+  `cma-pav-output-cap-both-transports` and Check 6 in
+  `provider_aliases_challenge.sh` (16/16 PASS live). Full suite: 24/24 files
+  ALL GREEN; 6-leg proof ALL GREEN.
+
+## v1.15.0 — 2026-07-18 — Full Kimi variant support (OAuth subscription models)
+
+### Added
+- **Every Kimi model the OAuth subscription serves is now a launchable alias.**
+  `detect_kimicode_record` discovers the served models live (`GET
+  {base}/models` with the OAuth token, unioned with the models.dev catalog
+  since the listing under-reports) and emits one provider record per model —
+  the old code exposed a single hardcoded alias. On this host:
+  `kimi-for-coding` (account default, "K2.7 Coding"),
+  `kimi-for-coding-highspeed`, `kimi-k2p7` (Kimi 2.7), and **`kimi-k3` (Kimi
+  3 — 1M context, reasoning)**. Every record goes through the same strict
+  sentinel + tool-calling + semantic verification as every other provider.
+- **`kimi_proxy.py`** — moonshot-flavored schema normalizer routed under every
+  `kimi-*` alias (new `<family>_proxy.py` discovery rule in the launch
+  wrapper). Model k3 rejects any tool whose `parameters` carries a `$ref` not
+  starting with `#/$defs/` (`400 … not a valid moonshot flavored json schema`,
+  reproduced live); Claude Code's tool schemas trip exactly that. The proxy
+  hoists `$defs`+`definitions`, rewrites foreign `$ref`s by last segment, and
+  guarantees `parameters.type/properties`. Live proof: direct request → 400,
+  same request through the proxy → 200.
+- **Launch-time OAuth token freshness** (lib.sh emitted wrapper). The OAuth
+  token lives ~15 minutes, so the old sync-time snapshot 401'd by the next
+  launch — the root of "kimi-for-coding works once, then dies". Freshness
+  order at every launch: unexpired live credentials file → CLI-triggered
+  refresh (`kimi -p hi`) → token-file snapshot (last resort).
+- **API-key paths for kimi.com coding** — `KIMI_API_KEY` (catalog env) and
+  `ApiKey_Kimi` (new `key-aliases.json` entry) both resolve to the
+  `kimi-for-coding` provider as a fallback for hosts without an OAuth
+  session. OAuth subscription records take **precedence** over API-key
+  records (`unique_by` merge, detector first) — the subscription is the
+  priority path.
+- **`sarvam_proxy.py`** — Sarvam compatibility proxy (same family-discovery
+  mechanism). Three distinct runtime incompatibilities were root-caused and
+  fixed, each reproduced live first: system/user message content arrays
+  (`400 … Input should be a valid string` — flattened to joined strings) and
+  Claude Code's 64000-token output default exceeding the starter tier's 4096
+  cap (`max_tokens` now clamped, overridable via
+  `SARVAM_MAX_OUTPUT_TOKENS`). Result: the `sarvam` alias went from
+  guaranteed-400 at launch to a real Claude Code PASS.
+- **Challenges/HelixQA**: three new bank cases
+  (`cma-pav-kimi-oauth-token-freshness`,
+  `cma-pav-kimi-multi-model-oauth-records`,
+  `cma-pav-kimi-k3-moonshot-schema-proxy`) and Check 5 in
+  `provider_aliases_challenge.sh` (detector discovery, precedence, freshness,
+  schema proxy, live kimi-alias freshness) — 15/15 PASS live.
+
+### Fixed
+- **`claude-providers verify <id>` was unusable for OAuth providers** — it
+  never injected the OAuth token, so verify-by-id always degraded to a false
+  `unverified`. It now applies the same live-cred-file-first freshness order.
+- **Layer-1 probes false-FAIL reasoning models** — 128-token budget was
+  consumed entirely by chain-of-thought (k3, deepseek-v4-pro), yielding
+  "empty content / sentinel missing" failures on working models. Probe
+  budget is now 512 tokens.
+- **Detector jq ARG_MAX overflow** — the full models.dev catalog was passed
+  as a `--argjson` argument; only the `kimi-for-coding` models subtree is
+  passed now (the bug silently yielded zero OAuth records and let an API-key
+  record shadow the subscription).
+- **Wrapper self-heal migration did not cover the new wrapper features** —
+  the `cma_run_provider` migration markers stopped at v1.14.0, so every host
+  upgrading kept a stale wrapper that (a) never started `kimi_proxy` for
+  `kimi-*` (k3 400'd on every tool call — live-confirmed) and (b) never
+  refreshed the OAuth token (401 after ~15 min). The `_family_id` and
+  `kimi-code/credentials/kimi-code.json` markers now trigger regeneration.
+- **Live legs blind to OAuth + overcounted account states** —
+  `verify_aliases_live.sh` silently skipped OAuth aliases ("no key"), had no
+  CLI-refresh fallback (stale snapshots → 400/401), lacked the family proxy
+  discovery (kimi `$ref` tests 400'd), used 32/64-token budgets that
+  false-FAIL reasoning models (poe's claude-sonnet-4.6 needs 512 to reach
+  the tool call — proven live), and FAILed on account limits (weekly cap,
+  fair-use 1313) instead of classifying them. `alias_e2e_test.py` had the
+  same OAuth-key and staleness gaps. Both legs now: resolve the OAuth token
+  through the full live-cred → CLI-refresh → snapshot chain, discover family
+  proxies, use 256/512 budgets, and classify **SKIP-QUOTA** /
+  **SKIP-TRANSIENT** / **SKIP-GATED** (aliases the gate already filtered)
+  honestly instead of as passes or failures.
+
+### Testing
+- New hermetic suite `scripts/tests/test_kimi.sh` (**33 assertions**): detector
+  multi-record emission (live discovery + catalog union + offline fallback),
+  expired-token CLI refresh, OAuth-first precedence + no duplicates,
+  API-key fallback mapping, launch-time token freshness (all three sources),
+  `cmd_verify` OAuth injection, `kimi_proxy` schema normalization (5 cases),
+  family proxy discovery markers. Full suite: 22/22 files ALL GREEN.
+- Live (Kimi aliases FIRST, per release gate): all 4 aliases verified by
+  layer-1 probes, layer-3 semantic (sentinel + independent judge), and real
+  Claude Code launches through the aliases.
+
 ## v1.14.0 — 2026-07-17 — Anti-bluff provider verification (strict filtering)
 
 ### Fixed

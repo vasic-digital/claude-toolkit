@@ -645,6 +645,38 @@ assert_eq 1 "$mig2_alias" "kimi-for-coding alias preserved through migration"
 assert_eq 1 "$mig2_cap"   "regenerated cma_run_provider restores the _cma_compact_cap guard"
 rm -f "$_mig2"
 
+it "migration regenerates an outdated cma_run_provider lacking the Kimi markers (v1.15.0)"
+# The v1.15.0 features (family proxy discovery `_family_id` + Kimi OAuth
+# launch-time token freshness 'kimi-code/credentials/...') MUST trigger the
+# same self-heal migration — otherwise hosts upgrading from v1.14.0 keep a
+# wrapper that can neither route kimi-* through kimi_proxy nor refresh the
+# ~15-minute OAuth token (live-confirmed: stale wrapper => proxy never
+# started => k3 400s every tool call; stale snapshot => 401 at launch).
+_mig3="$ALIAS_FILE.migtest3"
+cat > "$_mig3" <<'OLD'
+export CLAUDE_BIN="/usr/bin/true"
+
+cma_run_provider() {
+  # claude-sync-state set -a +u claude-session apply-color _cma_compact_cap _cma_proxy_dir
+  # command -v cma_log _cma_force >| "$tmp" unset ANTHROPIC_BASE_URL
+  # ! git rev-parse --show-toplevel >/dev/null 2>&1
+  # command -v "${CLAUDE_BIN:-}"
+  :
+}
+
+alias kimi-for-coding="cma_run_provider kimi-for-coding"
+OLD
+bash -n "$_mig3"; assert_eq 0 $? "old-format alias file parses (bash -n)"
+grep -q '_family_id' "$_mig3"; assert_eq 1 $? "old body lacks family proxy marker (pre-migration)"
+grep -q 'kimi-code/credentials' "$_mig3"; assert_eq 1 $? "old body lacks OAuth freshness marker (pre-migration)"
+( ALIAS_FILE="$_mig3" cma_ensure_alias_file ) >/dev/null 2>&1
+mig3_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig3")"
+mig3_alias="$(grep -c '^alias kimi-for-coding=' "$_mig3")"
+printf '%s\n' "$mig3_body" | grep -q '_family_id'; assert_eq 0 $? "regenerated body carries family proxy discovery"
+printf '%s\n' "$mig3_body" | grep -q 'kimi-code/credentials/kimi-code.json'; assert_eq 0 $? "regenerated body carries OAuth token freshness"
+assert_eq 1 "$mig3_alias" "kimi-for-coding alias preserved through migration"
+rm -f "$_mig3"
+
 # --- set -e/pipefail guard: a provider whose alias line is absent ------------
 # claude-providers.sh runs `set -euo pipefail`. cmd_list/cmd_remove resolve the
 # alias name via `grep ... | sed | head -1`; under pipefail a no-match grep

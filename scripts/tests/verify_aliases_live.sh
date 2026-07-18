@@ -44,7 +44,7 @@ set +a
 [[ -f "$HOME/.local/share/claude-multi-account/aliases.sh" ]] && source "$HOME/.local/share/claude-multi-account/aliases.sh" 2>/dev/null || true
 
 PDIR="$HOME/.local/share/claude-multi-account/providers"
-total=0 passed=0 failed=0 qskip=0 tskip=0
+total=0 passed=0 failed=0 qskip=0 tskip=0 gated=0
 
 if [[ -n "$TARGET_ALIAS" ]]; then
   f="$PDIR/$TARGET_ALIAS.env"
@@ -61,8 +61,16 @@ PROXY_PID=""
 maybe_start_proxy() {
   local id="$1"
   local base_id="${id%%[0-9]*}"
-  local proxy_script="$HOME/.local/share/claude-multi-account/proxy/${base_id}_proxy.py"
-  if [[ -f "$proxy_script" ]] && [[ -z "$PROXY_PID" ]]; then
+  local family_id="${id%%-*}"
+  local proxy_script=""
+  # Same discovery as the launch wrapper: <id>_proxy.py, <digit-stripped
+  # base>_proxy.py, then <dash-family>_proxy.py (kimi_proxy for all kimi-*).
+  for cand in "$HOME/.local/share/claude-multi-account/proxy/${id}_proxy.py" \
+              "$HOME/.local/share/claude-multi-account/proxy/${base_id}_proxy.py" \
+              "$HOME/.local/share/claude-multi-account/proxy/${family_id}_proxy.py"; do
+    if [[ -f "$cand" ]]; then proxy_script="$cand"; break; fi
+  done
+  if [[ -n "$proxy_script" && -z "$PROXY_PID" ]]; then
     python3 "$proxy_script" --port "$PROXY_PORT" &
     PROXY_PID=$!
     sleep 2
@@ -101,9 +109,25 @@ for alias_name in "${ALIASES[@]}"; do
   model="${model:-$fast_model}"
   [[ -z "$model" ]] && continue
 
-  # Get key
+  # Get key. The Kimi Code OAuth sentinel has no var in the keys file — its
+  # token comes from the live credentials file (fresh) or the per-alias
+  # token-file snapshot (fallback), same freshness order as the launch wrapper.
   key=""
-  if [[ -n "${!keyvar:-}" ]]; then key="${!keyvar}"
+  if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
+    _kcred="$HOME/.kimi-code/credentials/kimi-code.json"
+    if [[ -f "$_kcred" ]]; then
+      _kexp="$(jq -r '.expires_at // 0' "$_kcred" 2>/dev/null || echo 0)"
+      if (( _kexp > $(date +%s) + 60 )); then
+        key="$(jq -r '.access_token // ""' "$_kcred" 2>/dev/null)"
+      fi
+    fi
+    # Expired live token: refresh via the CLI (same chain as the launch wrapper).
+    if [[ -z "$key" && -f "$_kcred" ]] && command -v kimi >/dev/null 2>&1; then
+      timeout 20 kimi -p "hi" --output-format text >/dev/null 2>&1 || true
+      key="$(jq -r '.access_token // ""' "$_kcred" 2>/dev/null)"
+    fi
+    [[ -z "$key" && -f "$PDIR/$alias_name.token" ]] && key="$(cat "$PDIR/$alias_name.token" 2>/dev/null)"
+  elif [[ -n "${!keyvar:-}" ]]; then key="${!keyvar}"
   elif [[ -f "${CMA_KEYS_FILE:-$HOME/api_keys.sh}" ]]; then
     set +u
     # shellcheck source=/dev/null  # runtime user keys file, path only known at execution
@@ -112,6 +136,18 @@ for alias_name in "${ALIASES[@]}"; do
     key="$(eval "echo \"\${$keyvar:-}\"" 2>/dev/null || true)"
   fi
   [[ -z "$key" ]] && { echo "SKIP $alias_name (no key)"; continue; }
+
+  # Aliases the activation gate has already filtered out (unverified/failed/
+  # pending) are intentionally not launchable — skip them honestly instead of
+  # scoring a guaranteed failure (e.g. rate-limited coding plans re-created by
+  # a sync but still gated out).
+  _st="$(jq -r --arg id "$alias_name" '.[$id].status // "pending"' "$PDIR/status.json" 2>/dev/null)"
+  if [[ "$_st" != "verified" ]]; then
+    echo "◌ $alias_name: SKIP-GATED (status=${_st} — filtered by the verification gate, not launched)"
+    gated=$((gated+1))
+    { echo "--- $alias_name ($model) ---"; echo "verdict=SKIP-GATED status=$_st"; } >> "$EV"
+    continue
+  fi
 
   # Write API key to a temp config file so it never appears on argv (ps/proc visibility)
   cfg=$(mktemp "${TMPDIR:-/tmp}/curl-cfg.XXXXXX")
@@ -150,7 +186,7 @@ for alias_name in "${ALIASES[@]}"; do
   # credits), NOT evidence the alias is broken — same distinction
   # verify_claude_live.sh makes with its FUNDS bucket. Such aliases are
   # recorded as SKIP-QUOTA (never a PASS, never a toolkit FAIL).
-  is_quota() { printf '%s' "$1" | grep -qiE 'insufficient_?quota|used up your (points|credits)|insufficient (credits|balance|funds)|usage limit|quota (exceeded|reached)|depleted|billing'; }
+  is_quota() { printf '%s' "$1" | grep -qiE 'insufficient_?quota|used up your (points|credits)|insufficient (credits|balance|funds)|usage limit|quota (exceeded|reached)|depleted|billing|fair.?usage|usage pattern'; }
   # Transient signature: provider-side capacity/timeout/overload — a
   # point-in-time infrastructure state, not an alias defect. Recorded as
   # SKIP-TRANSIENT (never a PASS, never a toolkit FAIL).
@@ -158,18 +194,20 @@ for alias_name in "${ALIASES[@]}"; do
 
   VERDICT="PASS" ERRORS=""
 
-  # Test 1: Basic chat completion. 000/429 flap under load, so they get up to
-  # two retries (deepseek/xiaomi recovered within a minute during live runs);
-  # a quota signature short-circuits to SKIP-QUOTA (deterministic account state).
+  # Test 1: Basic chat completion. 000/429/400 flap under load (chutes/kilo
+  # gateways return bare 400s during capacity wobbles — recovered within
+  # minutes during live runs), so they get up to two retries; a quota
+  # signature short-circuits to SKIP-QUOTA (deterministic account state),
+  # and a persistent 400 after the retries stays a definitive FAIL.
   code=000 resp=""
   for attempt in 1 2 3; do
     [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 1 (basic, attempt $attempt)..." >&2
     resp=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
-      -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}]}" 2>/dev/null || echo "{}")
+      -d "{\"model\":\"$model\",\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}]}" 2>/dev/null || echo "{}")
     code=$(echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(200 if (d.get('choices') or d.get('content')) else d.get('error',{}).get('code',400))" 2>/dev/null || echo 000)
     [[ "$code" == "200" ]] && break
     if is_quota "$resp" || [[ "$code" == "402" ]]; then code="QUOTA"; break; fi
-    case "$code" in 000|429) (( attempt < 3 )) && sleep 3 ;; *) break ;; esac
+    case "$code" in 000|429|400) (( attempt < 3 )) && sleep 3 ;; *) break ;; esac
   done
   if [[ "$code" == "QUOTA" ]]; then VERDICT="SKIP-QUOTA"; ERRORS="${ERRORS}funds "
   elif is_transient "$resp" || [[ "$code" =~ ^(000|429|5..)$ ]]; then VERDICT="SKIP-TRANSIENT"; ERRORS="${ERRORS}transient($code) "
@@ -178,21 +216,21 @@ for alias_name in "${ALIASES[@]}"; do
   # Test 2: Tools missing parameters
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 2 (missing params)..." >&2
   resp2=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
-    -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],$tools_bare}" 2>/dev/null || echo "{}")
+    -d "{\"model\":\"$model\",\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],$tools_bare}" 2>/dev/null || echo "{}")
   err2=$(echo "$resp2" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message',''))" 2>/dev/null || true)
   echo "$err2" | grep -qi "Field required\|parameters" && { ERRORS="${ERRORS}tools-params "; VERDICT="FAIL"; }
 
   # Test 3: Tools with $ref
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 3 (\$ref)..." >&2
   resp3=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
-    -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],$tools_ref}" 2>/dev/null || echo "{}")
+    -d "{\"model\":\"$model\",\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],$tools_ref}" 2>/dev/null || echo "{}")
   err3=$(echo "$resp3" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message',''))" 2>/dev/null || true)
   echo "$err3" | grep -qi "unresolvable\|\$ref\|\$defs" && { ERRORS="${ERRORS}dollar-ref "; VERDICT="FAIL"; }
 
   # Test 4: cache_control
   [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 4 (cache_control)..." >&2
   resp4=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
-    -d "{\"model\":\"$model\",\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\",\"cache_control\":{\"type\":\"ephemeral\"}}]}" 2>/dev/null || echo "{}")
+    -d "{\"model\":\"$model\",\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\",\"cache_control\":{\"type\":\"ephemeral\"}}]}" 2>/dev/null || echo "{}")
   err4=$(echo "$resp4" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('message',''))" 2>/dev/null || true)
   echo "$err4" | grep -qi "cache_control\|unknown field" && { ERRORS="${ERRORS}cache_control "; VERDICT="FAIL"; }
 
@@ -209,7 +247,7 @@ for alias_name in "${ALIASES[@]}"; do
   for attempt in 1 2; do
     [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 6 (tool call, attempt $attempt)..." >&2
     resp6=$(curl -s --max-time "$TIMEOUT" -X POST "$test_url" -H "Content-Type: application/json" --config "$cfg" \
-      -d "{\"model\":\"$model\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"Calculate 7*6 using the calc tool. You MUST call the tool.\"}],$tools_calc}" 2>/dev/null || echo "{}")
+      -d "{\"model\":\"$model\",\"max_tokens\":512,\"messages\":[{\"role\":\"user\",\"content\":\"Calculate 7*6 using the calc tool. You MUST call the tool.\"}],$tools_calc}" 2>/dev/null || echo "{}")
     if is_quota "$resp6"; then has_tool="QUOTA"; break; fi
     has_tool=$(echo "$resp6" | python3 -c "
 import json,sys
@@ -249,9 +287,13 @@ test_claude_alias() {
   total=$((total+1))
   export CLAUDE_CONFIG_DIR="$config_dir"
 
-  # Basic test
+  # Basic test. Account-level quota states (weekly/usage limits) are NOT
+  # toolkit failures — same FUNDS distinction as the provider checks.
   result=$(cma_run -p "Say OK" 2>/dev/null || echo "FAIL")
-  if echo "$result" | grep -qi "OK\|ready\|help"; then
+  if printf '%s' "$result" | grep -qiE 'weekly limit|usage limit|rate limit|hit your.*limit|insufficient'; then
+    qskip=$((qskip+1))
+    echo "◌ $alias_name: SKIP-QUOTA (account limit — not a toolkit failure)" | tee -a "$EV"
+  elif echo "$result" | grep -qi "OK\|ready\|help"; then
     passed=$((passed+1))
     echo "✓ $alias_name: PASS" | tee -a "$EV"
   else
@@ -289,9 +331,10 @@ if (( total == 0 )); then
 fi
 
 echo | tee -a "$EV"
-echo "PASS: $passed FAIL: $failed SKIP-QUOTA: ${qskip:-0} SKIP-TRANSIENT: ${tskip:-0} TOTAL: $total" | tee -a "$EV"
+echo "PASS: $passed FAIL: $failed SKIP-QUOTA: ${qskip:-0} SKIP-TRANSIENT: ${tskip:-0} SKIP-GATED: ${gated:-0} TOTAL: $total" | tee -a "$EV"
 # Exit code counts only GENUINE failures. SKIP-QUOTA aliases are account-level
-# funds states and SKIP-TRANSIENT aliases are provider capacity/timeout states
-# (both recoverable), reported honestly in the evidence — never PASSed, never
-# counted as toolkit failures (mirrors verify_claude_live.sh's FUNDS bucket).
+# funds states, SKIP-TRANSIENT aliases are provider capacity/timeout states,
+# and SKIP-GATED aliases are intentionally not launchable (the verification
+# gate already filtered them) — all reported honestly in the evidence, never
+# PASSed, never counted as toolkit failures (mirrors verify_claude_live.sh).
 exit $failed

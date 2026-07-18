@@ -314,24 +314,59 @@ detect_kimicode_record() {
   token="$(jq -r '.access_token // ""' "$cred_file" 2>/dev/null)"
   [[ -n "$token" ]] || { printf '[]\n'; return 0; }
 
-  # Write token for verification/launch paths (chmod 600 — no group/world read).
-  local tdir; tdir="$(cma_providers_dir)"; mkdir -p "$tdir"
-  local tokf="$tdir/kimi-for-coding.token"
-  ( umask 077; printf '%s' "$token" > "$tokf" ) || true
+  # Discover the models THIS subscription actually serves (never hardcode):
+  # GET {base}/models with the OAuth token; fall back to the models.dev
+  # catalog list when the endpoint can't be reached (offline sync still
+  # yields the known aliases, which verification then gates honestly).
+  local base="https://api.kimi.com/coding/v1"
+  local models_json=""
+  (( OFFLINE )) || models_json="$(curl -s --max-time 15 \
+    --config <(printf 'header = "Authorization: Bearer %s"\n' "$token") \
+    "$base/models" 2>/dev/null | jq -c '[.data[]?.id] | unique' 2>/dev/null)"
+  if [[ -z "$models_json" || "$models_json" == "[]" || "$models_json" == "null" ]]; then
+    models_json="[]"
+  fi
+  # Union the discovery result with the catalog's known models for this
+  # endpoint + the account-default id: /models is authoritative for what is
+  # LISTED, but it under-reports (e.g. k2p7 answers chat/tools fine on the
+  # subscription yet is absent from the listing). Anything the subscription
+  # does not actually serve is filtered out by the strict sync-time probes.
+  local catalog_models
+  catalog_models="$(jq -c '."kimi-for-coding".models | keys' "$CACHE" 2>/dev/null || echo '[]')"
+  models_json="$(jq -c --argjson a "$models_json" --argjson b "$catalog_models" \
+    '$a + $b + ["kimi-for-coding"] | unique' <<<"{}")"
 
-  jq -n \
-    --arg pid "kimi-for-coding" \
-    --arg alias "kimi-for-coding" \
-    --arg keyvar "_CMA_KIMICODE_OAUTH_" \
-    --arg base "https://api.kimi.com/coding/v1" \
-    --arg transport "router" \
-    --arg strong "kimi-for-coding" \
-    --arg fast "kimi-for-coding" \
-    --argjson ctx 262144 \
-    '[{key_var:$keyvar, classification:"llm", provider_id:$pid, alias:$alias,
-       base_url:$base, transport:$transport, strong_model:$strong,
-       fast_model:$fast, context_limit:$ctx, max_output:null,
-       status:"resolved", reason:"kimi-code detected on PATH (OAuth token)"}]'
+  # One token-file snapshot per alias (the launch path prefers the LIVE
+  # credentials file; these are only the last-resort fallback).
+  local tdir; tdir="$(cma_providers_dir)"; mkdir -p "$tdir"
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] && ( umask 077; printf '%s' "$token" > "$tdir/$pid.token" ) || true
+  done < <(jq -r '.[] | if . == "kimi-for-coding" then "kimi-for-coding"
+                     elif startswith("kimi-") then . else "kimi-" + . end' <<<"$models_json")
+
+  # Emit ONE record per served model. Alias naming: the account default keeps
+  # 'kimi-for-coding'; ids already carrying the kimi- prefix keep it; bare ids
+  # (k3, k2p7, ...) become kimi-<id>. Context/output limits come from the
+  # models.dev catalog entry for the model, with the endpoint's documented
+  # defaults (k3: 1M/131072; the K2.7 family: 262144/32768) as fallback.
+  # NOTE: only the kimi-for-coding models subtree is passed to jq — the full
+  # catalog is far too large for --argjson (ARG_MAX).
+  local model_limits; model_limits="$(jq -c '."kimi-for-coding".models // {}' "$CACHE" 2>/dev/null || echo '{}')"
+  jq -n --arg keyvar "_CMA_KIMICODE_OAUTH_" --arg base "$base" \
+        --argjson models "$models_json" --argjson limits "$model_limits" '
+    def limits($m): ($limits[$m].limit // {})
+      | {ctx: (.context // (if $m == "k3" then 1048576 else 262144 end)),
+         out: (.output  // (if $m == "k3" then 131072  else 32768  end))};
+    def alias_for($m): if $m == "kimi-for-coding" then "kimi-for-coding"
+                       elif ($m | startswith("kimi-")) then $m
+                       else "kimi-" + $m end;
+    $models[] | (limits(.) ) as $l | (alias_for(.)) as $a |
+    {key_var:$keyvar, classification:"llm", provider_id:$a, alias:$a,
+     base_url:$base, transport:"router", strong_model:., fast_model:.,
+     context_limit:$l.ctx, max_output:$l.out, status:"resolved",
+     reason:("kimi-code detected on PATH (OAuth subscription model: " + . + ")")}
+  ' | jq -s '.'
 }
 
 resolve_records() {
@@ -374,10 +409,13 @@ resolve_records() {
   if ! printf '%s' "$extra_kc" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_kimicode_record produced no/invalid JSON output"
   fi
-  # Merge all three sources: resolver records + HelixAgent + Kimi Code, deduped.
+  # Merge all three sources, deduped by provider_id. The Kimi Code OAuth
+  # detector records take PRECEDENCE over key-var records (an OAuth
+  # subscription is the user's priority for kimi-for-coding; the API key
+  # remains the fallback on hosts without the OAuth session). Resolver
+  # records still win over HelixAgent PATH-detection. First occurrence wins.
   jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" '
-    ($base | map(.provider_id)) as $ids
-    | $base + ($e1 + $e2 | map(select(.provider_id as $p | ($ids | index($p)) | not)))
+    ($e2 + $base + $e1) | unique_by(.provider_id)
   '
 }
 
@@ -395,6 +433,10 @@ cmd_sync() {
   # (keeping --refresh-aliases byte-idempotent), so the healing migration must run
   # here, once, not per alias line (final-review I-2).
   (( DRY_RUN )) || cma_ensure_alias_file
+  # One-time migration of pre-v1.17.0 LOCAL daemon/jobs dirs under existing
+  # provider dirs into the shared store (idempotent via marker file): their
+  # background-agent rosters must join the shared registry, not be stranded.
+  (( DRY_RUN )) || cma_migrate_daemon_dirs_once
   local records; records="$(resolve_records)"
   local total resolved
   total="$(jq 'length' <<<"$records")"
@@ -502,6 +544,20 @@ cmd_verify() {
   # shellcheck source=/dev/null
   ( set -a +u; . "$envf"; set +a
     local base="$CMA_PROVIDER_BASE_URL" model="$CMA_PROVIDER_MODEL" keyvar="$CMA_PROVIDER_KEYVAR"
+    # Kimi Code OAuth sentinel: cmd_verify has no detector to refresh/inject
+    # the token (cmd_sync does it in its loop), so do it here — live cred file
+    # when unexpired (60s skew), else the token-file snapshot (same freshness
+    # order as the launch wrapper).
+    if [[ "$keyvar" == "_CMA_KIMICODE_OAUTH_" ]]; then
+      local _kcred="$HOME/.kimi-code/credentials/kimi-code.json" _kexp=0 _ktokf
+      [[ -f "$_kcred" ]] && _kexp="$(jq -r '.expires_at // 0' "$_kcred" 2>/dev/null || echo 0)"
+      if (( _kexp > $(date +%s) + 60 )); then
+        export _CMA_KIMICODE_OAUTH_="$(jq -r '.access_token // ""' "$_kcred" 2>/dev/null)"
+      else
+        _ktokf="$(cma_providers_dir)/$id.token"
+        [[ -f "$_ktokf" ]] && export _CMA_KIMICODE_OAUTH_="$(cat "$_ktokf" 2>/dev/null)"
+      fi
+    fi
     local vst sst flayer=""
     vst="$( ( [[ -e "$CMA_KEYS_FILE" ]] && { set -a +u; . "$CMA_KEYS_FILE"; set +a; }; \
               bash "$VERIFY" --provider "$id" --model "$model" --key-var "$keyvar" ${base:+--base-url "$base"} 2>/dev/null ) )" || true
