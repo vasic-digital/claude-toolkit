@@ -1,0 +1,1 @@
+AMBIENT ~/.claude/settings.json sha256 (baseline): a676b78a579bdbb5dd49e954dabe89a3a8112838d95c78a9e7e172246545483b

@@ -1,0 +1,65 @@
+[36m[cma][0m platform: linux
+[36m[cma][0m installing Node deps for the TOON utility (npm install) ...
+[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)
+[36m[cma][0m copied proxy scripts to /home/milos/.claude-shared/proxy
+[36m[cma][0m running claude-providers sync (install-time; soft)
+[36m[cma][0m discovered 30 key vars; 23 resolve to a provider
+[36m[cma][0m provider 'chutes' -> alias 'chutes' [router] model=zai-org/GLM-5.2-TEE (verified)
+[36m[cma][0m provider 'deepseek' -> alias 'deepseek' [native] model=deepseek-v4-pro (verified)
+[33m[cma warn][0m provider 'fireworks-ai' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'github-models' FAILED verification — alias NOT activated
+[36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=HelixAgent/HelixLLM (verified)
+[33m[cma warn][0m provider 'huggingface' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'inference' FAILED verification — alias NOT activated
+[36m[cma][0m provider 'kilo' -> alias 'kilo' [router] model=nvidia/nemotron-3-super-120b-a12b:free (verified)
+[33m[cma warn][0m provider 'kimi-for-coding' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'kimi-for-coding-highspeed' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'kimi-k2p7' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'kimi-k3' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'novita-ai' FAILED verification — alias NOT activated
+[36m[cma][0m provider 'nvidia' -> alias 'nvidia' [router] model=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning (verified)
+[36m[cma][0m provider 'opencode' -> alias 'opencode' [router] model=big-pickle (verified)
+[36m[cma][0m provider 'openrouter' -> alias 'openrouter' [router] model=nvidia/nemotron-3-super-120b-a12b:free (verified)
+[33m[cma warn][0m provider 'poe' FAILED verification — alias NOT activated
+[36m[cma][0m provider 'siliconflow' -> alias 'siliconflow' [router] model=zai-org/GLM-5.2 (verified)
+[33m[cma warn][0m provider 'tencent-tokenhub' FAILED verification — alias NOT activated
+[33m[cma warn][0m provider 'upstage' FAILED verification — alias NOT activated
+[36m[cma][0m provider 'xiaomi' -> alias 'xiaomi' [native] model=mimo-v2.5-pro (verified)
+[36m[cma][0m provider 'zai-coding-plan' -> alias 'zai-coding-plan' [router] model=glm-5.2 (unverified/existence)
+[36m[cma][0m provider 'zhipuai-coding-plan' -> alias 'zhipuai-coding-plan' [router] model=glm-5.2 (unverified/existence)
+[36m[cma][0m sync done: 11 active, 12 disabled (failed verify), 7 not-resolved
+[36m[cma][0m reload your shell or: source /home/milos/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m running claude-unify.sh
+[36m[cma][0m accounts: /home/milos/.claude-claude1 /home/milos/.claude-claude2 /home/milos/.claude-claude3 /home/milos/.claude-claude4
+[36m[cma][0m shared:   /home/milos/.claude-shared
+[36m[cma][0m ok: projects
+[36m[cma][0m ok: todos
+[36m[cma][0m ok: tasks
+[36m[cma][0m ok: plans
+[36m[cma][0m ok: file-history
+[36m[cma][0m ok: paste-cache
+[36m[cma][0m ok: shell-snapshots
+[36m[cma][0m ok: session-env
+[36m[cma][0m ok: telemetry
+[36m[cma][0m ok: sessions
+[36m[cma][0m ok: backups
+[36m[cma][0m ok: cache
+[36m[cma][0m ok: stats-cache.json
+[36m[cma][0m ok: history.jsonl
+[36m[cma][0m ok: plugins
+[36m[cma][0m ok: daemon
+[36m[cma][0m ok: jobs
+[36m[cma][0m ok: settings.json (per-dir OWN copy; enabledPlugins union propagated; per-alias keys kept local)
+[36m[cma][0m ok: .claude.json (projects/session index merged; auth keys preserved per-account)
+[36m[cma][0m done. shared: /home/milos/.claude-shared
+[36m[cma][0m private per-account: .credentials.json .claude.json mcp-needs-auth-cache.json
+
+[done] claude-multi-account installed.
+
+  Scripts on PATH:  /home/milos/.local/bin/claude-{unify,add-account,remove-account,list-accounts,rollback,export-docs}
+  Alias file:       /home/milos/.local/share/claude-multi-account/aliases.sh
+  Shared store:     /home/milos/.claude-shared
+
+Open a new shell (or run: source /home/milos/.local/share/claude-multi-account/aliases.sh) so the aliases load, then:
+  claude-list-accounts            # see what's wired up
+  claude-add-account              # add another account interactively

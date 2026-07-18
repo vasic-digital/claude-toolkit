@@ -1,0 +1,11 @@
+ALIAS          PROVIDER         STATUS     LAYER        STRONG_MODEL            
+chutes         chutes           verified   -            zai-org/GLM-5.2-TEE     
+deepseek       deepseek         verified   -            deepseek-v4-pro         
+helixagent     helixagent       verified   -            HelixAgent/HelixLLM     
+kilo           kilo             verified   -            nvidia/nemotron-3-super-120b-a12b:free
+nvidia         nvidia           verified   -            nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+opencode       opencode         verified   -            big-pickle              
+openrouter     openrouter       verified   -            nvidia/nemotron-3-super-120b-a12b:free
+siliconflow    siliconflow      verified   -            zai-org/GLM-5.2         
+xiaomi         xiaomi           verified   -            mimo-v2.5-pro           
+zhipuai        zhipuai          verified   -            glm-5.2                 

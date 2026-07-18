@@ -1,0 +1,4 @@
+file: ~/.claude/settings.json
+baseline sha256: a676b78a579bdbb5dd49e954dabe89a3a8112838d95c78a9e7e172246545483b
+after-suite sha256: a676b78a579bdbb5dd49e954dabe89a3a8112838d95c78a9e7e172246545483b
+MATCH: settings.json unchanged (no session hijack)
