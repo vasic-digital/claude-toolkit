@@ -2,6 +2,68 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.18.0 — 2026-07-19 — HelixAgent/HelixLLM local-model exposure + 128k output-token clamp + ccr launch fixes
+
+### Added
+- **HelixAgent/HelixLLM provider — a local llama.cpp model exposed as a
+  first-class provider alias.** A new `helixagent` alias routes through the
+  claude-code-router (ccr, `:3456`) to a local llama.cpp server (`:18434`)
+  serving a Qwen3-Coder-30B gguf, presented to Claude Code as
+  **Provider = HelixAgent / Model = HelixLLM** — the raw local endpoint is
+  never exposed as its own catalogue entry, only via the HelixAgent/HelixLLM
+  facade. `claude-providers list` shows `helixagent  verified  HelixAgent/HelixLLM`.
+  **Live-proven (2026-07-19):** a completion through `HelixAgent/HelixLLM`
+  via `:3456` returns from the local model (`HELIX_ROUTE_OK`, real token
+  usage), and the `/v1/models` catalogue exposes the local model only as
+  `HelixAgent/HelixLLM` (the raw gguf path is not a catalogue entry).
+  Known residual: the completion response's `.model` field still echoes the
+  raw gguf path — the ccr catalogue and `claude-providers` surfaces are
+  clean; hardening that response echo is a tracked follow-up.
+  - **ccr v3.0.6 target-adapter registration.** The provider `id` / `name` /
+    `models[0]` are set to `HelixAgent` / `HelixLLM` (id == name) in the live
+    `config.sqlite app_config` so ccr's target-adapter registry resolves a
+    routable adapter — the synthesized `provider-helixllm-*` id had mismatched
+    the routing `name` ("Target adapter is not registered for provider").
+    Reload via the gateway `restartGateway` RPC (graceful, daemon stays up).
+  - **Facade stability across `claude-providers sync`:** `detect_helixagent_record()`
+    in `claude-providers.sh` + non-secret provider pins
+    (`scripts/providers/helixagent.json`: base `:3456/v1`, model
+    `HelixAgent/HelixLLM`, context 24576).
+  - **ccr-self-loop guard (`_cma_ccr_self`).** The HelixAgent facade points ccr
+    at its own `:3456` gateway; the guard prevents an infinite
+    self-referential launch loop.
+
+### Fixed
+- **128k output-token clamp for every provider alias, on both transports.**
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is clamped to ≤ 128000 for every provider
+  alias on the native AND router transports (deepseek 384000 / xiaomi 131072
+  → 128000) via a single unified export site preceded by an unconditional
+  unset (no stale inheritance, no competing paths). Reconciled with the
+  output-≥-context skip guard into one coherent block; covered by
+  `test_128k_output_clamp.sh` (38 assertions green in the 27/27 suite) and
+  independently reviewed (Fable) as strictly safer than either input — no
+  code path exports > 128000; zero/non-numeric budgets no-export rather than
+  exporting a raw value.
+- **ccr launch-grammar fix.** ccr v3.0.6 renamed the launch subcommand; the
+  provider-alias launcher now invokes `ccr default-claude-code -- "$@"`
+  (was `ccr code`) so router aliases launch Claude Code correctly, with a
+  migration marker so the fix redeploys into the installed alias file.
+- **zsh `fi fi` parse fix** in the native-launch guard.
+
+### Testing / validation
+- Full toolkit test suite **27/27 green** post-install (incl.
+  `test_128k_output_clamp.sh`); the standalone `verify_helixagent_test.sh`
+  verifier **46/46**.
+- **Live retest (2026-07-19):** native `claude1-4` provider-env-isolated;
+  10 providers verified (incl. `helixagent`); HelixAgent → HelixLLM live
+  route `HELIX_ROUTE_OK`; `claude-providers list` `helixagent verified`;
+  ambient `~/.claude/settings.json` sha256 unchanged (no session hijack).
+- **Merge review (Fable, xhigh) GO** on the main-integration reconciliation
+  (control-needle-validated conflict-marker scan; migration-instrument
+  provably-can-see).
+- Note: v1.17.0 was documented in this changelog but never git-tagged; its
+  changes land on `main` via the same merge and ship in this release.
+
 ## v1.17.0 — 2026-07-18 — Cross-alias session & background-agent continuity
 
 ### Fixed
