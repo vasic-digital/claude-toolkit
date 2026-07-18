@@ -243,9 +243,119 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 </header>
 <h1 id="changelog">Changelog</h1>
 <p>All notable changes to the Claude multi-account toolkit.</p>
+<h2 id="v1.15.0-2026-07-18-full-kimi-variant-support-oauth-subscription-models">v1.15.0
+— 2026-07-18 — Full Kimi variant support (OAuth subscription
+models)</h2>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong>Every Kimi model the OAuth subscription serves is now a
+launchable alias.</strong> <code>detect_kimicode_record</code> discovers
+the served models live (<code>GET {base}/models</code> with the OAuth
+token, unioned with the models.dev catalog since the listing
+under-reports) and emits one provider record per model — the old code
+exposed a single hardcoded alias. On this host:
+<code>kimi-for-coding</code> (account default, “K2.7 Coding”),
+<code>kimi-for-coding-highspeed</code>, <code>kimi-k2p7</code> (Kimi
+2.7), and <strong><code>kimi-k3</code> (Kimi 3 — 1M context,
+reasoning)</strong>. Every record goes through the same strict sentinel
++ tool-calling + semantic verification as every other provider.</li>
+<li><strong><code>kimi_proxy.py</code></strong> — moonshot-flavored
+schema normalizer routed under every <code>kimi-*</code> alias (new
+<code>&lt;family&gt;_proxy.py</code> discovery rule in the launch
+wrapper). Model k3 rejects any tool whose <code>parameters</code>
+carries a <code>$ref</code> not starting with <code>#/$defs/</code>
+(<code>400 … not a valid moonshot flavored json schema</code>,
+reproduced live); Claude Code’s tool schemas trip exactly that. The
+proxy hoists <code>$defs</code>+<code>definitions</code>, rewrites
+foreign <code>$ref</code>s by last segment, and guarantees
+<code>parameters.type/properties</code>. Live proof: direct request →
+400, same request through the proxy → 200.</li>
+<li><strong>Launch-time OAuth token freshness</strong> (lib.sh emitted
+wrapper). The OAuth token lives ~15 minutes, so the old sync-time
+snapshot 401’d by the next launch — the root of “kimi-for-coding works
+once, then dies”. Freshness order at every launch: unexpired live
+credentials file → CLI-triggered refresh (<code>kimi -p hi</code>) →
+token-file snapshot (last resort).</li>
+<li><strong>API-key paths for kimi.com coding</strong> —
+<code>KIMI_API_KEY</code> (catalog env) and <code>ApiKey_Kimi</code>
+(new <code>key-aliases.json</code> entry) both resolve to the
+<code>kimi-for-coding</code> provider as a fallback for hosts without an
+OAuth session. OAuth subscription records take
+<strong>precedence</strong> over API-key records (<code>unique_by</code>
+merge, detector first) — the subscription is the priority path.</li>
+<li><strong><code>sarvam_proxy.py</code></strong> — Sarvam compatibility
+proxy (same family-discovery mechanism). Three distinct runtime
+incompatibilities were root-caused and fixed, each reproduced live
+first: system/user message content arrays
+(<code>400 … Input should be a valid string</code> — flattened to joined
+strings) and Claude Code’s 64000-token output default exceeding the
+starter tier’s 4096 cap (<code>max_tokens</code> now clamped,
+overridable via <code>SARVAM_MAX_OUTPUT_TOKENS</code>). Result: the
+<code>sarvam</code> alias went from guaranteed-400 at launch to a real
+Claude Code PASS.</li>
+<li><strong>Challenges/HelixQA</strong>: three new bank cases
+(<code>cma-pav-kimi-oauth-token-freshness</code>,
+<code>cma-pav-kimi-multi-model-oauth-records</code>,
+<code>cma-pav-kimi-k3-moonshot-schema-proxy</code>) and Check 5 in
+<code>provider_aliases_challenge.sh</code> (detector discovery,
+precedence, freshness, schema proxy, live kimi-alias freshness) — 15/15
+PASS live.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong><code>claude-providers verify &lt;id&gt;</code> was unusable
+for OAuth providers</strong> — it never injected the OAuth token, so
+verify-by-id always degraded to a false <code>unverified</code>. It now
+applies the same live-cred-file-first freshness order.</li>
+<li><strong>Layer-1 probes false-FAIL reasoning models</strong> —
+128-token budget was consumed entirely by chain-of-thought (k3,
+deepseek-v4-pro), yielding “empty content / sentinel missing” failures
+on working models. Probe budget is now 512 tokens.</li>
+<li><strong>Detector jq ARG_MAX overflow</strong> — the full models.dev
+catalog was passed as a <code>--argjson</code> argument; only the
+<code>kimi-for-coding</code> models subtree is passed now (the bug
+silently yielded zero OAuth records and let an API-key record shadow the
+subscription).</li>
+<li><strong>Wrapper self-heal migration did not cover the new wrapper
+features</strong> — the <code>cma_run_provider</code> migration markers
+stopped at v1.14.0, so every host upgrading kept a stale wrapper that
+(a) never started <code>kimi_proxy</code> for <code>kimi-*</code> (k3
+400’d on every tool call — live-confirmed) and (b) never refreshed the
+OAuth token (401 after ~15 min). The <code>_family_id</code> and
+<code>kimi-code/credentials/kimi-code.json</code> markers now trigger
+regeneration.</li>
+<li><strong>Live legs blind to OAuth + overcounted account
+states</strong> — <code>verify_aliases_live.sh</code> silently skipped
+OAuth aliases (“no key”), had no CLI-refresh fallback (stale snapshots →
+400/401), lacked the family proxy discovery (kimi <code>$ref</code>
+tests 400’d), used 32/64-token budgets that false-FAIL reasoning models
+(poe’s claude-sonnet-4.6 needs 512 to reach the tool call — proven
+live), and FAILed on account limits (weekly cap, fair-use 1313) instead
+of classifying them. <code>alias_e2e_test.py</code> had the same
+OAuth-key and staleness gaps. Both legs now: resolve the OAuth token
+through the full live-cred → CLI-refresh → snapshot chain, discover
+family proxies, use 256/512 budgets, and classify
+<strong>SKIP-QUOTA</strong> / <strong>SKIP-TRANSIENT</strong> /
+<strong>SKIP-GATED</strong> (aliases the gate already filtered) honestly
+instead of as passes or failures.</li>
+</ul>
+<h3 id="testing">Testing</h3>
+<ul>
+<li>New hermetic suite <code>scripts/tests/test_kimi.sh</code>
+(<strong>33 assertions</strong>): detector multi-record emission (live
+discovery + catalog union + offline fallback), expired-token CLI
+refresh, OAuth-first precedence + no duplicates, API-key fallback
+mapping, launch-time token freshness (all three sources),
+<code>cmd_verify</code> OAuth injection, <code>kimi_proxy</code> schema
+normalization (5 cases), family proxy discovery markers. Full suite:
+22/22 files ALL GREEN.</li>
+<li>Live (Kimi aliases FIRST, per release gate): all 4 aliases verified
+by layer-1 probes, layer-3 semantic (sentinel + independent judge), and
+real Claude Code launches through the aliases.</li>
+</ul>
 <h2 id="v1.14.0-2026-07-17-anti-bluff-provider-verification-strict-filtering">v1.14.0
 — 2026-07-17 — Anti-bluff provider verification (strict filtering)</h2>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed-1">Fixed</h3>
 <ul>
 <li><strong>Provider aliases passed verification while being broken at
 runtime.</strong> Aliases such as <code>huggingface</code> were marked
@@ -366,7 +476,7 @@ tests in <code>test_coverage.sh</code>; full re-scan of
 <code>proof/</code> is clean.</li>
 </ol></li>
 </ul>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li><strong>Tier C constitution/conformance verifier</strong>
 <code>scripts/tests/verify_constitution.sh</code> (design spec §7.4,
@@ -435,7 +545,7 @@ verification semantics (§3 command table, §5 multi-alias verification,
 </ul>
 <h2 id="v1.13.3-2026-07-17-session-sharing-pipefail-fix">v1.13.3 —
 2026-07-17 — Session-sharing pipefail fix</h2>
-<h3 id="fixed-1">Fixed</h3>
+<h3 id="fixed-2">Fixed</h3>
 <ul>
 <li><strong>All aliases created separate, unshared sessions for the same
 project.</strong> Switching between <code>claude1</code>,
@@ -459,7 +569,7 @@ gets the correct UUID. All aliases now resolve to the same
 <code>--resume &lt;uuid&gt;</code>. <strong>Verified with 200-file
 stress test</strong> that exercises the exact pipefail condition.</li>
 </ul>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li>200-file stress test in <code>test_session.sh</code> that proves
 <code>claude-session flags</code> returns <code>--resume</code> (not
@@ -471,7 +581,7 @@ with full root cause analysis, evidence, and architecture notes.</li>
 </ul>
 <h2 id="v1.13.0-2026-07-10-project-scoped-cwd-hook-session-resumption-fix">v1.13.0
 — 2026-07-10 — Project-scoped cwd-hook (session-resumption fix)</h2>
-<h3 id="fixed-2">Fixed</h3>
+<h3 id="fixed-3">Fixed</h3>
 <ul>
 <li><strong>Sessions were resumed for the wrong project when switching
 Claude Code aliases.</strong> When the global
@@ -503,7 +613,7 @@ outdated <code>cma_run</code> wrappers via a new
 <code>install.sh</code> / shell start).</li>
 </ol></li>
 </ul>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li>Regression tests in <code>test_lib.sh</code> and
 <code>test_wrapper_exec.sh</code> prove the emitted <code>cma_run</code>
@@ -527,7 +637,7 @@ before trimming leading/trailing <code>-</code>. This makes session
 names safe for the CLI and filesystem while remaining
 human-readable.</li>
 </ul>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li>New regression tests in <code>test_session.sh</code> cover
 leading/trailing whitespace, multiple consecutive spaces, and stripping
@@ -536,7 +646,7 @@ of special invalid characters.</li>
 <h2 id="v1.12.2-2026-07-05-native-alias-auto-registration-account-detection-hardening">v1.12.2
 — 2026-07-05 — Native alias auto-registration + account-detection
 hardening</h2>
-<h3 id="fixed-3">Fixed</h3>
+<h3 id="fixed-4">Fixed</h3>
 <ul>
 <li><strong>Native <code>claude&lt;N&gt;</code> aliases were never
 created for pre-existing account dirs.</strong> Running
@@ -556,7 +666,7 @@ slot instead of skipping over reserved numbers.</li>
 directories are no longer treated as Claude accounts, preventing them
 from stealing alias slots or being merged into shared state.</li>
 </ul>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li>Regression tests in <code>test_unify.sh</code> and
 <code>test_install.sh</code> prove that install/unify register native
@@ -587,7 +697,7 @@ exit 3 → <code>skip</code>, so a transient judge/model hiccup is an
 honest SKIP and never downgrades the model-under-test (final-review
 I-1).</li>
 </ul>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li><strong>Independence warning:</strong>
 <code>providers-semantic.sh</code> warns (never fails) when the judge
@@ -602,7 +712,7 @@ confirmed live.</li>
 constitution (records the CONST-051 project-agnostic boundary under a
 non-colliding id).</li>
 </ul>
-<h3 id="fixed-4">Fixed</h3>
+<h3 id="fixed-5">Fixed</h3>
 <ul>
 <li>A directory passed as the keys file (<code>CMA_KEYS_FILE</code> /
 <code>--keys-file</code>) now dies with a clear message instead of
@@ -620,7 +730,7 @@ command. The whole pipeline was proven end-to-end against real providers
 2/3); models that bluff or fail round-2 (chutes GLM-5.2-TEE —
 empty/timeout) are <code>unverified</code>; billing blocks (deepseek
 402) are <code>unverified</code> — never a faked pass.</p>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li><strong>Layer 3 — semantic code-visibility.</strong>
 <code>scripts/providers-semantic.sh</code> renders the toolkit-owned
@@ -650,7 +760,7 @@ per installed provider, writes secret-redacted evidence + an aggregate
 <code>proof/providers-summary.json</code>; already wired into
 <code>run-proof.sh</code>.</li>
 </ul>
-<h3 id="fixed-5">Fixed</h3>
+<h3 id="fixed-6">Fixed</h3>
 <ul>
 <li><strong><code>--refresh-aliases</code> was not
 byte-idempotent</strong> — <code>cma_provider_write_alias</code> re-ran
@@ -697,7 +807,7 @@ mode with scrubbed env, and root-caused every genuine failure. Three
 real toolkit bugs fixed (below); all remaining non-passes are
 account-side (insufficient funds, rejected/absent keys, or a key with no
 chat entitlement) — not toolkit defects.</p>
-<h3 id="fixed-6">Fixed</h3>
+<h3 id="fixed-7">Fixed</h3>
 <ul>
 <li><strong>Input token-limit 400</strong> —
 <code>scripts/lib.sh (cma_run_provider)</code> now exports
@@ -757,7 +867,7 @@ never masked.</li>
 fixed the input token-limit error; documented the two guards as
 independent halves.</li>
 </ul>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li><strong>scripts/tests/test_poe_proxy.sh</strong> — hermetic tests
 for the Poe proxy: <code>parameters</code> injection, the tool-count
@@ -783,7 +893,7 @@ API directly. 9 aliases pass end-to-end; 2 had genuine model-config
 drift (fixed below); the remaining failures are all
 <strong>account-side</strong> (insufficient funds, invalid/expired keys,
 missing keys, or a plan with no chat model) — not toolkit bugs.</p>
-<h3 id="added-8">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li><strong>scripts/tests/verify_claude_live.sh</strong> — end-to-end
 live verification of every provider alias through REAL Claude Code in
@@ -803,7 +913,7 @@ capture transcript, quit).</li>
 <li><strong>scripts/tests/lib/classify_live.py</strong> — shared
 transcript classifier.</li>
 </ul>
-<h3 id="fixed-7">Fixed</h3>
+<h3 id="fixed-8">Fixed</h3>
 <ul>
 <li><strong>huggingface</strong> — strong/fast pinned to non-reasoning
 coder models (<code>Qwen/Qwen3-Coder-480B-A35B-Instruct</code> /
@@ -845,7 +955,7 @@ python files compile.</li>
 </ul>
 <h2 id="v1.10.8-2026-07-01-noclobber-safe-router-provider-config-write">v1.10.8
 — 2026-07-01 — noclobber-safe router-provider config write</h2>
-<h3 id="fixed-8">Fixed</h3>
+<h3 id="fixed-9">Fixed</h3>
 <ul>
 <li><strong>Every router-transport provider alias broke under
 <code>set -o noclobber</code>.</strong> <code>cma_run_provider</code>
@@ -939,7 +1049,7 @@ this locks the property an audit verified by hand this session.</li>
 </ul>
 <h2 id="v1.10.5-2026-06-29-provider-null-field-normalization-coverage">v1.10.5
 — 2026-06-29 — Provider ‘null’ field normalization + coverage</h2>
-<h3 id="fixed-9">Fixed</h3>
+<h3 id="fixed-10">Fixed</h3>
 <ul>
 <li><strong>A missing JSON field could write
 <code>CMA_PROVIDER_MODEL=&#39;null&#39;</code> (and <code>TRANSPORT</code>,
@@ -985,7 +1095,7 @@ FALSE — there is no <code>2&gt;&amp;1</code> on those lines.</li>
 </ul>
 <h2 id="v1.10.4-2026-06-29-set--epipefail-abort-fixes-hardened-test-coverage">v1.10.4
 — 2026-06-29 — set -e/pipefail abort fixes + hardened test coverage</h2>
-<h3 id="fixed-10">Fixed</h3>
+<h3 id="fixed-11">Fixed</h3>
 <ul>
 <li><strong><code>claude-providers list</code> / <code>remove</code>
 aborted on a provider with no alias line.</strong> Under
@@ -1029,7 +1139,7 @@ subagents, each finding independently reproduced before fixing.</li>
 </ul>
 <h2 id="v1.10.3-2026-06-29-execution-level-wrapper-test-coverage">v1.10.3 —
 2026-06-29 — Execution-level wrapper test coverage</h2>
-<h3 id="added-9">Added</h3>
+<h3 id="added-10">Added</h3>
 <ul>
 <li><strong><code>test_wrapper_exec.sh</code></strong> — the first
 hermetic test that actually <em>executes</em> the generated
@@ -1054,7 +1164,7 @@ stub claude really executed. Proven <strong>RED</strong> on a dropped
 </ul>
 <h2 id="v1.10.2-2026-06-29-self-healing-rc-source-lines-strict-rc-tests">v1.10.2
 — 2026-06-29 — Self-healing rc source lines + strict rc tests</h2>
-<h3 id="fixed-11">Fixed</h3>
+<h3 id="fixed-12">Fixed</h3>
 <ul>
 <li><strong>Dangling <code>source &quot;…/aliases.sh&quot;</code> lines in rc
 files.</strong> A transient or moved alias-file path could leave a
@@ -1068,7 +1178,7 @@ an existing source line across <code>.</code>/<code>source</code> and
 <code>$HOME</code>/<code>~</code>/absolute forms, so re-installs never
 accumulate duplicate source lines.</li>
 </ul>
-<h3 id="added-10">Added</h3>
+<h3 id="added-11">Added</h3>
 <ul>
 <li><strong><code>test_rc_sourcing.sh</code></strong> (10 strict
 assertions) — reproduces the bug class the hermetic suite missed (it
@@ -1085,7 +1195,7 @@ behavior, GREEN on the fix.</li>
 </ul>
 <h2 id="v1.10.1-2026-06-29-robust-cma_run-wrapper-assertions">v1.10.1 —
 2026-06-29 — Robust cma_run wrapper assertions</h2>
-<h3 id="fixed-12">Fixed</h3>
+<h3 id="fixed-13">Fixed</h3>
 <ul>
 <li><strong><code>test_claude.sh</code> used a fixed
 <code>grep -A30</code> window</strong> to scan the <code>cma_run</code>
@@ -1106,7 +1216,7 @@ coverage/wiring</h2>
 <p>The per-alias session color is now <strong>auto-applied</strong> (it
 was only a hint in v1.9.x), plus self-healing for a stale
 <code>CLAUDE_BIN</code> and several closed test-coverage gaps.</p>
-<h3 id="added-11">Added</h3>
+<h3 id="added-12">Added</h3>
 <ul>
 <li><strong>Auto-applied per-alias session color.</strong> Each bare
 alias launch now writes the alias’s color into the session as an
@@ -1136,7 +1246,7 @@ wrappers). <code>run-proof.sh</code> now also runs the
 previously-orphaned <code>verify_aliases_live.sh</code>.</li>
 </ul></li>
 </ul>
-<h3 id="fixed-13">Fixed</h3>
+<h3 id="fixed-14">Fixed</h3>
 <ul>
 <li><strong>Stale <code>CLAUDE_BIN</code> self-heals.</strong> Existing
 installs whose alias file pointed <code>CLAUDE_BIN</code> at a
@@ -1157,7 +1267,7 @@ recolour-on-alias-switch).</li>
 </ul>
 <h2 id="v1.9.2-2026-06-29-hermetic-claude_bin-resolver-test">v1.9.2 —
 2026-06-29 — Hermetic CLAUDE_BIN resolver test</h2>
-<h3 id="fixed-14">Fixed</h3>
+<h3 id="fixed-15">Fixed</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code> B7 “fallback when nowhere” was
 not hermetic</strong> and failed on hosts that have a real
@@ -1178,7 +1288,7 @@ mistborn, thinker, amber, nezha); shellcheck 0.</li>
 — 2026-06-29 — CLAUDE_BIN resolves across per-host install
 locations</h2>
 <p>A patch found during the live multi-host rollout of v1.9.0.</p>
-<h3 id="fixed-15">Fixed</h3>
+<h3 id="fixed-16">Fixed</h3>
 <ul>
 <li><strong>Alias launches failed where claude was installed outside
 <code>~/.local/bin</code>.</strong>
@@ -1212,7 +1322,7 @@ fixed against the real <code>claude 2.1.195</code> binary, then proven
 <strong>LIVE end-to-end</strong> — are corrected here, plus test
 coverage for two zero-coverage utilities and a documentation
 refresh.</p>
-<h3 id="fixed-16">Fixed</h3>
+<h3 id="fixed-17">Fixed</h3>
 <ul>
 <li><strong>Per-project auto-session naming never actually named the
 session — now proven LIVE.</strong> Three independent root causes:
@@ -1241,7 +1351,7 @@ one, so they never regained the integration. Fix: regenerate when
 <strong>either</strong> marker is missing.</li>
 </ul></li>
 </ul>
-<h3 id="added-12">Added</h3>
+<h3 id="added-13">Added</h3>
 <ul>
 <li><strong><code>docs/SESSION_COLOR.md</code></strong> — resolves the
 previously dangling reference, documenting per-project auto-session
@@ -1300,7 +1410,7 @@ carries v1.7.11 → v1.8.0 and later fixes that supersede it), leaving a
 tree byte-identical to HEAD so all four mirrors converge on one lineage;
 the <code>containers</code> submodule was fast-forwarded to latest
 <code>main</code> (<code>71d3256</code> → <code>67ed35a</code>).</p>
-<h3 id="fixed-17">Fixed</h3>
+<h3 id="fixed-18">Fixed</h3>
 <ul>
 <li><strong><code>history.jsonl</code> merge fused records across a
 source missing its trailing newline.</strong>
@@ -1389,7 +1499,7 @@ tolerates a bare call) across <code>lib.sh</code>,
 and the test harness (the sandbox keeps its <code>cma-test.</code>
 prefix for the cleanup safety check).</li>
 </ul>
-<h3 id="added-13">Added</h3>
+<h3 id="added-14">Added</h3>
 <ul>
 <li><strong>B5 token-limit guard coverage</strong>
 (<code>test_coverage.sh</code>). The v1.8.0
@@ -1436,7 +1546,7 @@ auto-sessions</h2>
 <p>A systematic-debugging pass fixing three reported issues plus a new
 session-per-project feature. Every root cause was reproduced and the fix
 proven with physical evidence before shipping.</p>
-<h3 id="fixed-18">Fixed</h3>
+<h3 id="fixed-19">Fixed</h3>
 <ul>
 <li><strong>CRITICAL — aliases cross-contaminated API endpoints across
 sessions.</strong> <code>cma_run_provider</code> <code>export</code>s
@@ -1473,7 +1583,7 @@ launch wrapper now writes
 <code>projects[&lt;root&gt;].hasTrustDialogAccepted=true</code> for the
 launching project via the new <code>claude-session</code> helper.</li>
 </ul>
-<h3 id="added-14">Added</h3>
+<h3 id="added-15">Added</h3>
 <ul>
 <li><strong>Auto session-per-project
 (<code>claude-session.sh</code>).</strong> Every bare alias launch
@@ -1506,7 +1616,7 @@ the live catalog and the emitted alias file.</li>
 </ul>
 <h2 id="v1.7.12-2026-06-28-one-line-curl-installer">v1.7.12 — 2026-06-28
 — One-line curl installer</h2>
-<h3 id="added-15">Added</h3>
+<h3 id="added-16">Added</h3>
 <ul>
 <li><p><strong><code>curl-install.sh</code></strong> — one-line
 bootstrap installer:</p>
@@ -1539,7 +1649,7 @@ guard, arg validation</h2>
 test harness, add/list/remove/rollback all verified clean); shipped 10
 targeted coverage tests closing the same shallow-coverage class that let
 the v1.7.10 enable-plugins bug ship; plus 2 LOW code findings.</p>
-<h3 id="fixed-19">Fixed</h3>
+<h3 id="fixed-20">Fixed</h3>
 <ul>
 <li><strong><code>toon_encode.py</code>
 <code>fallback_encode</code></strong>: unbounded recursion on deeply
@@ -1599,7 +1709,7 @@ guards, proxy robustness</h2>
 <p>Third audit round (deep dive on the less-covered surface:
 opencode_sync, claude-unify merge, the poe proxy, bootstrap). Fixes
 verified centrally.</p>
-<h3 id="fixed-20">Fixed</h3>
+<h3 id="fixed-21">Fixed</h3>
 <ul>
 <li><strong><code>cma_enable_plugins</code> silently enabled NO plugins
 when given 3 or more</strong> (<code>lib.sh</code>). The jq
@@ -1712,7 +1822,7 @@ the gap where arbitrary MCP env-var names
 (e.g. <code>NOTION_API_KEY</code>) slipped through the original six-name
 allowlist.</li>
 </ul>
-<h3 id="fixed-21">Fixed</h3>
+<h3 id="fixed-22">Fixed</h3>
 <ul>
 <li><strong><code>install.sh</code> used
 <code>readlink -f</code></strong> (absent on BSD/macOS) for its symlink
@@ -1804,7 +1914,7 @@ The three artifacts are redacted; the generator
 key and decide on a git-history scrub — the values remain in history on
 all four remotes.</li>
 </ul>
-<h3 id="fixed-22">Fixed</h3>
+<h3 id="fixed-23">Fixed</h3>
 <ul>
 <li><strong>Unreachable code</strong> in
 <code>verify_aliases_live.sh</code>: <code>exit $failed</code> sat
@@ -1825,7 +1935,7 @@ in <code>providers_resolve.py</code>: the usage docstring’s
 <code>\</code> line-continuations are now a raw string
 (<code>r&quot;&quot;&quot;</code>).</li>
 </ul>
-<h3 id="added-16">Added</h3>
+<h3 id="added-17">Added</h3>
 <ul>
 <li><strong><code>test_coverage.sh</code></strong> — 11 new hermetic
 tests (19 assertions) covering previously-untested <code>lib.sh</code>
@@ -1867,7 +1977,7 @@ compile clean under <code>python3 -W error</code>.</li>
 edge fix, regression tests</h2>
 <p>Follow-up hardening release found by a parallel multi-agent audit of
 v1.7.6.</p>
-<h3 id="fixed-23">Fixed</h3>
+<h3 id="fixed-24">Fixed</h3>
 <ul>
 <li><strong><code>readlink -f</code> → portable
 <code>cma_realpath</code></strong> at three sites:
@@ -1893,7 +2003,7 @@ with an empty <code>args</code> is an “unbound variable” error on bash
 non-re-exec’d <code>claude-providers.sh</code>). Guarded with
 <code>${args[@]+&quot;${args[@]}&quot;}</code>.</li>
 </ul>
-<h3 id="added-17">Added</h3>
+<h3 id="added-18">Added</h3>
 <ul>
 <li><strong><code>cma_realpath</code></strong> portable canonicalizer in
 <code>lib.sh</code>.</li>
@@ -1930,7 +2040,7 @@ decision.</li>
 <h2 id="v1.7.6-2026-06-28-always-non-interactive-execution-alias-file-integrity-macosbash-3.2-portability-4-host-rollout">v1.7.6
 — 2026-06-28 — Always-non-interactive execution, alias-file integrity,
 macOS/bash-3.2 portability, 4-host rollout</h2>
-<h3 id="fixed-24">Fixed</h3>
+<h3 id="fixed-25">Fixed</h3>
 <ul>
 <li><strong>Alias-file corruption from a mis-firing migration</strong> —
 <code>cma_ensure_alias_file</code>’s “outdated
@@ -1970,7 +2080,7 @@ and <code>tests/lib/sandbox.sh</code> (empty <code>${arr[@]}</code>
 expansions are unbound on bash 3.2). The suite now runs green on macOS
 bash 3.2.</li>
 </ul>
-<h3 id="added-18">Added</h3>
+<h3 id="added-19">Added</h3>
 <ul>
 <li><strong><code>CMA_NONINTERACTIVE</code> + automatic TTY
 detection</strong> — a new <code>cma_can_prompt</code> helper makes
@@ -2016,7 +2126,7 @@ present on every host.</li>
 </ul>
 <h2 id="v1.7.5-2026-06-28-cross-provider-resume-session-visibility-fix">v1.7.5
 — 2026-06-28 — Cross-provider /resume session visibility fix</h2>
-<h3 id="fixed-25">Fixed</h3>
+<h3 id="fixed-26">Fixed</h3>
 <ul>
 <li><strong>Cross-provider <code>/resume</code> session loss</strong> —
 when switching between provider aliases (e.g., <code>deepseek</code> →
@@ -2066,7 +2176,7 @@ PASS</strong></li>
 </ul>
 <h2 id="v1.7.4-2026-06-26-kimi-provider-fix-aws-iac-mcp-disabled-by-default">v1.7.4
 — 2026-06-26 — Kimi provider fix + AWS IaC MCP disabled by default</h2>
-<h3 id="fixed-26">Fixed</h3>
+<h3 id="fixed-27">Fixed</h3>
 <ul>
 <li><strong>Kimi Code provider base URL</strong> in
 <code>scripts/providers/overrides.json</code> — changed from
@@ -2095,7 +2205,7 @@ failed</strong></li>
 </ul>
 <h2 id="v1.6.6-2026-06-21-toon-integration-for-token-efficient-prompts">v1.6.6
 — 2026-06-21 — TOON integration for token-efficient prompts</h2>
-<h3 id="added-19">Added</h3>
+<h3 id="added-20">Added</h3>
 <ul>
 <li><strong>TOON (Token-Oriented Object Notation)</strong> integration —
 saves ~40% tokens vs JSON for structured data in LLM prompts by
@@ -2126,7 +2236,7 @@ provider-side support.</p>
 </ul>
 <h2 id="v1.6.5-2026-06-21-poe-proxy-fix-alias-file-install">v1.6.5 —
 2026-06-21 — Poe proxy fix (alias file + install)</h2>
-<h3 id="fixed-27">Fixed</h3>
+<h3 id="fixed-28">Fixed</h3>
 <ul>
 <li><strong>Poe proxy not starting from alias</strong> — proxy logic was
 only in <code>lib.sh</code>, not in the alias file’s
@@ -2151,7 +2261,7 @@ name caused <code>unbound variable</code> error on nezha (Linux,
 </ul>
 <h2 id="v1.6.4-2026-06-21-poe-proxy-fix-for-tool-compatibility">v1.6.4 —
 2026-06-21 — Poe proxy fix for tool compatibility</h2>
-<h3 id="fixed-28">Fixed</h3>
+<h3 id="fixed-29">Fixed</h3>
 <ul>
 <li><strong>Poe tool format error</strong> — Poe requires
 <code>parameters</code> in every tool function definition. Claude Code
@@ -2173,7 +2283,7 @@ now auto-starts compatibility proxies for providers that need them
 </ul>
 <h2 id="v1.6.3-2026-06-21-poe-provider-382-models-3-aliases">v1.6.3 —
 2026-06-21 — Poe provider (382 models, 3 aliases)</h2>
-<h3 id="added-20">Added</h3>
+<h3 id="added-21">Added</h3>
 <ul>
 <li><strong>Poe provider</strong> — universal AI platform with 382
 models from all major providers. OpenAI-compatible API at
@@ -2221,7 +2331,7 @@ inference)</li>
 </ul>
 <h2 id="v1.6.1-2026-06-21-cache_control-fix-e2e-tests">v1.6.1 —
 2026-06-21 — cache_control fix + E2E tests</h2>
-<h3 id="fixed-29">Fixed</h3>
+<h3 id="fixed-30">Fixed</h3>
 <ul>
 <li><strong><code>cache_control</code> parameter error</strong> — Claude
 Code sends <code>cache_control</code> (Anthropic-specific) in its API
@@ -2230,7 +2340,7 @@ it with HTTP 422. Fixed by adding ccr’s built-in <code>cleancache</code>
 transformer to every provider config, which strips
 <code>cache_control</code> before forwarding to the provider.</li>
 </ul>
-<h3 id="added-21">Added</h3>
+<h3 id="added-22">Added</h3>
 <ul>
 <li><strong><code>alias_e2e_test.py</code></strong> — end-to-end alias
 verification script that tests each alias by sending requests through
@@ -2249,7 +2359,7 @@ working (all aliases tested with “Do you see our codebase?”)</h3>
 </ul>
 <h2 id="v1.6.0-2026-06-21-multi-alias-provider-system">v1.6.0 —
 2026-06-21 — Multi-alias provider system</h2>
-<h3 id="added-22">Added</h3>
+<h3 id="added-23">Added</h3>
 <ul>
 <li><strong>Multi-alias provider system</strong> — every provider can
 now have multiple aliases (<code>provider</code>,
@@ -2303,7 +2413,7 @@ require it).</li>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">claude-providers</span> sync <span class="at">--multi</span> <span class="at">--max-aliases</span> 10 <span class="at">--min-score</span> 20</span></code></pre></div>
 <h2 id="v1.5.1-2026-06-20-linux-stat-fix-nezha-deployment">v1.5.1 —
 2026-06-20 — Linux stat fix + nezha deployment</h2>
-<h3 id="fixed-30">Fixed</h3>
+<h3 id="fixed-31">Fixed</h3>
 <ul>
 <li><strong><code>stat -f %m</code> on Linux</strong> — the mtime cache
 check in <code>claude-providers.sh</code> used
@@ -2330,7 +2440,7 @@ pre-existing)</li>
 </ul>
 <h2 id="v1.5.0-2026-06-20-cross-alias-session-visibility">v1.5.0 —
 2026-06-20 — Cross-alias session visibility</h2>
-<h3 id="added-23">Added</h3>
+<h3 id="added-24">Added</h3>
 <ul>
 <li><strong>Cross-alias session visibility</strong> — sessions created
 under ANY alias (<code>claudeN</code>, <code>deepseek</code>,
@@ -2395,7 +2505,7 @@ also merged.</li>
 </ul>
 <h2 id="v1.4.0-2026-06-20-opencode-zen-provider-alias">v1.4.0 —
 2026-06-20 — OpenCode Zen provider alias</h2>
-<h3 id="added-24">Added</h3>
+<h3 id="added-25">Added</h3>
 <ul>
 <li><strong><code>opencode</code> provider alias</strong> — <a href="https://opencode.ai/zen">OpenCode Zen</a> curated AI gateway with
 <strong>21 free models</strong> (all $0 cost, all support tool calling +
@@ -2468,7 +2578,7 @@ work).</li>
 </ul>
 <h2 id="v1.3.0-2026-06-19-xiaomi-mimo-provider-alias">v1.3.0 —
 2026-06-19 — Xiaomi MiMo provider alias</h2>
-<h3 id="added-25">Added</h3>
+<h3 id="added-26">Added</h3>
 <ul>
 <li><strong><code>xiaomi</code> provider alias</strong> — Xiaomi MiMo
 via the <strong>Anthropic-native endpoint</strong>
@@ -2540,7 +2650,7 @@ file.</li>
 </ul>
 <h2 id="v1.2.0-2026-06-19-z.ai-coding-plan-provider-alias">v1.2.0 —
 2026-06-19 — Z.AI Coding Plan provider alias</h2>
-<h3 id="added-26">Added</h3>
+<h3 id="added-27">Added</h3>
 <ul>
 <li><strong><code>zai-coding-plan</code> provider alias</strong> —
 OpenAI-compatible router transport via
@@ -2580,7 +2690,7 @@ include 5 new assertions for <code>zai-coding-plan</code>.</li>
 heavy testing against <strong>real production LLM services</strong>,
 plus end-to-end provider aliases proven on two hosts and two
 transports.</p>
-<h3 id="added-27">Added</h3>
+<h3 id="added-28">Added</h3>
 <ul>
 <li><strong><code>containers</code> + <code>challenges</code>
 submodules</strong> (<code>submodules/</code>) — the distributed-boot
@@ -2678,7 +2788,7 @@ native/claude-code-router transport, full lifecycle + tests + docs. See
 <code>docs/Provider_Aliases_User_Guide.md</code>.</p>
 <h2 id="v1.6.7-2026-06-21-poe-proxy-fix-for-all-aliases">v1.6.7 —
 2026-06-21 — Poe proxy fix for all aliases</h2>
-<h3 id="fixed-31">Fixed</h3>
+<h3 id="fixed-32">Fixed</h3>
 <ul>
 <li><strong>Poe proxy not starting for poe2/poe3</strong> — proxy
 detection used exact provider ID (<code>poe2_proxy.py</code>) which
@@ -2701,7 +2811,7 @@ for poe2, poe3 aliases).</li>
 </ul>
 <h2 id="v1.6.8-2026-06-21-poe-proxy-gzip-fix">v1.6.8 — 2026-06-21 — Poe
 proxy gzip fix</h2>
-<h3 id="fixed-32">Fixed</h3>
+<h3 id="fixed-33">Fixed</h3>
 <ul>
 <li><strong>Poe proxy gzip decompression</strong> — Poe API returns
 gzip-compressed responses but the proxy tried to read them as UTF-8
@@ -2722,7 +2832,7 @@ validation, not tools format)</li>
 </ul>
 <h2 id="v1.6.9-2026-06-21-poe-proxy-ref-fix-for-grok-4">v1.6.9 —
 2026-06-21 — Poe proxy $ref fix for Grok-4</h2>
-<h3 id="fixed-33">Fixed</h3>
+<h3 id="fixed-34">Fixed</h3>
 <ul>
 <li>**Poe proxy <span class="math inline">$ref resolution** — Claude
 Code sends tool schemas with `$</span>ref<code>references to</code><span class="math inline">$defs`. Grok-4 and some providers don&#39;t support
@@ -2743,7 +2853,7 @@ resolves all
 </ul>
 <h2 id="v1.7.0-2026-06-22-poe-proxy-complete-fix-all-aliases-verified">v1.7.0
 — 2026-06-22 — Poe proxy complete fix (all aliases verified)</h2>
-<h3 id="fixed-34">Fixed</h3>
+<h3 id="fixed-35">Fixed</h3>
 <ul>
 <li><strong>Poe proxy shared directory</strong> — the proxy at
 <code>~/.local/share/.../proxy/poe_proxy.py</code> was the OLD version
@@ -2774,7 +2884,7 @@ wasn’t copied to shared directory</p>
 </ul>
 <h2 id="v1.7.1-2026-06-22-full-validation-release">v1.7.1 — 2026-06-22 —
 Full validation + release</h2>
-<h3 id="fixed-35">Fixed</h3>
+<h3 id="fixed-36">Fixed</h3>
 <ul>
 <li><strong>Port-ready check</strong> for proxy startup — replaced
 <code>sleep 1</code> with polling loop (<code>lsof -i</code>) ensuring
@@ -2797,7 +2907,7 @@ assertions)</li>
 </ul>
 <h2 id="v1.7.2-2026-06-22-claude-alias-verification-full-release">v1.7.2
 — 2026-06-22 — Claude alias verification, full release</h2>
-<h3 id="added-28">Added</h3>
+<h3 id="added-29">Added</h3>
 <ul>
 <li><strong>Claude alias verification</strong> in verify_aliases_live.sh
 — tests claude1/2/3 alongside provider aliases</li>

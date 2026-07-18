@@ -2,6 +2,94 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.15.0 — 2026-07-18 — Full Kimi variant support (OAuth subscription models)
+
+### Added
+- **Every Kimi model the OAuth subscription serves is now a launchable alias.**
+  `detect_kimicode_record` discovers the served models live (`GET
+  {base}/models` with the OAuth token, unioned with the models.dev catalog
+  since the listing under-reports) and emits one provider record per model —
+  the old code exposed a single hardcoded alias. On this host:
+  `kimi-for-coding` (account default, "K2.7 Coding"),
+  `kimi-for-coding-highspeed`, `kimi-k2p7` (Kimi 2.7), and **`kimi-k3` (Kimi
+  3 — 1M context, reasoning)**. Every record goes through the same strict
+  sentinel + tool-calling + semantic verification as every other provider.
+- **`kimi_proxy.py`** — moonshot-flavored schema normalizer routed under every
+  `kimi-*` alias (new `<family>_proxy.py` discovery rule in the launch
+  wrapper). Model k3 rejects any tool whose `parameters` carries a `$ref` not
+  starting with `#/$defs/` (`400 … not a valid moonshot flavored json schema`,
+  reproduced live); Claude Code's tool schemas trip exactly that. The proxy
+  hoists `$defs`+`definitions`, rewrites foreign `$ref`s by last segment, and
+  guarantees `parameters.type/properties`. Live proof: direct request → 400,
+  same request through the proxy → 200.
+- **Launch-time OAuth token freshness** (lib.sh emitted wrapper). The OAuth
+  token lives ~15 minutes, so the old sync-time snapshot 401'd by the next
+  launch — the root of "kimi-for-coding works once, then dies". Freshness
+  order at every launch: unexpired live credentials file → CLI-triggered
+  refresh (`kimi -p hi`) → token-file snapshot (last resort).
+- **API-key paths for kimi.com coding** — `KIMI_API_KEY` (catalog env) and
+  `ApiKey_Kimi` (new `key-aliases.json` entry) both resolve to the
+  `kimi-for-coding` provider as a fallback for hosts without an OAuth
+  session. OAuth subscription records take **precedence** over API-key
+  records (`unique_by` merge, detector first) — the subscription is the
+  priority path.
+- **`sarvam_proxy.py`** — Sarvam compatibility proxy (same family-discovery
+  mechanism). Three distinct runtime incompatibilities were root-caused and
+  fixed, each reproduced live first: system/user message content arrays
+  (`400 … Input should be a valid string` — flattened to joined strings) and
+  Claude Code's 64000-token output default exceeding the starter tier's 4096
+  cap (`max_tokens` now clamped, overridable via
+  `SARVAM_MAX_OUTPUT_TOKENS`). Result: the `sarvam` alias went from
+  guaranteed-400 at launch to a real Claude Code PASS.
+- **Challenges/HelixQA**: three new bank cases
+  (`cma-pav-kimi-oauth-token-freshness`,
+  `cma-pav-kimi-multi-model-oauth-records`,
+  `cma-pav-kimi-k3-moonshot-schema-proxy`) and Check 5 in
+  `provider_aliases_challenge.sh` (detector discovery, precedence, freshness,
+  schema proxy, live kimi-alias freshness) — 15/15 PASS live.
+
+### Fixed
+- **`claude-providers verify <id>` was unusable for OAuth providers** — it
+  never injected the OAuth token, so verify-by-id always degraded to a false
+  `unverified`. It now applies the same live-cred-file-first freshness order.
+- **Layer-1 probes false-FAIL reasoning models** — 128-token budget was
+  consumed entirely by chain-of-thought (k3, deepseek-v4-pro), yielding
+  "empty content / sentinel missing" failures on working models. Probe
+  budget is now 512 tokens.
+- **Detector jq ARG_MAX overflow** — the full models.dev catalog was passed
+  as a `--argjson` argument; only the `kimi-for-coding` models subtree is
+  passed now (the bug silently yielded zero OAuth records and let an API-key
+  record shadow the subscription).
+- **Wrapper self-heal migration did not cover the new wrapper features** —
+  the `cma_run_provider` migration markers stopped at v1.14.0, so every host
+  upgrading kept a stale wrapper that (a) never started `kimi_proxy` for
+  `kimi-*` (k3 400'd on every tool call — live-confirmed) and (b) never
+  refreshed the OAuth token (401 after ~15 min). The `_family_id` and
+  `kimi-code/credentials/kimi-code.json` markers now trigger regeneration.
+- **Live legs blind to OAuth + overcounted account states** —
+  `verify_aliases_live.sh` silently skipped OAuth aliases ("no key"), had no
+  CLI-refresh fallback (stale snapshots → 400/401), lacked the family proxy
+  discovery (kimi `$ref` tests 400'd), used 32/64-token budgets that
+  false-FAIL reasoning models (poe's claude-sonnet-4.6 needs 512 to reach
+  the tool call — proven live), and FAILed on account limits (weekly cap,
+  fair-use 1313) instead of classifying them. `alias_e2e_test.py` had the
+  same OAuth-key and staleness gaps. Both legs now: resolve the OAuth token
+  through the full live-cred → CLI-refresh → snapshot chain, discover family
+  proxies, use 256/512 budgets, and classify **SKIP-QUOTA** /
+  **SKIP-TRANSIENT** / **SKIP-GATED** (aliases the gate already filtered)
+  honestly instead of as passes or failures.
+
+### Testing
+- New hermetic suite `scripts/tests/test_kimi.sh` (**33 assertions**): detector
+  multi-record emission (live discovery + catalog union + offline fallback),
+  expired-token CLI refresh, OAuth-first precedence + no duplicates,
+  API-key fallback mapping, launch-time token freshness (all three sources),
+  `cmd_verify` OAuth injection, `kimi_proxy` schema normalization (5 cases),
+  family proxy discovery markers. Full suite: 22/22 files ALL GREEN.
+- Live (Kimi aliases FIRST, per release gate): all 4 aliases verified by
+  layer-1 probes, layer-3 semantic (sentinel + independent judge), and real
+  Claude Code launches through the aliases.
+
 ## v1.14.0 — 2026-07-17 — Anti-bluff provider verification (strict filtering)
 
 ### Fixed

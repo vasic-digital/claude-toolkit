@@ -328,6 +328,31 @@ claude-export-docs                    # regenerate HTML/PDF/DOCX
 
 ## 12. Individual provider notes
 
+### Kimi Code — OAuth subscription (kimi-for-coding, kimi-k3, kimi-k2p7, kimi-for-coding-highspeed)
+
+If you are signed into **Kimi Code** (the `kimi` CLI), every model your
+subscription serves becomes an alias automatically — **Kimi 3** (`kimi-k3`,
+1M context, reasoning), **Kimi 2.7** (`kimi-k2p7`),
+`kimi-for-coding-highspeed`, and the account default `kimi-for-coding`.
+No API key is required; the OAuth session in
+`~/.kimi-code/credentials/kimi-code.json` is used.
+
+- **Discovery**: `claude-providers sync` queries `GET /coding/v1/models` with
+  your OAuth token and emits one alias per served model (unioned with the
+  models.dev catalog, because the listing under-reports). Each alias is
+  verified with the strict sentinel + tool-calling + semantic pipeline.
+- **Token freshness**: the OAuth token lives ~15 minutes. At every launch the
+  wrapper reads the **live** credentials file (with expiry), refreshes via
+  `kimi -p hi` when expired, and only then falls back to the sync-time
+  snapshot — launches never die of a stale token.
+- **kimi_proxy**: k3 enforces a "moonshot-flavored" JSON schema for tools
+  (every `$ref` must start with `#/$defs/`). Claude Code's tool schemas would
+  400 without it, so all `kimi-*` launches route through a local normalizing
+  proxy (`scripts/proxy/kimi_proxy.py`, installed by `install.sh`).
+- **Precedence**: an OAuth subscription wins over `KIMI_API_KEY` /
+  `ApiKey_Kimi` records for `kimi-for-coding`; the API keys remain the
+  fallback on hosts without the OAuth session.
+
 ### z.ai Coding Plan (zai-coding-plan)
 
 The [z.ai](https://z.ai) Coding Max-Yearly Plan provides access to Zhipu AI's

@@ -72,8 +72,14 @@ providers-kilo-semantic.txt
 providers-kilo-superpowers.txt
 providers-kimi-for-coding2-semantic.txt
 providers-kimi-for-coding2-superpowers.txt
+providers-kimi-for-coding-highspeed-semantic.txt
+providers-kimi-for-coding-highspeed-superpowers.txt
 providers-kimi-for-coding-semantic.txt
 providers-kimi-for-coding-superpowers.txt
+providers-kimi-k2p7-semantic.txt
+providers-kimi-k2p7-superpowers.txt
+providers-kimi-k3-semantic.txt
+providers-kimi-k3-superpowers.txt
 providers-negative-case-superpowers.txt
 providers-novita-ai-semantic.txt
 providers-novita-ai-superpowers.txt
@@ -111,6 +117,8 @@ providers-poe5-semantic.txt
 providers-poe5-superpowers.txt
 providers-poe-semantic.txt
 providers-poe-superpowers.txt
+providers-sarvam-semantic.txt
+providers-sarvam-superpowers.txt
 providers-siliconflow2-semantic.txt
 providers-siliconflow2-superpowers.txt
 providers-siliconflow3-semantic.txt

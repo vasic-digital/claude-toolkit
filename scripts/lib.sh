@@ -494,8 +494,11 @@ EOF
   # cross-provider sync-state calls ('claude-sync-state'), the nounset-safe
   # keys sourcing ('set -a +u'), the per-project auto-session integration
   # ('claude-session'), the input-context token-limit guard
-  # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), or the SHARED_DIR-based proxy resolution
-  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies).
+  # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), the SHARED_DIR-based proxy resolution
+  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies),
+  # the family proxy discovery ('_family_id', kimi_proxy for all kimi-*), or
+  # the Kimi OAuth launch-time token freshness block
+  # ('kimi-code/credentials/kimi-code.json').
   # Each marker lives only in the current heredoc, so once regenerated the
   # function stops re-triggering.
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -508,6 +511,8 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q 'apply-color' || \
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_compact_cap' || \
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '_family_id' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'kimi-code/credentials/kimi-code.json' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
@@ -627,11 +632,27 @@ cma_run_provider() {
   # Suppress xtrace around the indirect key read so an active `set -x` in the
   # user's shell can't echo the secret to the terminal or a redirected log.
   case $- in *x*) _cma_xt=1; set +x ;; esac
-  # Kimi Code OAuth sentinel: read the OAuth token from the provider token
-  # file (written by detect_kimicode_record at sync time).
+  # Kimi Code OAuth sentinel: the OAuth token is SHORT-LIVED (~15 min), so a
+  # sync-time snapshot is stale by the next launch. Freshness order:
+  #  1. the LIVE kimi-code credentials file, when unexpired (60s skew);
+  #  2. a CLI-triggered refresh (kimi -p hi) followed by a re-read of 1;
+  #  3. the token-file snapshot written at sync (last resort only).
   if [[ "$CMA_PROVIDER_KEYVAR" == "_CMA_KIMICODE_OAUTH_" ]]; then
-    local _cma_ktok="$pdir/${CMA_PROVIDER_ID}.token"
-    [[ -f "$_cma_ktok" ]] && token="$(cat "$_cma_ktok" 2>/dev/null)" || token=""
+    local _cma_kcred="$HOME/.kimi-code/credentials/kimi-code.json"
+    if [[ -f "$_cma_kcred" ]] && command -v jq >/dev/null 2>&1; then
+      local _cma_kexp; _cma_kexp="$(jq -r '.expires_at // 0' "$_cma_kcred" 2>/dev/null || echo 0)"
+      if (( _cma_kexp > $(date +%s) + 60 )); then
+        token="$(jq -r '.access_token // ""' "$_cma_kcred" 2>/dev/null)"
+      fi
+    fi
+    if [[ -z "$token" && -f "$_cma_kcred" ]] && command -v kimi >/dev/null 2>&1; then
+      timeout 20 kimi -p "hi" --output-format text >/dev/null 2>&1 || true
+      token="$(jq -r '.access_token // ""' "$_cma_kcred" 2>/dev/null)"
+    fi
+    if [[ -z "$token" ]]; then
+      local _cma_ktok="$pdir/${CMA_PROVIDER_ID}.token"
+      [[ -f "$_cma_ktok" ]] && token="$(cat "$_cma_ktok" 2>/dev/null)" || token=""
+    fi
   else
     eval "token="\${$CMA_PROVIDER_KEYVAR:-}""
   fi
@@ -697,11 +718,16 @@ cma_run_provider() {
     # a tool with no `parameters` — the poe_proxy injects it).
     local _cma_proxy_dir="${SHARED_DIR:-$HOME/.claude-shared}/proxy"
     local _base_id="${CMA_PROVIDER_ID%%[0-9]*}"
+    local _family_id="${CMA_PROVIDER_ID%%-*}"
     local _proxy_script=""
     if [[ -x "$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py" ]]; then
       _proxy_script="$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py"
     elif [[ -x "$_cma_proxy_dir/${_base_id}_proxy.py" ]]; then
       _proxy_script="$_cma_proxy_dir/${_base_id}_proxy.py"
+    elif [[ -x "$_cma_proxy_dir/${_family_id}_proxy.py" ]]; then
+      # Family fallback: all kimi-* aliases share kimi_proxy.py (the
+      # moonshot-flavored schema normalizer), like all poe* share poe_proxy.py.
+      _proxy_script="$_cma_proxy_dir/${_family_id}_proxy.py"
     fi
     if [[ -n "$_proxy_script" ]]; then
       local _proxy_port=3457

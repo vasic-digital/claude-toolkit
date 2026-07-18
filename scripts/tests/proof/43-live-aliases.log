@@ -1,23 +1,29 @@
-Alias verification: Sat Jul 18 02:24:32 AM MSK 2026
-Testing 28 aliases
+Alias verification: Sat Jul 18 10:10:51 AM MSK 2026
+Testing 34 aliases
+◌ chutes3: SKIP-TRANSIENT (provider capacity/timeout — point-in-time, not a toolkit failure)
 Poe proxy listening on http://127.0.0.1:3457
 Forwarding to https://api.poe.com/v1
-Started proxy for poe2 on port 3457 (pid=1536059)
+Started proxy for poe2 on port 3457 (pid=2338816)
 ◌ poe2: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
 Poe proxy listening on http://127.0.0.1:3457
 Forwarding to https://api.poe.com/v1
-Started proxy for poe4 on port 3457 (pid=1536218)
+Started proxy for poe4 on port 3457 (pid=2338973)
 ◌ poe4: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
 Poe proxy listening on http://127.0.0.1:3457
 Forwarding to https://api.poe.com/v1
-Started proxy for poe5 on port 3457 (pid=1536371)
+Started proxy for poe5 on port 3457 (pid=2339153)
 ◌ poe5: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
 Poe proxy listening on http://127.0.0.1:3457
 Forwarding to https://api.poe.com/v1
-Started proxy for poe on port 3457 (pid=1536518)
+Started proxy for poe on port 3457 (pid=2339312)
 ◌ poe: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+Sarvam proxy listening on http://127.0.0.1:3457
+Forwarding to https://api.sarvam.ai
+Started proxy for sarvam on port 3457 (pid=2339466)
+◌ zai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
+◌ zhipuai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ✓ milos85vasic: PASS
-✓ milos85vasic2nd: PASS
+◌ milos85vasic2nd: SKIP-QUOTA (account limit — not a toolkit failure)
 ✓ milos85vasic3rd: PASS
 
-PASS: 27 FAIL: 0 SKIP-QUOTA: 4 SKIP-TRANSIENT: 0 TOTAL: 31
+PASS: 29 FAIL: 0 SKIP-QUOTA: 5 SKIP-TRANSIENT: 1 SKIP-GATED: 2 TOTAL: 37

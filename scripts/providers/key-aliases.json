@@ -12,5 +12,6 @@
   "SAKANA_API_KEY": "sakana",
   "FIREWORKS_API_KEY": "fireworks-ai",
   "DEEPINFRA_API_KEY": "deepinfra",
-  "MOONSHOT_API_KEY": "moonshotai"
+  "MOONSHOT_API_KEY": "moonshotai",
+  "ApiKey_Kimi": "kimi-for-coding"
 }
