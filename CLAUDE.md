@@ -76,6 +76,8 @@ In the `--multi` path `model_verify.py` applies the same anti-bluff rules: the s
 
 Statuses live in `~/.local/share/claude-multi-account/providers/status.json`; `claude-providers list` shows only `verified`, `list-all` everything, `list-faulty` the filtered-out rest. The launch wrapper refuses non-`verified` aliases unless `--force`.
 
+**Token-limit guards (both transports):** the wrapper exports `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (input cap from the model's real context limit, ≤200K) and `CLAUDE_CODE_MAX_OUTPUT_TOKENS` (output cap from the model's real `limit.output`, `_cma_out_guard` — router providers included; without it they ran with Claude Code's 128000 generic default and long responses died). Proxies may clamp further API-side (sarvam_proxy's tier clamp).
+
 **Account-dir detection (`cma_detect_accounts`)**: matches `~/.claude-*` but skips (a) `*-shared` and (b) non-empty dirs that don't contain any Claude marker file (`projects/`, `todos/`, `plugins/`, `.claude.json`, `.credentials.json`, `history.jsonl`). This excludes tool-config dirs that share the prefix by coincidence (e.g. `.claude-server-commander` for an MCP server).
 
 **rsync exit-code tolerance**: macOS `rsync` returns 23/24 (partial transfer warnings) for benign issues like `unlinkat: Directory not empty` when symlinks straddle the tree. `merge_dir_into_shared` and `absorb_default_plugins` explicitly tolerate those codes; anything else is fatal.

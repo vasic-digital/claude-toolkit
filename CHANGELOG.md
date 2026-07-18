@@ -2,6 +2,57 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.16.0 — 2026-07-18 — Output-token cap for router providers
+
+### Fixed
+- **"Claude's response exceeded the 128000 output token maximum" on router
+  providers.** `CLAUDE_CODE_MAX_OUTPUT_TOKENS` was exported **only on the
+  native transport path** — every router provider (kimi-k3, poe, openrouter,
+  …) launched with Claude Code's generic default output cap (128000 for
+  models it does not know), so long reasoning responses died with that API
+  error. **Fix:** the cap is now exported for **both** transports, before the
+  transport split (`_cma_out_guard`), valued from the provider model's real
+  `limit.output` (`CMA_PROVIDER_MAX_OUTPUT`, e.g. 131072 for k3). Live-verified
+  on the real wrapper: a `kimi-k3` router launch now carries
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS=131072`.
+- **Catalog-conflation guard:** models.dev sometimes reports
+  `limit.output == limit.context` (the "output" number is really the context
+  size) or an inflated `limit.context` (nvidia5's llama-3.2-11b-vision:
+  catalog claims 1M context; the provider's own error says 131072). Exporting
+  such a cap makes Claude Code request more completion tokens than the shared
+  window allows → `400 maximum context length … you requested N`. The guard
+  exports **only a genuinely separate output budget** (`output < context`).
+  `nvidia5` was removed (its catalog metadata is wrong on both axes; backed
+  up — self-heals via `sync --multi`).
+- **Wrapper migration now covers the output-cap fix** — `_cma_out_guard` was
+  added to the `cma_run_provider` self-heal marker chain, so wrappers written
+  before v1.16.0 regenerate automatically on the next `install.sh`/sync/shell
+  start (otherwise hosts would keep the native-only export indefinitely).
+- **e2e tool-call flake:** `alias_e2e_test.py`'s tool probe gets the same
+  one-retry policy as the layer-1 verifier (weak free models occasionally
+  skip an instructed tool call — opencode2 false-FAILed a proof leg).
+- **Router launch prompted interactively on some shells.** The wrapper's
+  ccr-config `mv` ran as a bare command; on hosts whose interactive shell
+  aliases `mv='mv -i'` (Fedora/RHEL defaults) the alias launch stopped at
+  `mv: overwrite '…/config.json'?` and hung or died on redirected stdin.
+  All 16 `mv` sites in lib.sh/emitted wrappers are now `command mv -f`
+  (bypasses aliases and shell functions, forces the overwrite).
+- **Cryptic failure when another tool named `ccr` shadows the router.**
+  On a host where `ccr` resolved to a different program (a CCS-style
+  profile manager), `ccr code` meant "launch profile 'code'" and the
+  alias died with `Profile "code" was not found or is disabled`. The
+  router path now verifies `ccr version` names the real
+  `@musistudio/claude-code-router` and refuses early with an actionable
+  message (fix PATH / remove the shadowing ccr / install command).
+
+### Added
+- **Testing:** new hermetic suite `scripts/tests/test_output_tokens.sh`
+  (8 assertions — native + router export, empty-limit case, guard-before-
+  split structure, migration trigger). Challenges/HelixQA: new bank case
+  `cma-pav-output-cap-both-transports` and Check 6 in
+  `provider_aliases_challenge.sh` (16/16 PASS live). Full suite: 24/24 files
+  ALL GREEN; 6-leg proof ALL GREEN.
+
 ## v1.15.0 — 2026-07-18 — Full Kimi variant support (OAuth subscription models)
 
 ### Added

@@ -113,7 +113,7 @@ cma_merge_claude_json() {
             .projects //= {}
             | reduce ($trusted[]) as $p (.; .projects[$p].hasTrustDialogAccepted = true)
           ' "$prev" > "$_tt" 2>/dev/null && jq -e . "$_tt" >/dev/null 2>&1; then
-        mv "$_tt" "$prev"
+        command mv -f "$_tt" "$prev"
       else rm -f "$_tt"; fi
     fi
   fi
@@ -141,7 +141,7 @@ cma_merge_claude_json() {
     fi
     # Final sanity: only replace if the output is parseable JSON.
     if jq -e . "$out" >/dev/null 2>&1; then
-      mv "$out" "$f"
+      command mv -f "$out" "$f"
     else
       rm -f "$out"
       cma_warn "merged .claude.json for $acct was invalid — leaving original file untouched"
@@ -256,7 +256,7 @@ cma_prune_stale_alias_sources() {
     fi
     printf '%s\n' "$line" >> "$tmp"
   done < "$rc"
-  if (( changed )); then mv "$tmp" "$rc"; cma_log "pruned stale aliases.sh source line(s) from $rc"; else rm -f "$tmp"; fi
+  if (( changed )); then command mv -f "$tmp" "$rc"; cma_log "pruned stale aliases.sh source line(s) from $rc"; else rm -f "$tmp"; fi
 }
 
 # True if $rc already sources a file resolving to $2 (across `.`/`source` and
@@ -294,7 +294,7 @@ EOF
     local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the sed pattern, matching alias file content
     sed -E 's|(^alias[[:space:]]+[^=]+=)"(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN"$|\1"\2 cma_run"|' "$ALIAS_FILE" > "$tmp"
-    mv "$tmp" "$ALIAS_FILE"
+    command mv -f "$tmp" "$ALIAS_FILE"
     cma_log "migrated existing aliases in $ALIAS_FILE to use cma_run wrapper"
   fi
   # Migration: an existing alias file may carry a stale CLAUDE_BIN pointing at a
@@ -314,7 +314,7 @@ EOF
     if [[ "$_new_cb" != "$_cur_cb" && -x "${_new_cb/#\$HOME/$HOME}" ]]; then
       local tmp_cb; tmp_cb="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
-      mv "$tmp_cb" "$ALIAS_FILE"
+      command mv -f "$tmp_cb" "$ALIAS_FILE"
       cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
     fi  fi
   # Migration: the 'export CLAUDE_BIN=' header line is entirely missing (corrupted
@@ -329,7 +329,7 @@ EOF
       printf '# ~/.local/bin/claude-add-account to add accounts.\n'
       printf 'export CLAUDE_BIN="%s"\n' "$_cb_new"
       cat "$ALIAS_FILE"
-    } > "$_cb_tmp" && mv "$_cb_tmp" "$ALIAS_FILE"
+    } > "$_cb_tmp" && command mv -f "$_cb_tmp" "$ALIAS_FILE"
     cma_log "restored missing export CLAUDE_BIN line -> $_cb_new"
   fi
   # Migration: regenerate an outdated cma_run that lacks the provider-env
@@ -370,7 +370,7 @@ EOF
       skip && /^}/    { skip=0; next }
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
-    mv "$tmp_run" "$ALIAS_FILE"
+    command mv -f "$tmp_run" "$ALIAS_FILE"
     cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
@@ -496,9 +496,10 @@ EOF
   # ('claude-session'), the input-context token-limit guard
   # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), the SHARED_DIR-based proxy resolution
   # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies),
-  # the family proxy discovery ('_family_id', kimi_proxy for all kimi-*), or
-  # the Kimi OAuth launch-time token freshness block
-  # ('kimi-code/credentials/kimi-code.json').
+  # the family proxy discovery ('_family_id', kimi_proxy for all kimi-*), the
+  # Kimi OAuth launch-time token freshness block
+  # ('kimi-code/credentials/kimi-code.json'), or the both-transports output
+  # cap ('_cma_out_guard', CLAUDE_CODE_MAX_OUTPUT_TOKENS for router too).
   # Each marker lives only in the current heredoc, so once regenerated the
   # function stops re-triggering.
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -513,6 +514,7 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_family_id' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'kimi-code/credentials/kimi-code.json' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '_cma_out_guard' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
@@ -526,7 +528,7 @@ EOF
         skip && /^}/            { skip=0; next }
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
-      mv "$tmp_prov" "$ALIAS_FILE"
+      command mv -f "$tmp_prov" "$ALIAS_FILE"
       cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook-gated)"
     fi
   fi
@@ -670,8 +672,9 @@ cma_run_provider() {
   # cap. Fully dynamic — the value is CMA_PROVIDER_CONTEXT_LIMIT, resolved from
   # the models.dev catalog (limit.context) per selected model. Applies to BOTH
   # transports (native + router), so every provider alias is protected.
-  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below on
-  # the native path) caps OUTPUT — the two are independent halves of the guard.
+  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set just
+  # below, BOTH transports) caps OUTPUT — the two are independent halves of
+  # the guard.
   # Auto-compact cap: only lower the window; never raise it above ~200K.
   # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need this
   # guard — exporting their full window disables auto-compaction until ~987K,
@@ -679,6 +682,24 @@ cma_run_provider() {
   local _cma_compact_cap="${CMA_AUTO_COMPACT_CAP:-200000}"
   if [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" && "${CMA_PROVIDER_CONTEXT_LIMIT}" -le "$_cma_compact_cap" ]]; then
     export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
+  fi
+  # _cma_out_guard (v1.16.0): output-token cap for BOTH transports, not just
+  # native. Without it, router providers run with Claude Code's generic
+  # default output cap (128000 for models it does not know) and long
+  # reasoning responses die with "Claude's response exceeded the 128000
+  # output token maximum". The value is the provider model's REAL output
+  # limit (models.dev limit.output via CMA_PROVIDER_MAX_OUTPUT); proxies may
+  # clamp further API-side (sarvam_proxy's tier clamp).
+  # Catalog caveat (live-proven on nvidia5): when limit.output >=
+  # limit.context the "output" number is really the context size — exporting
+  # it makes Claude Code request that many completion tokens, and
+  # input+request overshoots the shared window (400 "maximum context length
+  # is N … you requested M"). Only a genuinely separate output budget
+  # (output < context) is exported.
+  if [[ -n "${CMA_PROVIDER_MAX_OUTPUT:-}" ]]; then
+    if [[ -z "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] || (( CMA_PROVIDER_MAX_OUTPUT < CMA_PROVIDER_CONTEXT_LIMIT )); then
+      export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$CMA_PROVIDER_MAX_OUTPUT"
+    fi
   fi
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
@@ -693,6 +714,17 @@ cma_run_provider() {
       printf 'claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n' "$id" >&2
       return 127
     fi
+    # Identity check (live issue 2026-07-18): a DIFFERENT tool named ccr on
+    # PATH (e.g. CCS's profile manager, `ccs`) shadows the real router and
+    # fails cryptically downstream — "Profile 'code' was not found or is
+    # disabled" — because `ccr code` to it means "launch profile 'code'".
+    # Refuse early with an actionable message.
+    local _ccr_ver; _ccr_ver="$(ccr version 2>&1 | head -1)"
+    case "$_ccr_ver" in
+      *claude-code-router*) ;;
+      *) printf 'claude-providers: ccr on PATH is not @musistudio/claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or: npm install -g @musistudio/claude-code-router\n' "$_ccr_ver" >&2
+         return 127 ;;
+    esac
     # Upsert THIS provider into ccr config with the live key (regenerated each
     # launch, chmod 600 — never stored by the toolkit), set it as the active
     # route, then launch through ccr.
@@ -760,7 +792,7 @@ cma_run_provider() {
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
         ' "$cfg" >| "$tmp" 2>/dev/null; then
-        mv "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
+        command mv -f "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
         ccr restart >/dev/null 2>&1 || true
       else
         rm -f "$tmp"
@@ -777,12 +809,10 @@ cma_run_provider() {
     export ANTHROPIC_AUTH_TOKEN="$token"
     export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
     [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
-    # Output-token guard: cap Claude Code's output at the provider model's real
-    # max (limit.output). This is the OUTPUT half of the token-limit guard; the
-    # INPUT half (CLAUDE_CODE_AUTO_COMPACT_WINDOW) is set above for both
-    # transports. CMA_PROVIDER_MAX_OUTPUT comes from the catalog via
-    # cma_provider_write_env.
-    [[ -n "${CMA_PROVIDER_MAX_OUTPUT:-}" ]] && export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$CMA_PROVIDER_MAX_OUTPUT"
+    # Output-token guard: exported ABOVE for both transports (v1.16.0) —
+    # see _cma_out_guard. CLAUDE_CODE_MAX_OUTPUT_TOKENS caps OUTPUT;
+    # CLAUDE_CODE_AUTO_COMPACT_WINDOW caps INPUT — the two are independent
+    # halves of the guard.
     # Auto session-per-project (bare launch only — explicit args win verbatim).
     if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
       local _cma_psf
@@ -856,7 +886,7 @@ cma_write_alias() {
   # defined alongside in the alias file (added once by cma_ensure_alias_file).
   printf 'alias %s="CLAUDE_CONFIG_DIR=%s cma_run"\n' \
     "$alias_name" "$config_dir" >> "$tmp"
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # Remove an alias line. Idempotent.
@@ -865,7 +895,7 @@ cma_remove_alias() {
   [[ -f "$ALIAS_FILE" ]] || return 0
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # ===========================================================================
@@ -912,7 +942,7 @@ cma_status_write() {
         --arg l "$layer" --arg t "$now" \
         '.[$id] = {status:$s, model:$m, checked_at:$t, failing_layer:$l}' \
         "$f" > "$tmp" 2>/dev/null; then
-    mv "$tmp" "$f"
+    command mv -f "$tmp" "$f"
   else
     rm -f "$tmp"; cma_warn "could not update status cache $f"
   fi
@@ -989,7 +1019,7 @@ cma_own_settings_seed() {
   if jq -s '.[0] as $own | .[1] as $t
             | $own | .enabledPlugins = (($t.enabledPlugins // {}) + ($own.enabledPlugins // {}))' \
         "$own" "$tmpl" > "$tmp" 2>/dev/null && jq -e . "$tmp" >/dev/null 2>&1; then
-    mv "$tmp" "$own"
+    command mv -f "$tmp" "$own"
   else rm -f "$tmp"; fi
 }
 
@@ -1017,7 +1047,7 @@ cma_enable_plugins() {
   # ${args[@]+...} guards an empty array under set -u on bash 3.2 (reachable
   # via CMA_ALWAYS_ON_PLUGINS="" from non-re-exec'd claude-providers.sh).
   if jq ${args[@]+"${args[@]}"} "$prog" "$settings" > "$tmp" 2>/dev/null; then
-    mv "$tmp" "$settings"
+    command mv -f "$tmp" "$settings"
   else
     rm -f "$tmp"; cma_warn "could not update enabledPlugins in $settings"
   fi
@@ -1114,7 +1144,7 @@ cma_provider_write_alias() {
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
   printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # Install (idempotently) the provider session-refresh hook into $ALIAS_FILE. On
@@ -1155,7 +1185,7 @@ cma_providers_session_refresh
 HOOK
     printf '%s\n' "$end"
   } >> "$tmp"
-  mv "$tmp" "$ALIAS_FILE"
+  command mv -f "$tmp" "$ALIAS_FILE"
 }
 
 # True only when the toolkit may prompt the user interactively. Scripts read

@@ -423,22 +423,31 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
         "messages": [{"role": "user", "content": "Calculate 7*6 using the test_calc tool"}],
         "tools": tool_schema,
     }
-    try:
+    def _tool_probe():
         data = json.dumps(tool_body).encode("utf-8")
         req = Request(tool_url, data=data, headers=tool_headers, method="POST")
         with urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             tool_result = json.loads(raw)
-            has_tool_calls = False
+            calls = False
             choices = tool_result.get("choices", [])
             if choices:
                 msg = choices[0].get("message", {})
-                has_tool_calls = bool(msg.get("tool_calls"))
-            if not has_tool_calls and isinstance(tool_result.get("content"), list):
-                has_tool_calls = any(
+                calls = bool(msg.get("tool_calls"))
+            if not calls and isinstance(tool_result.get("content"), list):
+                calls = any(
                     isinstance(b, dict) and b.get("type") == "tool_use"
                     for b in tool_result["content"]
                 )
+            return calls, raw
+
+    try:
+        has_tool_calls, raw = _tool_probe()
+        # Weak/free models flake on instructed tool calls (same retry policy
+        # as providers-verify.sh): exactly one retry before believing it.
+        if not has_tool_calls and not is_quota_error(raw) and not is_transient_error(raw):
+            time.sleep(3)
+            has_tool_calls, raw = _tool_probe()
             # A 200 carrying an error object (quota exhaustion smuggled as a
             # success) is an account state, not a tool-support failure.
             if not has_tool_calls and is_quota_error(raw):
