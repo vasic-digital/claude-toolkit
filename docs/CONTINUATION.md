@@ -1,10 +1,14 @@
 # CONTINUATION — claude_toolkit
 
-**Last updated:** 2026-07-05
-**Last HEAD:** `main @ v1.12.3` (✅ **v1.12.3 RELEASED** — session-name sanitization to kebab-case. Tag `v1.12.3` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
+**Last updated:** 2026-07-19
+**Last HEAD:** `main @ v1.18.1` (✅ **v1.18.1 RELEASED** — ccr identity guard fix + 128k test hardening. Tag `v1.18.1` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
 **Working tree:** clean
 **Active branch:** `main`
-**Next action:** v1.12.2 shipped. Remaining work is OPTIONAL deep-research hardenings (not scheduled — evidence in `.superpowers/sdd/phase3-notes.md`): RISK 2 rubric-anchor each 0-3 judge level + reasoning-before-score; RISK 3 atomic-claim/QAGS probe for borderline (score==threshold) cases; RISK 4 minimize sentinel↔criteria lexical overlap. Release format: plain `vX.Y.Z` tag + gh/glab + 4 mirrors; submodule push-before-main (§11.4.71).
+**Next action:** none — v1.18.1 is a bugfix release. Continue from Phase 2/3 provider verification work per the programme state below.
+
+## v1.18.1 — DELIVERED (commit 0e30dfb)
+
+ccr identity guard fix: `ccr version` no longer works — positional args are profile names in the current CLI. Guard now uses `ccr --help` + `"ccr start"|"ccr serve"` patterns. 128k test hardened against harness env contamination. Full suite 27/27 green; proof all green; 8 live-verified providers. Gh + glab releases live. Constitution plugin synced (17 new commits).
 
 ## v1.12.3 — DELIVERED
 `claude-session.sh` now sanitizes auto-derived session names to kebab-case: lowercase, trim leading/trailing whitespace, collapse whitespace/underscores to `-`, strip remaining characters that are not `[a-z0-9-]`, collapse consecutive `-`, and trim leading/trailing `-`. Tests added to `test_session.sh` for whitespace trimming, multi-space collapse, and special-character stripping. Full suite 20/20 green; install.sh re-run on real HOME; doc artifacts regenerated. Submodules clean.
