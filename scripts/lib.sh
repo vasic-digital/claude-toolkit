@@ -363,7 +363,8 @@ EOF
           || ! printf '%s\n' "$_cma_run_body" | grep -q '_cma_hook_root' \
 	          || ! printf '%s\n' "$_cma_run_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' \
           || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'command -v "\${CLAUDE_BIN:-}"'; }; then
+          || ! printf '%s\n' "$_cma_run_body" | grep -q 'command -v "\${CLAUDE_BIN:-}"' \
+          || ! printf '%s\n' "$_cma_run_body" | grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL'; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -371,7 +372,7 @@ EOF
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
     mv "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + auto-session + project-scoped cwd-hook)"
+    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
@@ -407,7 +408,13 @@ cma_run() {
   # A provider alias run earlier in THIS shell exports ANTHROPIC_BASE_URL etc.;
   # those persist and would otherwise leak into this native launch (claude1
   # silently using a provider's endpoint). Clear them so native is always clean.
+  # The 4 ANTHROPIC_DEFAULT_*_MODEL tier-map vars are exported by
+  # cma_run_provider (native transport) and PERSIST after that alias returns; a
+  # subsequent native claudeN launch MUST clear them too, else the opus/sonnet/
+  # haiku/fable tier resolution silently points at the previous provider's
+  # serving model instead of the real Anthropic tier.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   # Working-dir hook (opt-in; no-op when absent). Resolution order:
   #   1. CMA_CWD_HOOK env var               — explicit user override
   #   2. <git-toplevel>/.claude-cwd-hook     — per-project hook (each repo
@@ -513,7 +520,8 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v "${CLAUDE_BIN:-}"'; then
+       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v "${CLAUDE_BIN:-}"' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL'; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -522,7 +530,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + cwd-hook-gated)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + cwd-hook-gated)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -569,6 +577,10 @@ cma_run_provider() {
   # only clearing the leftover from the previous alias — identical to how
   # cma_run (the native claudeN wrapper) isolates its ANTHROPIC_* vars.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
+  # The 4 tier-default-model vars this same wrapper exports (native branch below)
+  # also persist into a following alias invocation; clear the previous run's
+  # values so this provider re-exports its own from CMA_PROVIDER_MODEL below.
+  unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
   unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS
   # Working-dir hook (same 3-tier resolution as cma_run). This must run
   # BEFORE sync-state pull + session flags so the resolved directory is the
@@ -751,6 +763,14 @@ cma_run_provider() {
     export ANTHROPIC_AUTH_TOKEN="$token"
     export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
     [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
+    # Map Claude Code's subagent TIER aliases (opus/sonnet/haiku/fable) to this
+    # provider's real serving model, so a tier-pinned subagent dispatch never leaks
+    # a literal claude-* id to a native provider endpoint (which rejects it — xiaomi
+    # HTTP 400 "Unsupported model" — or silently substitutes — deepseek 200).
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$CMA_PROVIDER_MODEL"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$CMA_PROVIDER_MODEL"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
+    export ANTHROPIC_DEFAULT_FABLE_MODEL="$CMA_PROVIDER_MODEL"
     # Output-token guard: cap Claude Code's output at the provider model's real
     # max (limit.output). This is the OUTPUT half of the token-limit guard; the
     # INPUT half (CLAUDE_CODE_AUTO_COMPACT_WINDOW) is set above for both
