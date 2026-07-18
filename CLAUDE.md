@@ -27,7 +27,8 @@ bash scripts/claude-export-docs.sh
 bash scripts/claude-opencode-sync.sh --dry-run --stats   # preview
 bash scripts/claude-opencode-sync.sh                      # apply
 
-# Prove everything works (sandbox suite + live OpenCode verification + evidence).
+# Prove everything works: hermetic suite + live OpenCode/providers/aliases +
+# alias e2e + constitution (6 legs; evidence in scripts/tests/proof/).
 bash scripts/tests/run-proof.sh
 ```
 
@@ -58,6 +59,20 @@ Every destructive replacement uses the `backup_and_remove` helper, which renames
 `claude-add-account.sh` mirrors the same `SHARED_ITEMS` list when wiring up a brand-new account, so a fresh account starts in lockstep without re-running unify. Keep the two lists in sync when adding new shared items.
 
 **Runtime sync (`claude-sync-state.sh`)**: the alias file installs a `cma_run` shell function that wraps every `claudeN` invocation with a pre-launch `claude-sync-state pull` and post-exit `claude-sync-state push`. This is a lightweight `jq` merge of every account's `.claude.json` — no rsync — so sessions created under one account are visible to all others on the next launch, without anyone having to run `claude-unify` manually.
+
+## Provider aliases and verification (`claude-providers.sh`)
+
+`claude-providers sync` discovers LLM API keys in `~/api_keys.sh`, resolves each to a provider record via `providers_resolve.py` (models.dev catalog + `providers/key-aliases.json` + `providers/overrides.json`), verifies it, and generates: an env file, a shell alias (`cma_run_provider <id>`), and a config dir (`~/.claude-prov-<id>`) linked into the shared store. `sync --multi` scores every catalog model with `model_verify.py` and pairs the top ones into multiple aliases per provider.
+
+Verification is strict (v1.14.0+) — an alias is launchable only when every applicable gate passes:
+
+1. **Existence (`providers-verify.sh`)**: two live probes against the provider's chat endpoint with the exact alias model — a `VERIFY_OK` sentinel that must be echoed back, and a tool-calling probe (Claude Code is tool-driven, so a chat-only model is useless). Definitive rejections (400/401/402/403/404/412, missing sentinel, error-in-200, no tool call) ⇒ `failed` and the alias is not activated; transient conditions (429/5xx/timeout/no-network) ⇒ `unverified` (created, but the launch gate refuses it). Anthropic-native bases keep their `/anthropic` prefix and are probed as `/anthropic/v1/messages`; versioned bases (`…/v4`) get only `/chat/completions` appended.
+2. **Semantic code-visibility (`providers-semantic.sh` + LLMsVerifier `semantic-code-visibility`)**: two rounds — exact-sentinel fixture echo (with a prompt-echo bluff guard) and an independent judge. Genuine failures (incl. 401/402/403/404 on the model under test) demote; transient and judge-side infra errors are an honest SKIP that never demotes.
+3. **Live TUI (`verify_superpowers_tui.sh`)**: launches real Claude Code through the alias — opt-in via `claude-providers verify <id> --deep` and the live proof suite.
+
+In the `--multi` path `model_verify.py` applies the same anti-bluff rules: the sentinel must be present, `verified` requires a passed tool-calling probe, and the 24h verification cache carries a schema version so results from older, weaker logic are never replayed.
+
+Statuses live in `~/.local/share/claude-multi-account/providers/status.json`; `claude-providers list` shows only `verified`, `list-all` everything, `list-faulty` the filtered-out rest. The launch wrapper refuses non-`verified` aliases unless `--force`.
 
 **Account-dir detection (`cma_detect_accounts`)**: matches `~/.claude-*` but skips (a) `*-shared` and (b) non-empty dirs that don't contain any Claude marker file (`projects/`, `todos/`, `plugins/`, `.claude.json`, `.credentials.json`, `history.jsonl`). This excludes tool-config dirs that share the prefix by coincidence (e.g. `.claude-server-commander` for an MCP server).
 

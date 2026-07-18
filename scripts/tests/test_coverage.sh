@@ -284,6 +284,21 @@ ph="\${COCKROACHDB_PASSWORD}"   # literal placeholder, built without a single-qu
 ok=1; [[ "$red" == *"$ph"* ]] && ok=0
 assert_eq 0 "$ok" "\${...} placeholder preserved (not redacted)"
 
+it "cma_redact_secrets redacts env-style JSON keys + tvly/nvapi prefixes (v1.14.0 leak fix)"
+# Live-caught: opencode debug config embeds MCP env like
+# {"environment": {"TAVILY_API_KEY": "tvly-dev-..."}} — the key NAME based
+# filter missed it and the prefix list had no tvly-/nvapi-.
+red2="$(printf '%s\n' \
+  '"environment": {"TAVILY_API_KEY": "tvly-devFAKE00000000000000000000000000"}' \
+  '"NVIDIA_API_KEY": "nvapi-FAKE0000000000000000000000000000000000"' \
+  '"GITHUB_TOKEN": "ghp_FAKE000000000000000000000000000000"' \
+  '"keep2": "${TAVILY_API_KEY}"' | cma_redact_secrets)"
+ok=1; [[ "$red2" != *tvly-dev* && "$red2" != *nvapi-* && "$red2" != *ghp_FAKE* ]] && ok=0
+assert_eq 0 "$ok" "env-style JSON key names + tvly-/nvapi-/ghp_ redacted"
+ph2="\${TAVILY_API_KEY}"
+ok=1; [[ "$red2" == *"$ph2"* ]] && ok=0
+assert_eq 0 "$ok" "env-style \${...} placeholder preserved"
+
 # ── B3. cma_provider_write_env _cma_q quoting ────────────────────────────────
 # _cma_q wraps each value in single quotes and escapes embedded single quotes
 # via the '\'' idiom.  Test both that a literal ' in a model name survives a

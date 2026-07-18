@@ -1,5 +1,5 @@
-# provider live verification — Sat Jul 11 02:20:11 PM +05 2026
-providers installed: 19
+# provider live verification — Sat Jul 18 02:03:19 AM MSK 2026
+providers installed: 28
 ccr installed: yes
 LLMsVerifier binary: not-built
-aggregate: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-summary.json
+aggregate: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-summary.json

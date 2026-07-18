@@ -7,6 +7,16 @@ and verifying the response works without errors (especially cache_control).
 Usage:
   alias_e2e_test.py [--alias NAME] [--all] [--verbose] [--timeout 30]
 
+Exit codes:
+  0  every tested alias passed or hit a quota-level account state
+  1  an alias genuinely failed, or bad usage
+  3  SKIP — no providers installed / nothing to test (run-proof.sh leg 44
+     treats this as an honest recorded skip, not a pass and not a failure)
+
+Verdicts per alias: pass, genuine fail, or quota-skip (an account-level funds
+state — recoverable, reported in the output as quota_skipped, never counted as
+a pass and never as a toolkit failure; mirrors verify_claude_live.sh FUNDS).
+
 Tests each alias by:
 1. Reading the env file for the alias
 2. Sending a test request to the provider through ccr
@@ -36,6 +46,34 @@ ERROR_PATTERNS = [
     r"access.?denied",
 ]
 
+# Account-level funds states (dead points, depleted credits). An alias failing
+# with one of these is NOT evidence the alias is broken — it is a recoverable
+# account state, classified as quota-skip (never a pass, never a toolkit
+# failure), mirroring verify_claude_live.sh's FUNDS bucket.
+QUOTA_RE = re.compile(
+    r"insufficient_?quota|used up your (points|credits)|insufficient "
+    r"(credits|balance|funds)|usage limit|quota (exceeded|reached)|depleted|"
+    r"billing|HTTP 402",
+    re.IGNORECASE,
+)
+
+# Provider-side transient states (capacity, overload, timeouts, 5xx, 429) —
+# point-in-time infrastructure conditions, not alias defects. Classified as
+# transient-skip (never a pass, never a toolkit failure).
+TRANSIENT_RE = re.compile(
+    r"maximum capacity|try again later|overloaded|temporarily unavailable|"
+    r"timed? ?out|service unavailable|HTTP (429|5\d\d)",
+    re.IGNORECASE,
+)
+
+
+def is_quota_error(text):
+    return bool(text) and bool(QUOTA_RE.search(text))
+
+
+def is_transient_error(text):
+    return bool(text) and bool(TRANSIENT_RE.search(text))
+
 
 def load_env(env_path):
     """Load env file and return dict of key=value pairs."""
@@ -61,21 +99,53 @@ def get_ccr_config():
         return json.load(f)
 
 
-def test_provider_direct(base_url, api_key, model, timeout=30):
+def chat_endpoint_for(base_url, transport):
+    """Resolve the chat endpoint exactly the way the runtime does.
+
+    native (/anthropic) bases keep their prefix and serve /v1/messages beneath
+    it (e.g. https://api.deepseek.com/anthropic -> …/anthropic/v1/messages).
+    Router bases: a trailing version segment (/v1, /v4, …) takes only
+    /chat/completions (e.g. …/paas/v4 -> …/paas/v4/chat/completions); anything
+    else gets /v1/chat/completions. A base already ending in /chat/completions
+    is used verbatim. Returns (url, native_flag).
+    """
+    base = base_url.rstrip("/")
+    if transport == "native" or "/anthropic" in base:
+        for suffix in ("/v1/messages", "/v1"):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+        return base + "/v1/messages", True
+    if base.endswith("/chat/completions"):
+        return base, False
+    if re.search(r"/v[0-9]+$", base):
+        return base + "/chat/completions", False
+    return base + "/v1/chat/completions", False
+
+
+def test_provider_direct(url, api_key, model, timeout=30, native=False):
     """Test a provider directly (bypassing ccr) with cache_control in request.
 
     Returns (success, response_content, error_message, latency_ms).
     """
-    # Build request with cache_control to test if the transformer strips it
-    url = base_url.rstrip("/") + "/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "User-Agent": "claude-toolkit/1.6.0 e2e-test",
-    }
+    if native:
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "User-Agent": "claude-toolkit/1.6.0 e2e-test",
+        }
+    else:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "claude-toolkit/1.6.0 e2e-test",
+        }
     body = {
         "model": model,
-        "max_tokens": 128,
+        # Reasoning models (deepseek-v4-pro & co.) spend a large budget on
+        # chain-of-thought before any visible text; 128 tokens reliably
+        # produced false "empty response" failures on them.
+        "max_tokens": 512,
         "messages": [
             {
                 "role": "user",
@@ -97,7 +167,7 @@ def test_provider_direct(base_url, api_key, model, timeout=30):
             except json.JSONDecodeError:
                 return False, "", "Invalid JSON response", elapsed
 
-            # Extract content
+            # Extract content — OpenAI choices[] or Anthropic content blocks
             content = ""
             choices = result.get("choices", [])
             if choices:
@@ -105,6 +175,10 @@ def test_provider_direct(base_url, api_key, model, timeout=30):
                 content = msg.get("content", "")
                 if not content:
                     content = msg.get("reasoning_content", "")
+            if not content and isinstance(result.get("content"), list):
+                parts = [b.get("text", "") for b in result["content"]
+                         if isinstance(b, dict) and b.get("type") == "text"]
+                content = "".join(parts)
 
             if not content:
                 return False, "", "Empty response content", elapsed
@@ -148,11 +222,10 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
         result["tests"].append({"name": "env_check", "pass": False, "error": "No base URL"})
         return result
 
-    # For router transport, the provider endpoint needs /chat/completions
-    if transport == "router" and not base_url.endswith("/chat/completions"):
-        test_url = base_url.rstrip("/") + "/chat/completions"
-    else:
-        test_url = base_url
+    # Resolve the chat endpoint the way the runtime does (native /anthropic
+    # bases serve /v1/messages under the kept prefix; versioned router bases
+    # take only /chat/completions — see chat_endpoint_for).
+    test_url, native = chat_endpoint_for(base_url, transport)
 
     # Get API key from keys file
     key_var = env.get("CMA_PROVIDER_KEYVAR", "")
@@ -186,7 +259,13 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     if verbose:
         print(f"  Testing {alias_name} ({model})...", file=sys.stderr)
 
-    success, content, error, latency = test_provider_direct(test_url, api_key, model, timeout)
+    success, content, error, latency = test_provider_direct(test_url, api_key, model, timeout, native=native)
+    # Reasoning models and flaky free-tier endpoints occasionally return an
+    # empty first answer; allow exactly one retry before believing it (same
+    # retry policy as providers-verify.sh).
+    if not success and error == "Empty response content":
+        time.sleep(3)
+        success, content, error, latency = test_provider_direct(test_url, api_key, model, timeout, native=native)
     result["tests"].append({
         "name": "direct_request",
         "pass": success,
@@ -196,6 +275,23 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
     })
 
     if not success:
+        # An account-level funds state is not an alias defect (see QUOTA_RE).
+        if is_quota_error(error):
+            result["quota_skip"] = True
+            result["tests"].append({
+                "name": "quota_check", "pass": False,
+                "error": f"SKIP-QUOTA (account out of funds, not a toolkit failure): {error[:120]}",
+            })
+            return result
+        # Provider-side transient (capacity/timeout) is not an alias defect
+        # either (see TRANSIENT_RE).
+        if is_transient_error(error):
+            result["transient_skip"] = True
+            result["tests"].append({
+                "name": "transient_check", "pass": False,
+                "error": f"SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): {error[:120]}",
+            })
+            return result
         # Check if it's a cache_control error specifically
         if "cache_control" in error.lower() or "unknown field" in error.lower():
             result["tests"].append({
@@ -205,9 +301,17 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
             })
         return result
 
-    # Test 2: Check content quality
+    # Test 2: Check content quality. Weak/free models occasionally answer
+    # off-pattern despite working fine — one fresh retry before believing it.
     content_lower = content.lower()
     has_relevant_content = any(kw in content_lower for kw in EXPECTED_KEYWORDS)
+    if not has_relevant_content:
+        time.sleep(3)
+        s2, c2, e2, _ = test_provider_direct(test_url, api_key, model, timeout, native=native)
+        if s2:
+            c2l = c2.lower()
+            if any(kw in c2l for kw in EXPECTED_KEYWORDS):
+                content, has_relevant_content = c2, True
     result["tests"].append({
         "name": "content_quality",
         "pass": has_relevant_content,
@@ -230,16 +334,29 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
 
     # Test 4: Tool calling (send request with tools)
     tool_url = test_url
-    tool_headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "User-Agent": "claude-toolkit/1.6.0 e2e-test",
-    }
-    tool_body = {
-        "model": model,
-        "max_tokens": 128,
-        "messages": [{"role": "user", "content": "Calculate 7*6 using the test_calc tool"}],
-        "tools": [{
+    if native:
+        tool_headers = {
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "User-Agent": "claude-toolkit/1.6.0 e2e-test",
+        }
+        tool_schema = [{
+            "name": "test_calc",
+            "description": "Calculate a math expression",
+            "input_schema": {
+                "type": "object",
+                "properties": {"expression": {"type": "string"}},
+                "required": ["expression"],
+            },
+        }]
+    else:
+        tool_headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "claude-toolkit/1.6.0 e2e-test",
+        }
+        tool_schema = [{
             "type": "function",
             "function": {
                 "name": "test_calc",
@@ -250,7 +367,12 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
                     "required": ["expression"],
                 },
             },
-        }],
+        }]
+    tool_body = {
+        "model": model,
+        "max_tokens": 512,  # reasoning budget (see direct test)
+        "messages": [{"role": "user", "content": "Calculate 7*6 using the test_calc tool"}],
+        "tools": tool_schema,
     }
     try:
         data = json.dumps(tool_body).encode("utf-8")
@@ -258,26 +380,40 @@ def test_alias(alias_name, env, timeout=30, verbose=False):
         with urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             tool_result = json.loads(raw)
-            choices = tool_result.get("choices", [])
             has_tool_calls = False
+            choices = tool_result.get("choices", [])
             if choices:
                 msg = choices[0].get("message", {})
                 has_tool_calls = bool(msg.get("tool_calls"))
+            if not has_tool_calls and isinstance(tool_result.get("content"), list):
+                has_tool_calls = any(
+                    isinstance(b, dict) and b.get("type") == "tool_use"
+                    for b in tool_result["content"]
+                )
+            # A 200 carrying an error object (quota exhaustion smuggled as a
+            # success) is an account state, not a tool-support failure.
+            if not has_tool_calls and is_quota_error(raw):
+                result["quota_skip"] = True
             result["tests"].append({
                 "name": "tool_calling",
                 "pass": has_tool_calls,
             })
     except Exception as e:
+        if is_quota_error(str(e)):
+            result["quota_skip"] = True
+        elif is_transient_error(str(e)):
+            result["transient_skip"] = True
         result["tests"].append({
             "name": "tool_calling",
             "pass": False,
             "error": str(e)[:100],
         })
 
-    # Overall pass: direct request + content quality + no errors
+    # Overall pass: direct request + content quality + no errors + tool calling
+    # (Claude Code is tool-driven — a chat-only alias is broken in practice).
     result["overall_pass"] = all(
         t["pass"] for t in result["tests"]
-        if t["name"] in ["direct_request", "content_quality", "error_pattern_check"]
+        if t["name"] in ["direct_request", "content_quality", "error_pattern_check", "tool_calling"]
     )
 
     return result
@@ -297,11 +433,18 @@ def main(argv=None):
     if args.alias:
         aliases = [args.alias]
     elif args.all:
-        # Find all provider env files
+        # Find all provider env files. Exit 3 is the honest SKIP signal for
+        # wrapper scripts (run-proof.sh leg 44): nothing installed to test.
+        if not os.path.isdir(providers_dir):
+            print(f"SKIP: no providers dir at {providers_dir}", file=sys.stderr)
+            return 3
         aliases = []
         for f in sorted(os.listdir(providers_dir)):
             if f.endswith(".env"):
                 aliases.append(f[:-4])  # Remove .env extension
+        if not aliases:
+            print(f"SKIP: no *.env provider files in {providers_dir}", file=sys.stderr)
+            return 3
     else:
         print("Specify --alias NAME or --all", file=sys.stderr)
         return 1
@@ -309,6 +452,8 @@ def main(argv=None):
     results = []
     passed = 0
     failed = 0
+    quota_skipped = 0
+    transient_skipped = 0
 
     for alias_name in aliases:
         env_path = os.path.join(providers_dir, f"{alias_name}.env")
@@ -323,6 +468,12 @@ def main(argv=None):
         if result["overall_pass"]:
             passed += 1
             status = "✓"
+        elif result.get("quota_skip") or result.get("transient_skip"):
+            # Account/provider-side state — reported honestly, counted
+            # separately, never as a pass and never as a toolkit failure.
+            quota_skipped += 1 if result.get("quota_skip") else 0
+            transient_skipped += 1 if result.get("transient_skip") else 0
+            status = "◌"
         else:
             failed += 1
             status = "✗"
@@ -337,6 +488,8 @@ def main(argv=None):
         "total": len(results),
         "passed": passed,
         "failed": failed,
+        "quota_skipped": quota_skipped,
+        "transient_skipped": transient_skipped,
         "results": results,
     }
 

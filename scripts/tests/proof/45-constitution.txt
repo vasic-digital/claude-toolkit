@@ -1,0 +1,4 @@
+§11.4.157 doc sizes: 12360 12189 12360 12360 (min=12189 max=12360)
+§11.4.151 SKIP: no env file at repo root
+# constitution verification — Sat Jul 18 02:35:49 AM MSK 2026
+repo root: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit

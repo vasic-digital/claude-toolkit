@@ -40,6 +40,25 @@ f=pp.fix_tools(tools)
 print(f[0]["function"]["parameters"]=={"type":"object","properties":{}})')"
 assert_eq "True" "$out" "missing parameters filled with empty object schema"
 
+it "fix_tools adds properties to a bare {\"type\":\"object\"} parameters (Poe requires it)"
+# Live-verified against api.poe.com (v1.14.0): parameters without a properties
+# key is rejected as `400 Invalid '"'"'tools'"'"': Field required` — this was the
+# root cause of poe aliases failing real Claude Code launches.
+out="$(px "" '
+tools=[{"type":"function","function":{"name":"noop","description":"zero-arg tool","parameters":{"type":"object"}}}]
+f=pp.fix_tools(tools)
+p=f[0]["function"]["parameters"]
+print(p=={"type":"object","properties":{}})')"
+assert_eq "True" "$out" "bare object schema gains properties:{}"
+
+it "fix_tools preserves existing properties and fills missing type"
+out="$(px "" '
+tools=[{"type":"function","function":{"name":"calc","description":"d","parameters":{"properties":{"e":{"type":"string"}}}}}]
+f=pp.fix_tools(tools)
+p=f[0]["function"]["parameters"]
+print(p["type"]=="object" and p["properties"]=={"e":{"type":"string"}})')"
+assert_eq "True" "$out" "existing properties kept, type defaults to object"
+
 it "cap_tools is a no-op when tool count is within the limit"
 out="$(px "POE_MAX_TOOLS=200" '
 tools=[{"type":"function","function":{"name":f"t{i}","parameters":{"type":"object","properties":{}}}} for i in range(50)]

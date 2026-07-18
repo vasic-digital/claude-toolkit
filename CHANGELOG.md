@@ -2,6 +2,153 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.14.0 — 2026-07-17 — Anti-bluff provider verification (strict filtering)
+
+### Fixed
+- **Provider aliases passed verification while being broken at runtime.**
+  Aliases such as `huggingface` were marked `verified` yet any real prompt
+  ("Do you see my codebase?") returned API failures (402 depleted credits,
+  suspended accounts, unsupported models). A live sweep showed **12 of 19
+  aliases failing while `status.json` called them verified**.
+  **Root causes (all fixed):**
+  1. *Layer-1 existence check was a bare `GET /v1/models`.* HTTP 200 proved
+     only that the key was accepted — never inference, the selected model, or
+     tool calling. **Fix:** `scripts/providers-verify.sh` now runs two live
+     probes against the provider's chat endpoint with the exact alias model:
+     a sentinel probe (response MUST contain `VERIFY_OK`; 200-without-sentinel
+     or error-in-200 is a bluff ⇒ `failed`) and a tool-calling probe (the model
+     MUST emit a real tool call — Claude Code is tool-driven). Definitive
+     rejections (401/402/403/404) ⇒ `failed`; only transient conditions
+     (429/5xx/timeout/no-network) ⇒ `unverified`. Anthropic-native endpoints
+     are probed in their native `/v1/messages` shape.
+  2. *Multi path (`sync --multi`) verified chat-only models.*
+     `model_verify.py` never asserted the `VERIFY_OK` sentinel it requested,
+     set `verified=True` unconditionally, and counted tool calling as zero
+     required points (`MIN_SCORE=25` == existence weight alone). **Fix:**
+     sentinel is asserted (missing ⇒ anti-bluff failure), `verified` now
+     **requires** a passed tool-calling probe, and the verification cache
+     carries `_cache_version` so results from the old logic are never replayed.
+  3. *Billing/auth failures were classed as transient.* The semantic
+     code-visibility layer exited 3 ("infra — honest SKIP, never downgrade")
+     on HTTP 402/401, so a credits-dead provider kept its stale `verified`.
+     **Fix (LLMsVerifier submodule):** `semantic-code-visibility` now maps
+     401/402/403/404 on model-under-test calls to exit 1 (genuine negative —
+     demotes), keeps 429/5xx/timeout as exit 3, and keeps judge-call failures
+     always at exit 3 (a broken judge never demotes the model under test).
+  4. *The live alias verifier ignored tool calling.*
+     `verify_aliases_live.sh` recorded "no tool call" but never failed on it —
+     aliases passed with tool-less models. **Fix:** test 6 now uses an
+     instructed tool call and is verdict-relevant.
+  5. *The runtime-shaped e2e test was orphaned.* `alias_e2e_test.py` (tools,
+     `$ref`, `cache_control`, streaming through the real endpoint) was never
+     invoked by anything. **Fix:** wired into `run-proof.sh` as leg 44 with an
+     honest SKIP (exit 3) when no providers/network are present.
+  6. *Probe URLs were mis-normalized for real provider bases.* Anthropic-native
+     bases had their `/anthropic` prefix stripped (DeepSeek/Xiaomi 404'd on
+     `…/v1/messages` when the served path is `…/anthropic/v1/messages`), and
+     already-versioned bases (`…/paas/v4` on Z.AI/BigModel coding plans) got a
+     bogus `/v1` inserted. **Fix:** the prefix is kept for native probes,
+     versioned bases get only `/chat/completions` appended — in both
+     `providers-verify.sh` and LLMsVerifier's `semantic-code-visibility`
+     (`chatCompletionsURL` rule, 11 new Go tests).
+  7. *Single-attempt probes flapped on transient conditions.* Load-balanced
+     gateways return occasional 400/404/412/000, and weaker models
+     non-deterministically miss the sentinel or skip a tool call — working
+     providers (kilo, siliconflow, sarvam) flipped to `failed` between syncs.
+     **Fix:** exactly one retry for flappy codes and for flaky
+     sentinel/tool-call outcomes; auth/billing codes (401/402/403) and
+     consistent bluffs are never retried.
+  8. *Layer-4 superpowers-TUI marker was model-phrasing-dependent.* Genuinely
+     engaged sessions whose model summarized the framework in its own words
+     (instead of the exact `superpowers:<name>` announce string) were failed.
+     **Fix:** the marker also accepts vocabulary that can only exist when the
+     skill content loaded (`systematic-debugging`, `brainstorming`, the
+     invoke-before-response rule) — echo/refusal bluffs still cannot pass —
+     and any transcript with `"is_error":true` is a hard FAIL (real API
+     errors can't masquerade as engagement).
+  9. *Poe aliases failed real Claude Code launches through the proxy.*
+     `poe_proxy.py` injected `parameters` only when missing/null, but Poe
+     actually requires the `properties` key — Claude Code's zero-argument
+     tools (`{"type":"object"}` with no `properties`) were rejected with the
+     misleading `400 Invalid 'tools': Field required` (root cause reproduced
+     and verified live against api.poe.com). **Fix:** `fix_tools` guarantees
+     `parameters.properties` (and `type:object`) on every tool.
+  10. *The live legs produced false FAILs on account/provider states and
+     native transports.* `verify_aliases_live.sh` sent OpenAI-shaped Bearer
+     requests to `/anthropic` bases (deepseek/xiaomi hung or 400'd) and had
+     no retries, so single 000/429 wobbles failed working aliases;
+     `alias_e2e_test.py` gave reasoning models (deepseek-v4-pro) a 128-token
+     budget that reliably came back empty, and double-appended
+     `/chat/completions` on versioned bases. **Fix:** both legs speak native
+     Anthropic shape under the kept `/anthropic` prefix, versioned bases get
+     exactly one `/chat/completions`, reasoning models get a 512-token budget
+     with one empty-answer retry, and both legs now classify honestly:
+     **SKIP-QUOTA** (account funds: 402/insufficient_quota/…) and
+     **SKIP-TRANSIENT** (provider capacity/timeouts/5xx) are reported
+     separately and never counted as passes or toolkit failures — the same
+     FUNDS distinction `verify_claude_live.sh` already made. Genuine FAIL
+     (auth, schema, bluff, no tool call after retry) stays FAIL.
+  11. *A live API key leaked into committed proof evidence.* `opencode debug
+     config` embeds MCP server env (`"TAVILY_API_KEY": "tvly-dev-…"`), and
+     `cma_redact_secrets` only matched keys literally named
+     `apiKey|api_key|password|secret|token` — env-style names and the
+     `tvly-`/`nvapi-` prefixes slipped through into
+     `proof/10-debug-config.json`. **Fix:** the redactor now matches any
+     JSON key NAME containing key/token/secret/password/api-key and covers
+     the extra prefixes (`${VAR}` placeholders still preserved); extended
+     hermetic tests in `test_coverage.sh`; full re-scan of `proof/` is clean.
+
+### Added
+- **Tier C constitution/conformance verifier** `scripts/tests/verify_constitution.sh`
+  (design spec §7.4, implemented at `scripts/tests/` alongside the other live
+  verifiers): CONST-051 submodule decoupling, §11.4.157 four-file doc lockstep,
+  §11.4.113 no force-push, §11.4.156 CI/CD disabled, §11.4.151 release-tag
+  prefix, toolkit-owned fixture/rubric independence. Wired into `run-proof.sh`
+  as leg 45 — the proof suite is now six legs: sandbox tier A, OpenCode live,
+  providers live, aliases live, alias e2e, constitution tier C.
+- Hermetic test coverage: `test_verify_scripts.sh` grew from ~30 to 69
+  assertions (sentinel/tools/402/429/bluff/Anthropic-shape/cache-version);
+  new `test_constitution.sh`; `test_providers.sh` loopback servers now answer
+  the real chat+tools probe shapes.
+- **Challenges submodule:** new live anti-bluff challenge
+  `challenges/scripts/provider_aliases_challenge.sh` (static pipeline-honesty
+  checks + `status.json` freshness/consistency, SKIP-OK when the toolkit is
+  absent) and HelixQA-compatible bank
+  `banks/examples/provider-alias-verification.json` (6 test cases), both
+  registered in the `docs/test-coverage.md` ledger (describe-runner 25/25).
+
+### Changed
+- **Live filtering results (2026-07-17, all layers + real Claude Code launches):**
+  every installed alias was re-verified with the strict pipeline and the ones
+  that could not pass were removed (config dirs backed up as
+  `~/.claude-prov-<id>.preunify.*`; re-adding is just `claude-providers sync`
+  once the account is fixed). Removed: `huggingface` (+2,3), `openrouter5`,
+  `github-models`, `fireworks-ai`, `inference`, `novita-ai`, `sarvam`,
+  `tencent-tokenhub`, `upstage`, orphans `zai`/`zhipuai`, stale `chutes4`,
+  `xiaomi2`/`xiaomi3`, rate-limited/unusable `zai-coding-plan` and
+  `zhipuai-coding-plan` (429 fair-use limited / all-models-404 right now —
+  honest removal, self-heals on the next sync), plus runtime-broken
+  `kimi-for-coding2` (k3 rejects Claude Code's `$ref` tool schemas) and
+  `poe3` (gemma-4-31b aborts streams), and `openrouter4`
+  (nvidia/nemotron-nano-12b-v2-vl returns empty/malformed responses).
+  **Final state: 28 aliases installed,
+  every one `verified` through the full strict pipeline** (statuses, env
+  files, and alias lines exactly consistent).
+  `overrides.json` pins were corrected to models verified live today
+  (openrouter, nvidia added; xiaomi fast model fixed to a served one).
+- **LLMsVerifier submodule — strict scoring, no more bluff headroom:**
+  removed the hard `VerificationScore = max(score, 0.7)` floor (every strict
+  gate was vacuous); `CodeVisibility` confidence threshold 0.3 → 0.5 with
+  rebalanced weights (a bare "Yes, I can see it" now scores 0.4 < 0.5);
+  keyword matching uses `\b` word boundaries ("no" no longer matches
+  "know"/"not"); round-1 sentinel check gained a prompt-echo guard (≥60-char
+  verbatim fixture slice in the reply ⇒ genuine fail); the dead hardcoded
+  HuggingFace endpoint `api-inference.huggingface.co` was replaced with
+  `https://router.huggingface.co/v1` in all production paths. Full Go suite:
+  59 packages green.
+- `docs/Provider_Aliases_User_Guide.md` updated to the new verification
+  semantics (§3 command table, §5 multi-alias verification, §7 rewritten).
+
 ## v1.13.3 — 2026-07-17 — Session-sharing pipefail fix
 
 ### Fixed
