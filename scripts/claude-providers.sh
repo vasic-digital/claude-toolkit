@@ -176,6 +176,32 @@ _catalog_valid() { python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1
 # every other OpenAI-style provider. A future Anthropic-native HelixAgent
 # endpoint can be promoted via CMA_HELIXAGENT_TRANSPORT=native.
 detect_helixagent_record() {
+  # Git-tracked facade pins (Variant B — §11.4.28 consumer-owned data): load the
+  # HelixAgent/HelixLLM facade pins from providers/helixagent.json so the alias
+  # is registered from TRACKED config (base_url -> ccr :3456, strong/fast ->
+  # HelixAgent/HelixLLM, key_var -> HELIXAGENT_GATEWAY_KEY, real ctx 24576) rather
+  # than shell-rc-only env. Precedence: process-env > pins-file > built-in
+  # defaults — a field is taken from the file ONLY when its env var is unset.
+  # The pins-file path is env-overridable (CMA_HELIXAGENT_PINS_FILE) so hermetic
+  # tests can point it at a sandbox/absent file and still exercise the built-in
+  # defaults (the repo pins-file must not leak into a sandboxed test HOME).
+  local _ha_json="${CMA_HELIXAGENT_PINS_FILE:-$LIB_DIR/providers/helixagent.json}"
+  if [[ -f "$_ha_json" ]] && command -v jq >/dev/null 2>&1; then
+    local _hk _hv
+    while IFS=$'\t' read -r _hk _hv; do
+      case "$_hk" in
+        bin)           [[ -n "${CMA_HELIXAGENT_BIN+x}" ]]           || CMA_HELIXAGENT_BIN="$_hv" ;;
+        id)            [[ -n "${CMA_HELIXAGENT_ID+x}" ]]            || CMA_HELIXAGENT_ID="$_hv" ;;
+        base_url)      [[ -n "${CMA_HELIXAGENT_BASE_URL+x}" ]]      || CMA_HELIXAGENT_BASE_URL="$_hv" ;;
+        transport)     [[ -n "${CMA_HELIXAGENT_TRANSPORT+x}" ]]     || CMA_HELIXAGENT_TRANSPORT="$_hv" ;;
+        strong_model)  [[ -n "${CMA_HELIXAGENT_STRONG+x}" ]]        || CMA_HELIXAGENT_STRONG="$_hv" ;;
+        fast_model)    [[ -n "${CMA_HELIXAGENT_FAST+x}" ]]          || CMA_HELIXAGENT_FAST="$_hv" ;;
+        key_var)       [[ -n "${CMA_HELIXAGENT_KEYVAR+x}" ]]        || CMA_HELIXAGENT_KEYVAR="$_hv" ;;
+        context_limit) [[ -n "${CMA_HELIXAGENT_CONTEXT_LIMIT+x}" ]] || CMA_HELIXAGENT_CONTEXT_LIMIT="$_hv" ;;
+        max_output)    [[ -n "${CMA_HELIXAGENT_MAX_OUTPUT+x}" ]]    || CMA_HELIXAGENT_MAX_OUTPUT="$_hv" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_ha_json" 2>/dev/null)
+  fi
   : "${CMA_HELIXAGENT_BIN:=helixagent}"
   : "${CMA_HELIXAGENT_ID:=helixagent}"
   : "${CMA_HELIXAGENT_HOST:=localhost}"
@@ -188,9 +214,24 @@ detect_helixagent_record() {
   : "${CMA_HELIXAGENT_MAX_OUTPUT:=8192}"
   local base="${CMA_HELIXAGENT_BASE_URL:-http://${CMA_HELIXAGENT_HOST}:${CMA_HELIXAGENT_PORT}/v1}"
 
-  # PATH gate: no helixagent binary -> no record (honest; the whole feature is
-  # opt-in on the binary being installed).
-  command -v "$CMA_HELIXAGENT_BIN" >/dev/null 2>&1 || { printf '[]\n'; return 0; }
+  # PATH/pins gate: register the facade when EITHER the helixagent binary is on
+  # PATH OR the git-tracked pins file exists (opt-in on tracked config -> no stub
+  # binary needed for Variant B). Absent BOTH -> no record (honest; the whole
+  # feature stays opt-in). $_ha_json is the same path resolved in the pins-load
+  # block above (CMA_HELIXAGENT_PINS_FILE override honored).
+  if ! command -v "$CMA_HELIXAGENT_BIN" >/dev/null 2>&1 && [[ ! -f "$_ha_json" ]]; then
+    printf '[]\n'; return 0
+  fi
+
+  # Truthful reason string (§11.4.6/§11.4.201): the gate above admits EITHER a
+  # PATH binary OR a pins-file; a literal "detected on PATH" would be a false
+  # factual claim in the pins-only (Variant B) case where no binary exists.
+  # Branch on which gate actually fired -- PATH takes precedence in wording
+  # when both are present, matching the gate's own precedence.
+  local _ha_reason="helixagent detected via pins-file"
+  if command -v "$CMA_HELIXAGENT_BIN" >/dev/null 2>&1; then
+    _ha_reason="helixagent detected on PATH"
+  fi
 
   # Enumerate models from the live endpoint. The auth token (if any) is read by
   # NAME from the environment and passed via `curl --config -` (stdin), never on
@@ -241,12 +282,13 @@ detect_helixagent_record() {
     --arg transport "$CMA_HELIXAGENT_TRANSPORT" \
     --arg strong  "$strong" \
     --arg fast    "$fast" \
+    --arg reason  "$_ha_reason" \
     --argjson ctx "${CMA_HELIXAGENT_CONTEXT_LIMIT:-null}" \
     --argjson out "${CMA_HELIXAGENT_MAX_OUTPUT:-null}" \
     '[{key_var:$key_var, classification:"llm", provider_id:$pid, alias:$alias,
        base_url:$base, transport:$transport, strong_model:$strong,
        fast_model:$fast, context_limit:$ctx, max_output:$out,
-       status:"resolved", reason:"helixagent detected on PATH"}]'
+       status:"resolved", reason:$reason}]'
 }
 
 # --- local Kimi Code OAuth PATH-detection -----------------------------------

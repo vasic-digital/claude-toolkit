@@ -1,0 +1,11 @@
+{
+  "bin": "helixagent",
+  "id": "helixagent",
+  "base_url": "http://127.0.0.1:3456/v1",
+  "transport": "router",
+  "strong_model": "HelixAgent/HelixLLM",
+  "fast_model": "HelixAgent/HelixLLM",
+  "key_var": "HELIXAGENT_GATEWAY_KEY",
+  "context_limit": 24576,
+  "max_output": 8192
+}

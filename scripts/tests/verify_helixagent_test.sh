@@ -43,6 +43,17 @@ PDIR="$HOME/.local/share/claude-multi-account/providers"
 PCACHE="$PDIR/models.dev.cache.json"
 mkdir -p "$PDIR"
 
+# The detector now loads facade pins from a git-tracked providers/helixagent.json
+# ($LIB_DIR/providers/helixagent.json) when present (Variant B). $LIB_DIR is the
+# REAL repo scripts dir (NOT this sandboxed $HOME), so the repo pins-file would
+# leak its ccr-facade values (base ccr:3456, strong/fast HelixAgent/HelixLLM,
+# ctx 24576) into CASES A/B/C which assert the BUILT-IN defaults. Point the
+# pins-file path at an ABSENT sandbox file so the default-relying cases exercise
+# the built-in defaults + env exactly as before. The pins-file OPT-IN path is
+# proven independently by CASE E below.
+export CMA_HELIXAGENT_PINS_FILE="$HOME/.no-helix-pins-$$.json"
+[[ -e "$CMA_HELIXAGENT_PINS_FILE" ]] && rm -f "$CMA_HELIXAGENT_PINS_FILE"
+
 # Empty models.dev catalog: HelixAgent is a LOCAL provider, never in the
 # catalog. The resolver will emit only an 'unmapped' record for the key var;
 # the detector supplies the real resolved HelixAgent record.
@@ -360,6 +371,49 @@ d_rc="$(_run_resolve "$STUB_NONARRAY")"
 [[ "$d_rc" -ne 0 ]]; assert_eq 0 $? "resolve_records exits nonzero when the resolver prints non-array JSON (loud-fail)"
 assert_file_contains "$D_ERR" "produced no/invalid JSON output" "cma_die fired with the invalid-JSON message"
 [[ ! -s "$D_OUT" ]]; assert_eq 0 $? "NO provider set emitted on stdout (no silent drop of all real providers)"
+
+# ===========================================================================
+# CASE E — git-tracked pins-file OPT-IN (Variant B facade). The facade registers
+# off providers/helixagent.json even with NO helixagent binary on PATH (gate
+# relax), the pins OVERRIDE the built-in defaults, and process-env still WINS
+# over the pins (precedence env > pins-file > built-in default). Uses a DEAD
+# base_url so the model GET fails and the record honestly falls back to the
+# pins' strong/fast — no live server, fully hermetic.
+# ===========================================================================
+it "CASE E: pins-file present + binary ABSENT -> detector fires off the pins (no stub binary)"
+PINS_E="$HOME/helixagent.pins.json"
+cat > "$PINS_E" <<'JSON'
+{ "bin":"helixagent", "id":"helixagent",
+  "base_url":"http://127.0.0.1:1/v1", "transport":"router",
+  "strong_model":"HelixAgent/HelixLLM", "fast_model":"HelixAgent/HelixLLM",
+  "key_var":"HELIXAGENT_GATEWAY_KEY", "context_limit":24576, "max_output":8192 }
+JSON
+DET_E="$(env -u CMA_HELIXAGENT_HOST -u CMA_HELIXAGENT_PORT -u CMA_HELIXAGENT_KEYVAR \
+     CMA_HELIXAGENT_PINS_FILE="$PINS_E" CMA_HELIXAGENT_BIN=helixagent-absent-xyz \
+     CMA_HELIXAGENT_HTTP_TIMEOUT=2 \
+     bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_helixagent_record')"
+echo "--- detect_helixagent_record output (CASE E, pins opt-in, no binary) ---" >> "$PROOF"
+echo "$DET_E" >> "$PROOF"
+assert_eq "1" "$(jq 'length' <<<"$DET_E")" "detector emits ONE record off the pins-file with NO binary on PATH (gate relax)"
+assert_eq "router"              "$(jq -r '.[0].transport'     <<<"$DET_E")" "transport from pins = router"
+assert_eq "HelixAgent/HelixLLM" "$(jq -r '.[0].strong_model'  <<<"$DET_E")" "strong from pins = HelixAgent/HelixLLM (dead endpoint -> honest fallback to the pin)"
+assert_eq "HelixAgent/HelixLLM" "$(jq -r '.[0].fast_model'    <<<"$DET_E")" "fast from pins = HelixAgent/HelixLLM"
+assert_eq "http://127.0.0.1:1/v1" "$(jq -r '.[0].base_url'    <<<"$DET_E")" "base_url from pins (overrides built-in localhost:8100 default)"
+assert_eq "HELIXAGENT_GATEWAY_KEY" "$(jq -r '.[0].key_var'    <<<"$DET_E")" "key_var from pins = HELIXAGENT_GATEWAY_KEY"
+assert_eq "24576"               "$(jq -r '.[0].context_limit' <<<"$DET_E")" "context_limit from pins = 24576 (overrides built-in 128000)"
+
+it "CASE E: process-env WINS over the pins-file (precedence env > pins > default)"
+DET_E2="$(env -u CMA_HELIXAGENT_HOST -u CMA_HELIXAGENT_PORT -u CMA_HELIXAGENT_KEYVAR \
+     CMA_HELIXAGENT_PINS_FILE="$PINS_E" CMA_HELIXAGENT_BIN=helixagent-absent-xyz \
+     CMA_HELIXAGENT_HTTP_TIMEOUT=2 CMA_HELIXAGENT_STRONG=env-wins-strong \
+     bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_helixagent_record')"
+assert_eq "env-wins-strong" "$(jq -r '.[0].strong_model' <<<"$DET_E2")" "env CMA_HELIXAGENT_STRONG overrides the pins-file strong_model"
+
+it "CASE E: NO pins-file AND NO binary -> detector emits empty (gate still honest)"
+DET_E3="$(env -u CMA_HELIXAGENT_HOST -u CMA_HELIXAGENT_PORT -u CMA_HELIXAGENT_KEYVAR \
+     CMA_HELIXAGENT_PINS_FILE="$HOME/.absent-pins-xyz.json" CMA_HELIXAGENT_BIN=helixagent-absent-xyz \
+     bash -c 'source "'"$PROVIDERS_SH"'" >/dev/null 2>&1; detect_helixagent_record')"
+assert_eq "[]" "$(echo "$DET_E3" | tr -d '[:space:]')" "no pins-file + no binary -> empty record (opt-in preserved)"
 
 echo >> "$PROOF"
 echo "=== helixagent.env (final) ===" >> "$PROOF"
