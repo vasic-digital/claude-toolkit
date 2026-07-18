@@ -391,6 +391,10 @@ cmd_sync() {
   # (keeping --refresh-aliases byte-idempotent), so the healing migration must run
   # here, once, not per alias line (final-review I-2).
   (( DRY_RUN )) || cma_ensure_alias_file
+  # One-time migration of pre-v1.17.0 LOCAL daemon/jobs dirs under existing
+  # provider dirs into the shared store (idempotent via marker file): their
+  # background-agent rosters must join the shared registry, not be stranded.
+  (( DRY_RUN )) || cma_migrate_daemon_dirs_once
   local records; records="$(resolve_records)"
   local total resolved
   total="$(jq 'length' <<<"$records")"

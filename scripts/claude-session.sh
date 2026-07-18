@@ -124,12 +124,37 @@ cma_latest_session_id() {
   fi
 }
 
+# Print the most-recent session UUID ONLY when a real session file exists for
+# this project (empty otherwise). Used by the wrapper's args resume-injection:
+# injecting --resume with the deterministic-but-never-created fallback UUID
+# makes Claude Code fail hard ("No conversation found with session ID").
+cma_existing_session_id() {
+  local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root="${2:-}"
+  root="${root:-$PWD}"
+  local proj_slug sess_dir latest
+  proj_slug="$(printf '%s' "$root" | sed -E 's/[^A-Za-z0-9]/-/g')"
+  sess_dir="$config_dir/projects/$proj_slug"
+  if [[ -d "$sess_dir" ]]; then
+    latest="$(ls -t "$sess_dir"/*.jsonl 2>/dev/null \
+      | grep -v '/subagents/' \
+      | head -1 || true)"
+    latest="$(basename "${latest:-}" .jsonl 2>/dev/null)" || latest=""
+  fi
+  [[ -n "${latest:-}" ]] && printf '%s\n' "$latest"
+  return 0
+}
+
 main() {
   local cmd="${1:-flags}"; shift 2>/dev/null || true
   case "$cmd" in
     name)  cma_session_name "${1:-$PWD}" ;;
     id)    cma_session_id "${1:-$PWD}" ;;
     color) cma_label_color "${1:-}" ;;
+    existing-id)
+      local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root
+      root="$(cma_project_root "$PWD")"
+      cma_existing_session_id "$config_dir" "$root"
+      ;;
     latest-id)
       local config_dir="${1:-$CLAUDE_CONFIG_DIR}" root
       root="$(cma_project_root "$PWD")"

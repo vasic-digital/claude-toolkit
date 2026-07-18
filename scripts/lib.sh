@@ -515,6 +515,7 @@ EOF
        ! printf '%s\n' "$_prov_body" | grep -qF '_family_id' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'kimi-code/credentials/kimi-code.json' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_out_guard' || \
+       ! printf '%s\n' "$_prov_body" | grep -qF '_cma_session_flags' || \
        ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
        ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
@@ -707,6 +708,38 @@ cma_run_provider() {
   if [[ -x "$HOME/.local/bin/claude-sync-state" ]]; then
     "$HOME/.local/bin/claude-sync-state" pull "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
   fi
+  # _cma_session_flags (v1.17.0): per-project session resolution applies to
+  # BOTH transports — previously the flags block lived only in the native
+  # branch, so every router alias (kimi-*, poe, openrouter, …) always opened
+  # a FRESH session and could never see the project session another alias
+  # left behind. It also now covers conversation args: `alias -p "…"` used to
+  # skip resolution entirely (verbatim-args rule) and start a new session
+  # every time. Explicit session selectors and non-conversation subcommands
+  # are always left verbatim.
+  local _cma_psf=""
+  if [[ -x "$HOME/.local/bin/claude-session" ]]; then
+    if [[ $# -eq 0 ]]; then
+      _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+      "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
+      eval "set -- $_cma_psf"
+      # Auto-apply this provider alias's color to the session (idempotent).
+      "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
+      _cma_pcolor=1
+    else
+      case "$1" in
+        --resume|--session-id|--continue|--fork-session|-c) ;;
+        agents|mcp|export|doctor|install|update|config|plugin|setup|acp|server|web|provider) ;;
+        *)
+          # existing-id (NOT latest-id): latest-id falls back to the
+          # deterministic UUID for never-used projects, and injecting --resume
+          # with a session that was never created fails hard ("No conversation
+          # found with session ID"). Inject only for a session that EXISTS.
+          _cma_psf="$("$HOME/.local/bin/claude-session" existing-id "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+          [[ -n "$_cma_psf" ]] && set -- --resume "$_cma_psf" "$@"
+          ;;
+      esac
+    fi
+  fi
   local rc
   local _proxy_pid=""
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
@@ -809,20 +842,10 @@ cma_run_provider() {
     export ANTHROPIC_AUTH_TOKEN="$token"
     export ANTHROPIC_MODEL="$CMA_PROVIDER_MODEL"
     [[ -n "${CMA_PROVIDER_FAST_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CMA_PROVIDER_FAST_MODEL"
-    # Output-token guard: exported ABOVE for both transports (v1.16.0) —
-    # see _cma_out_guard. CLAUDE_CODE_MAX_OUTPUT_TOKENS caps OUTPUT;
+    # Session flags are applied ABOVE for both transports (v1.17.0) — see
+    # _cma_session_flags. CLAUDE_CODE_MAX_OUTPUT_TOKENS caps OUTPUT;
     # CLAUDE_CODE_AUTO_COMPACT_WINDOW caps INPUT — the two are independent
     # halves of the guard.
-    # Auto session-per-project (bare launch only — explicit args win verbatim).
-    if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
-      local _cma_psf
-      _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
-      "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
-      eval "set -- $_cma_psf"
-      # Auto-apply this provider alias's color to the session (idempotent).
-      "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
-      _cma_pcolor=1
-    fi
     "$CLAUDE_BIN" "$@"; rc=$?
   fi
   # Push post-session state back to all accounts/providers for cross-alias visibility.
@@ -908,6 +931,7 @@ CMA_SHARED_ITEMS=(
   projects todos tasks plans file-history paste-cache shell-snapshots
   session-env telemetry sessions backups cache plugins
   stats-cache.json history.jsonl CLAUDE.md
+  daemon jobs
 )
 # NOTE (§11.4 own-settings): settings.json is DELIBERATELY NOT in the shared set.
 # Each config dir gets its OWN settings.json so per-alias permissions/model/hooks
@@ -917,6 +941,12 @@ CMA_SHARED_ITEMS=(
 # shared template $SHARED_DIR/settings.json by cma_own_settings_seed (so
 # superpowers et al. stay enabled everywhere). See cma_link_shared_items +
 # cma_enable_plugins below.
+# NOTE (daemon/jobs): `daemon` is Claude Code's background-agent registry
+# (roster.json + dispatch). It MUST be shared or a background agent started
+# under one alias is invisible to every other alias — the registry is
+# config-dir-scoped, not session-scoped. `jobs` is its sibling job store.
+# daemon/roster.json is union-merged (not last-wins) — see
+# merge_daemon_roster in claude-unify.sh.
 
 cma_providers_dir() { echo "$HOME/.local/share/claude-multi-account/providers"; }
 
@@ -963,6 +993,77 @@ cma_status_all() {
   jq -r 'to_entries[] | [.key, .value.status, (.value.model // ""),
          (.value.checked_at // ""), (.value.failing_layer // "")] | @tsv' \
      "$f" 2>/dev/null || true
+}
+
+# Union daemon/roster.json files into one registry. workers are merged by id
+# with the newer updatedAt winning per worker; proto and supervisorPid come
+# from the newest roster; top-level updatedAt is the max. Used by
+# claude-unify.sh (merge_daemon_roster) and cma_migrate_daemon_dirs_once.
+# Usage: cma_union_rosters OUTFILE roster1.json [roster2.json ...]
+cma_union_rosters() {
+  local out="$1"; shift
+  command -v jq >/dev/null 2>&1 || return 1
+  (( $# >= 1 )) || return 1
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  if jq -s '
+    def newer($a; $b): if (($a.updatedAt // 0) >= ($b.updatedAt // 0)) then $a else $b end;
+    ([.[] | {u: (.updatedAt // 0), p: (.proto // 1), s: (.supervisorPid // null), w: (.workers // {})}])
+    | (map(.u) | max // 0) as $maxu
+    | (sort_by(.u) | last) as $newest
+    | (reduce .[] as $r ({}; . as $acc
+        | reduce ($r.w | to_entries[]) as $e ($acc;
+            if ($acc[$e.key] == null) then . + {($e.key): $e.value}
+            else . + {($e.key): newer($acc[$e.key]; $e.value)} end))) as $workers
+    | {proto: $newest.p, supervisorPid: $newest.s, updatedAt: $maxu, workers: $workers}
+  ' "$@" >| "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+    command mv -f "$tmp" "$out"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+# One-time migration for pre-v1.17.0 LOCAL daemon/jobs dirs under provider
+# dirs: their contents (including background-agent rosters) must not be
+# stranded when daemon/jobs become shared items. Merges every real provider
+# daemon/jobs dir into $SHARED_DIR (roster.json excluded), backs it up,
+# replaces it with the shared symlink, then union-merges every collected
+# roster.json (incl. the shared one) with cma_union_rosters. Idempotent via a
+# marker file; cma_link_shared_items handles all NEW provider dirs.
+cma_migrate_daemon_dirs_once() {
+  command -v rsync >/dev/null 2>&1 || return 0
+  local marker="$SHARED_DIR/.daemon-migration-done"
+  [[ -e "$marker" ]] && return 0
+  local d item tgt roster_tmp=""
+  for d in "$HOME/${CMA_PROVIDER_DIR_PREFIX:-.claude-prov-}"*/; do
+    [[ -d "$d" ]] || continue
+    for item in daemon jobs; do
+      tgt="$d$item"
+      [[ -d "$tgt" && ! -L "$tgt" ]] || continue
+      mkdir -p "$SHARED_DIR/$item"
+      rsync -a --exclude 'roster.json' "$tgt/" "$SHARED_DIR/$item/" 2>/dev/null || true
+      if [[ -f "$tgt/roster.json" ]]; then
+        # Stash roster CONTENT before the dir moves — collecting paths and
+        # unioning afterwards would read the just-moved (missing) files.
+        [[ -z "$roster_tmp" ]] && roster_tmp="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
+        cp "$tgt/roster.json" "$roster_tmp/$(printf '%s' "$d" | md5sum | cut -c1-12).json"
+      fi
+      # Same backup convention as unify's backup_and_remove (defined there,
+      # not in lib.sh): rename to <path>.preunify.<timestamp> — recoverable.
+      command mv -f "$tgt" "${tgt}.preunify.$(date +%Y%m%d%H%M%S)"
+      ln -s "$SHARED_DIR/$item" "$tgt"
+    done
+  done
+  local srcs=()
+  [[ -f "$SHARED_DIR/daemon/roster.json" && ! -L "$SHARED_DIR/daemon/roster.json" ]] && \
+    srcs+=("$SHARED_DIR/daemon/roster.json")
+  [[ -n "$roster_tmp" ]] && srcs+=("$roster_tmp"/*.json)
+  if (( ${#srcs[@]} )); then
+    cma_union_rosters "$SHARED_DIR/daemon/roster.json" "${srcs[@]}" || \
+      cma_warn "daemon roster union failed during migration — last-wins file kept"
+  fi
+  [[ -n "$roster_tmp" ]] && rm -rf "$roster_tmp"
+  : > "$marker"
 }
 
 # Symlink every shared item into a config dir (account or provider), creating

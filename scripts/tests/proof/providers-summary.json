@@ -4,7 +4,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-chutes2-semantic.txt",
@@ -171,8 +171,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "verified"
+      "semantic": "skip",
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-opencode2-semantic.txt",
@@ -196,7 +196,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-opencode-semantic.txt",
@@ -207,8 +207,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
-      "superpowers_tui": "verified"
+      "semantic": "verified",
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-openrouter2-semantic.txt",
@@ -220,7 +220,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-openrouter3-semantic.txt",
@@ -276,7 +276,7 @@
     }
   },
   "poe": {
-    "status": "verified",
+    "status": "failed",
     "layers": {
       "existence": true,
       "semantic": "unverified",
@@ -316,7 +316,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/providers-siliconflow3-semantic.txt",
@@ -327,7 +327,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "verified"
     },
     "evidence": {
@@ -351,7 +351,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "unverified",
+      "semantic": "skip",
       "superpowers_tui": "verified"
     },
     "evidence": {
@@ -363,7 +363,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "verified"
     },
     "evidence": {

@@ -387,4 +387,69 @@ _cma_items="$(awk '/^CMA_SHARED_ITEMS=\(/{f=1} f{print} f&&/\)/{exit}' "$SCRIPTS
 _uni_items="$(awk '/^SHARED_ITEMS=\(/{f=1} f{print} f&&/\)/{exit}' "$SCRIPTS_DIR/claude-unify.sh" | tr -d '()"' | tr ' ' '\n' | grep -vE 'SHARED_ITEMS=|^$' | sort | tr '\n' ' ')"
 assert_eq "$_uni_items" "$_cma_items" "the two shared-item lists agree (modulo the intentional CLAUDE.md special-case)"
 
+# ---------------------------------------------------------------------------
+# daemon/ + jobs/ (v1.17.0): Claude Code's background-agent registry MUST be
+# shared — a background agent started under one alias is registered in that
+# config dir's daemon/ and is otherwise invisible to every other alias.
+# ---------------------------------------------------------------------------
+acct3="$(make_account acct3)"
+acct4="$(make_account acct4)"
+
+# Seed the rosters BEFORE the first unify in this section: after linking,
+# $acctN/daemon is a symlink into shared, so writing to it later would
+# overwrite the shared file directly (and empty the union inputs).
+mkdir -p "$acct3/daemon/dispatch" "$acct4/daemon"
+printf 'k3' > "$acct3/daemon/control.key"
+printf 'k4' > "$acct4/daemon/control.key"
+cat > "$acct3/daemon/roster.json" <<'JSON'
+{"proto":1,"supervisorPid":300,"updatedAt":2000,"workers":{"w-a":{"sessionId":"s-a","updatedAt":2000},"w-share":{"sessionId":"s-share-NEWER","updatedAt":2000},"w-old":{"sessionId":"s-old","updatedAt":1000}}}
+JSON
+cat > "$acct4/daemon/roster.json" <<'JSON'
+{"proto":1,"supervisorPid":400,"updatedAt":1500,"workers":{"w-b":{"sessionId":"s-b","updatedAt":1500},"w-old":{"sessionId":"s-old-SHOULD-STAY-STALE","updatedAt":500},"w-share":{"sessionId":"s-share-old","updatedAt":1000}}}
+JSON
+run_unify >/dev/null 2>&1
+
+it "daemon dir is merged into shared + symlinked from every account"
+assert_dir "$SHARED_DIR/daemon" "shared daemon dir created"
+assert_symlink_to "$acct3/daemon" "$SHARED_DIR/daemon" "acct3 daemon is a symlink into shared"
+assert_symlink_to "$acct4/daemon" "$SHARED_DIR/daemon" "acct4 daemon is a symlink into shared"
+
+it "daemon/roster.json: workers are UNION-merged (newer updatedAt wins per worker), not last-file-wins"
+assert_jq "$SHARED_DIR/daemon/roster.json" '.workers | keys | sort | join(",")' "w-a,w-b,w-old,w-share" "all four workers present (union)"
+assert_jq "$SHARED_DIR/daemon/roster.json" '.workers["w-share"].sessionId' "s-share-NEWER" "newer updatedAt wins the shared worker"
+assert_jq "$SHARED_DIR/daemon/roster.json" '.workers["w-old"].sessionId' "s-old" "stale worker value does not clobber the newer one"
+assert_jq "$SHARED_DIR/daemon/roster.json" '.supervisorPid' "300" "supervisorPid comes from the newest roster"
+assert_jq "$SHARED_DIR/daemon/roster.json" '.updatedAt' "2000" "top-level updatedAt is the max"
+
+it "jobs dir is merged into shared + symlinked from every account"
+assert_dir "$SHARED_DIR/jobs" "shared jobs dir created"
+assert_symlink_to "$acct3/jobs" "$SHARED_DIR/jobs" "acct3 jobs is a symlink into shared"
+
+# ---------------------------------------------------------------------------
+# cma_migrate_daemon_dirs_once (lib.sh): pre-v1.17.0 provider dirs carry LOCAL
+# daemon registries that must join the shared one — contents merged, rosters
+# unioned (never lost), dirs replaced by symlinks, idempotent.
+# ---------------------------------------------------------------------------
+it "cma_migrate_daemon_dirs_once: local provider daemon dirs are merged, unioned, symlinked, backed up"
+rm -f "$SHARED_DIR/.daemon-migration-done"
+p1="$HOME/.claude-prov-p1" p2="$HOME/.claude-prov-p2"
+mkdir -p "$p1/daemon" "$p2/daemon"
+cat > "$p1/daemon/roster.json" <<'JSON'
+{"proto":1,"supervisorPid":300,"updatedAt":2000,"workers":{"w-prov1":{"sessionId":"s1","updatedAt":2000},"w-share":{"sessionId":"s-share-NEWER","updatedAt":2000}}}
+JSON
+cat > "$p2/daemon/roster.json" <<'JSON'
+{"proto":1,"supervisorPid":400,"updatedAt":1500,"workers":{"w-prov2":{"sessionId":"s2","updatedAt":1500},"w-share":{"sessionId":"s-share-old","updatedAt":1000}}}
+JSON
+cma_migrate_daemon_dirs_once
+assert_symlink_to "$p1/daemon" "$SHARED_DIR/daemon" "p1 daemon replaced by shared symlink"
+assert_symlink_to "$p2/daemon" "$SHARED_DIR/daemon" "p2 daemon replaced by shared symlink"
+ok=1; compgen -G "$p1/daemon.preunify.*" >/dev/null && ok=0; assert_eq 0 "$ok" "p1 original daemon backed up (.preunify)"
+assert_jq "$SHARED_DIR/daemon/roster.json" '[.workers | keys[] | select(. == "w-prov1" or . == "w-prov2" or . == "w-share")] | sort | join(",")' "w-prov1,w-prov2,w-share" "both providers' workers unioned into the existing registry"
+assert_jq "$SHARED_DIR/daemon/roster.json" '.workers["w-share"].sessionId' "s-share-NEWER" "newer worker version wins across providers"
+rm -f "$SHARED_DIR/daemon/roster.json" ; _sentinel="$(jq -c '.workers|keys' <(echo '{"workers":{}}') 2>/dev/null || true)"
+cma_migrate_daemon_dirs_once
+ok=1; [[ ! -e "$SHARED_DIR/daemon/roster.json" || "$(jq -r '.workers["w-share"].sessionId' "$SHARED_DIR/daemon/roster.json" 2>/dev/null)" == "s-share-NEWER" ]] && ok=0
+assert_eq 0 "$ok" "second migration run is a no-op (marker file)"
+rm -rf "$p1" "$p2"
+
 summary

@@ -62,6 +62,8 @@ SHARED_ITEMS=(
   stats-cache.json
   history.jsonl
   plugins
+  daemon
+  jobs
 )
 # NOTE (§11.4 own-settings): settings.json is DELIBERATELY NOT in SHARED_ITEMS,
 # so it is never symlinked into an account dir. Unify does NOT blanket-merge full
@@ -114,14 +116,16 @@ link_to_shared() {
 }
 
 merge_dir_into_shared() {
-  local item="$1" acct rc
+  local item="$1" exclude="${2:-}" acct rc
+  local excl=()
+  [[ -n "$exclude" ]] && excl=(--exclude "$exclude")
   mkdir -p "$SHARED_DIR/$item"
   # First pass: each account fills only gaps (--ignore-existing) so the
   # union is preserved across N accounts.
   for acct in "${ACCOUNTS[@]}"; do
     if [[ -d "$acct/$item" && ! -L "$acct/$item" ]]; then
       rc=0
-      rsync -a --ignore-existing "$acct/$item/" "$SHARED_DIR/$item/" || rc=$?
+      rsync -a --ignore-existing "${excl[@]}" "$acct/$item/" "$SHARED_DIR/$item/" || rc=$?
       # rsync exit 23/24 are partial transfers ("some files vanished" / "some
       # files couldn't be transferred") that we treat as warnings — common on
       # macOS for `unlinkat: Directory not empty` when symlinks straddle the
@@ -138,10 +142,29 @@ merge_dir_into_shared() {
   for acct in "${ACCOUNTS[@]}"; do
     if [[ -d "$acct/$item" && ! -L "$acct/$item" ]]; then
       rc=0
-      rsync -au "$acct/$item/" "$SHARED_DIR/$item/" || rc=$?
+      rsync -au "${excl[@]}" "$acct/$item/" "$SHARED_DIR/$item/" || rc=$?
       (( rc == 0 || rc == 23 || rc == 24 )) || return $rc
     fi
   done
+}
+
+# daemon/roster.json is the background-agent WORKER REGISTRY. The generic
+# dir merge's per-file last-wins would keep only ONE alias's registry and
+# silently drop every other alias's workers. Union them instead via
+# cma_union_rosters (lib.sh): newer updatedAt wins per worker, proto and
+# supervisorPid from the newest roster, top-level updatedAt is the max.
+merge_daemon_roster() {
+  local acct f srcs=()
+  for acct in "${ACCOUNTS[@]}"; do
+    f="$acct/daemon/roster.json"
+    [[ -f "$f" && ! -L "$f" ]] && srcs+=("$f")
+  done
+  f="$SHARED_DIR/daemon/roster.json"
+  [[ -f "$f" && ! -L "$f" ]] && srcs+=("$f")
+  (( ${#srcs[@]} )) || return 0
+  cma_union_rosters "$SHARED_DIR/daemon/roster.json" "${srcs[@]}" || \
+    cma_warn "daemon roster union failed (invalid roster.json?) — last-wins file kept"
+  return 0
 }
 
 merge_history_jsonl() {
@@ -413,6 +436,7 @@ for item in "${SHARED_ITEMS[@]}"; do
   case "$item" in
     history.jsonl)    merge_history_jsonl ;;
     stats-cache.json) merge_file_into_shared "$item" ;;
+    daemon)           merge_dir_into_shared "$item" "roster.json" && merge_daemon_roster ;;
     *)                merge_dir_into_shared "$item" ;;
   esac
   [[ "$item" == "plugins" ]] && rewrite_plugin_paths

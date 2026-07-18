@@ -13,6 +13,8 @@
 #   FUNDS     insufficient balance / credits / suspended account (user must top up)
 #   BADKEY    key rejected (401 / invalid api key / paid-model-auth-required)
 #   NOKEY     key var empty in the keys file
+#   GATED     the activation gate refused the launch (alias not verified) —
+#             the verification gate already filtered it, not a launch defect
 #   FAIL      a genuine error (this is what must be zero)
 #   TIMEOUT   no result within the window
 #

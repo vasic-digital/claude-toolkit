@@ -194,9 +194,11 @@ for alias_name in "${ALIASES[@]}"; do
 
   VERDICT="PASS" ERRORS=""
 
-  # Test 1: Basic chat completion. 000/429 flap under load, so they get up to
-  # two retries (deepseek/xiaomi recovered within a minute during live runs);
-  # a quota signature short-circuits to SKIP-QUOTA (deterministic account state).
+  # Test 1: Basic chat completion. 000/429/400 flap under load (chutes/kilo
+  # gateways return bare 400s during capacity wobbles — recovered within
+  # minutes during live runs), so they get up to two retries; a quota
+  # signature short-circuits to SKIP-QUOTA (deterministic account state),
+  # and a persistent 400 after the retries stays a definitive FAIL.
   code=000 resp=""
   for attempt in 1 2 3; do
     [[ $VERBOSE -eq 1 ]] && echo "  $alias_name: test 1 (basic, attempt $attempt)..." >&2
@@ -205,7 +207,7 @@ for alias_name in "${ALIASES[@]}"; do
     code=$(echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(200 if (d.get('choices') or d.get('content')) else d.get('error',{}).get('code',400))" 2>/dev/null || echo 000)
     [[ "$code" == "200" ]] && break
     if is_quota "$resp" || [[ "$code" == "402" ]]; then code="QUOTA"; break; fi
-    case "$code" in 000|429) (( attempt < 3 )) && sleep 3 ;; *) break ;; esac
+    case "$code" in 000|429|400) (( attempt < 3 )) && sleep 3 ;; *) break ;; esac
   done
   if [[ "$code" == "QUOTA" ]]; then VERDICT="SKIP-QUOTA"; ERRORS="${ERRORS}funds "
   elif is_transient "$resp" || [[ "$code" =~ ^(000|429|5..)$ ]]; then VERDICT="SKIP-TRANSIENT"; ERRORS="${ERRORS}transient($code) "

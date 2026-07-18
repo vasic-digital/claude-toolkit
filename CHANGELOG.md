@@ -2,6 +2,55 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.17.0 — 2026-07-18 — Cross-alias session & background-agent continuity
+
+### Fixed
+- **A session left under one alias was invisible from every other alias.**
+  Opening a project from `xiaomi`, leaving the session with work in
+  progress, and then opening `deepseek` (or any other alias) showed nothing —
+  two independent root causes, both fixed and live-proven:
+  1. **Session resolution applied only to the native transport's bare
+     launches.** Every router alias (kimi-*, poe, openrouter, chutes…) always
+     opened a FRESH session, and `alias -p "…"` on any transport skipped
+     resolution entirely ("explicit args win verbatim"). **Fix:**
+     `_cma_session_flags` now runs before the transport split — both
+     transports resume — and conversation args get `--resume <sid>` injected
+     unless the user already chose a session (`--resume`/`--session-id`/
+     `--continue`/`-c`/`--fork-session`) or invoked a non-conversation
+     subcommand (`agents`, `mcp`, `export`, …). Injection uses the new
+     `claude-session existing-id`, which returns a session only when one
+     actually EXISTS — the older `latest-id` falls back to a deterministic
+     UUID for never-used projects, and resuming that fails hard with
+     "No conversation found with session ID".
+     **Live proof:** `xiaomi` (native) created a session in a test project;
+     `kimi-k3` (router) and `deepseek` (native) both resumed the identical
+     session id and answered from its memory.
+  2. **Background agents were registered per config dir.** Claude Code's
+     background-agent registry (`daemon/roster.json` + `dispatch/`, plus the
+     `jobs/` store) was local to each alias dir, so an agent started under
+     `xiaomi` was invisible to `deepseek`. **Fix:** `daemon` and `jobs` are
+     now shared items (`CMA_SHARED_ITEMS` + unify's `SHARED_ITEMS`, drift
+     guard enforced), `daemon/roster.json` is **union-merged** by
+     `cma_union_rosters` (newer `updatedAt` wins per worker — a per-file
+     last-wins would drop other aliases' workers), and
+     `cma_migrate_daemon_dirs_once` merges every existing provider daemon dir
+     into the shared store (roster content stashed before the backup move —
+     the first cut of the migration unioned paths that had already moved),
+     replaces it with the shared symlink, and is idempotent via a marker
+     file. Live-verified: rosters from four provider dirs unioned into one
+     shared registry; all provider daemon dirs are now symlinks.
+
+### Added
+- **Testing:** `scripts/tests/test_session_flags.sh` (12 assertions — both
+  transports resume on bare launch, `-p` injection, no double-injection,
+  subcommand passthrough, empty-session case, migration trigger);
+  `test_unify.sh` daemon section (roster union semantics, dir linking, jobs,
+  provider-dir migration with backup + idempotency — 107 assertions in the
+  file). Challenges/HelixQA: check 7 in `provider_aliases_challenge.sh`
+  (shared items, union merge, flags placement, existing-id, live daemon
+  symlinks — 23/23 PASS live) and bank case
+  `cma-pav-cross-alias-session-continuity` (bank now 12 cases).
+
 ## v1.16.0 — 2026-07-18 — Output-token cap for router providers
 
 ### Fixed

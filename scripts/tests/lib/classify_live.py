@@ -15,12 +15,17 @@ low = raw.lower()
 FUNDS = re.compile(r"insufficient|not_enough_balance|balance|credits|quota|payment|suspend|precondition_failed|402|1113|arrears|recharge", re.I)
 BADKEY = re.compile(r"invalid api key|incorrect api key|not authorized|unauthorized|\b401\b|paid_model_auth_required|api key not valid", re.I)
 NOKEY = re.compile(r"is empty \(set it in|keyvar .* empty", re.I)
+# The activation gate refusing a launch: the verification gate already
+# filtered the alias — a gate decision, never a launch defect.
+GATED = re.compile(r"claude-providers: alias \S+ is \S+ — not launching|not launching\.\s*$", re.I)
 
 
 def out(v, d=""):
     print("%s|%s" % (v, d[:80].replace("|", " ").replace("\n", " ")))
     sys.exit()
 
+
+if GATED.search(raw): out("GATED", raw[max(0, GATED.search(raw).start()):GATED.search(raw).start() + 70])
 
 if mode == "cli":
     lines = [l for l in raw.splitlines() if l.strip().startswith("{") and '"type":"result"' in l]
