@@ -825,15 +825,18 @@ cma_run_provider() {
       printf 'claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n' "$id" >&2
       return 127
     fi
-    # Identity check (live issue 2026-07-18): a DIFFERENT tool named ccr on
-    # PATH (e.g. CCS's profile manager, `ccs`) shadows the real router and
-    # fails cryptically downstream — "Profile 'code' was not found or is
-    # disabled" — because `ccr code` to it means "launch profile 'code'".
-    # Refuse early with an actionable message.
-    local _ccr_ver; _ccr_ver="$(ccr version 2>&1 | head -1)"
-    case "$_ccr_ver" in
-      *claude-code-router*) ;;
-      *) printf 'claude-providers: ccr on PATH is not @musistudio/claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or: npm install -g @musistudio/claude-code-router\n' "$_ccr_ver" >&2
+    # Identity check (live issue 2026-07-18, revised 2026-07-19): a
+    # DIFFERENT tool named ccr on PATH (e.g. CCS's profile manager,
+    # `ccs`) shadows the real router and fails cryptically downstream —
+    # "Profile 'code' was not found or is disabled" — because
+    # `ccr code` to it means "launch profile 'code'". The current ccr
+    # CLI no longer has a `version` subcommand (positional args are
+    # profile names), so we identify via --help, which shows the
+    # distinctive "ccr start" / "ccr serve" router commands.
+    local _ccr_help; _ccr_help="$(ccr --help 2>&1 | head -10)"
+    case "$_ccr_help" in
+      *"ccr start"*|*"ccr serve"*) ;;
+      *) printf 'claude-providers: ccr on PATH is not @musistudio/claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or: npm install -g @musistudio/claude-code-router\n' "$_ccr_help" >&2
          return 127 ;;
     esac
     # Upsert THIS provider into ccr config with the live key (regenerated each

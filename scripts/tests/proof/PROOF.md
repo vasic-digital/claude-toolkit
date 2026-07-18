@@ -1,11 +1,11 @@
 # Toolkit proof of work
 
-- generated: `2026-07-18T18:22:08+0300`
-- host: `Linux 6.12.61-6.12-alt1 x86_64`
+- generated: `2026-07-19T02:25:24+0500`
+- host: `Linux 6.12.41-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
 ```
-Test files: 25   passed: 25   failed: 0 ALL GREEN 
+Test files: 27   passed: 27   failed: 0 ALL GREEN 
 ```
 exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 
@@ -23,23 +23,23 @@ instructions=1
 
 result: see PASS/FAIL tally below
 ```
-result: `✓ 9 passed, 0 failed`  ·  exit code: `0`
+result: `SKIP: opencode not installed on this host — live verification skipped.`  ·  exit code: `0`
 
 ## Live provider-alias verification (real installed state)
 ```
-✓ 48 passed, 0 failed
+✓ 38 passed, 0 failed
 ```
 exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
 ## Live alias verification (real provider + Claude aliases)
 ```
-PASS: 28 FAIL: 0 SKIP-QUOTA: 4 SKIP-TRANSIENT: 1 SKIP-GATED: 3 TOTAL: 36
+PASS: 8 FAIL: 1 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21
 ```
-exit code: `0`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
+exit code: `1`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
 
 ## Live alias end-to-end verification (provider endpoints)
 ```
-  "total": 33,   "passed": 24,   "failed": 0, 
+  "total": 21,   "passed": 7,   "failed": 0, 
 ```
 exit code: `0`  ·  full log: [44-alias-e2e.log](44-alias-e2e.log)
 

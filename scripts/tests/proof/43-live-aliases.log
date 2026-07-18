@@ -1,26 +1,17 @@
-Alias verification: Sat Jul 18 06:51:30 PM MSK 2026
-Testing 33 aliases
-◌ nvidia4: SKIP-TRANSIENT (provider capacity/timeout — point-in-time, not a toolkit failure)
-Poe proxy listening on http://127.0.0.1:3457
-Forwarding to https://api.poe.com/v1
-Started proxy for poe2 on port 3457 (pid=4030776)
-◌ poe2: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
-Poe proxy listening on http://127.0.0.1:3457
-Forwarding to https://api.poe.com/v1
-Started proxy for poe4 on port 3457 (pid=4030950)
-◌ poe4: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
-Poe proxy listening on http://127.0.0.1:3457
-Forwarding to https://api.poe.com/v1
-Started proxy for poe5 on port 3457 (pid=4031122)
-◌ poe5: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+Alias verification: Sun Jul 19 02:30:02 AM +05 2026
+Testing 21 aliases
+◌ fireworks-ai: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ github-models: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ huggingface: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ inference: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ kimi-for-coding: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ novita-ai: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ poe: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
-Sarvam proxy listening on http://127.0.0.1:3457
-Forwarding to https://api.sarvam.ai
-Started proxy for sarvam on port 3457 (pid=4031358)
+◌ tencent-tokenhub: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ upstage: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+◌ xiaomi: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ◌ zai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ◌ zhipuai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
-✓ milos85vasic: PASS
-◌ milos85vasic2nd: SKIP-QUOTA (account limit — not a toolkit failure)
-✓ milos85vasic3rd: PASS
+✗ zhipuai: FAIL — basic(1113) no-tool-call 
 
-PASS: 28 FAIL: 0 SKIP-QUOTA: 4 SKIP-TRANSIENT: 1 SKIP-GATED: 3 TOTAL: 36
+PASS: 8 FAIL: 1 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21

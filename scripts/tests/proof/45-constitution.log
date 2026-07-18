@@ -16,6 +16,6 @@ SKIP: no .env / env.properties at repo root — release-tag prefix check not app
 
   • semantic-visibility fixture/rubric are toolkit-owned, referenced, and absent from the submodule
     [32m[PASS][0m fixture/rubric live in scripts/providers/ and are referenced by providers-semantic.sh (1)
-evidence: /run/media/milosvasic/DATA4TB/Projects/claude_toolkit/scripts/tests/proof/45-constitution.txt
+evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/45-constitution.txt
 
 [32m✓ 5 passed, 0 failed[0m

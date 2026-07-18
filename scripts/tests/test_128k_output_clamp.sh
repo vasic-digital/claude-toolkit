@@ -103,9 +103,13 @@ clamp_eval() {
   [[ -n "$ctx_val" ]] && envp+=("CMA_PROVIDER_CONTEXT_LIMIT=$ctx_val")
   if [[ "$input_present" == "unset" ]]; then
     # Truly-unset CMA_PROVIDER_MAX_OUTPUT (env -u), the "missing" case.
-    out="$(env -u CMA_PROVIDER_MAX_OUTPUT -u CMA_PROVIDER_CONTEXT_LIMIT ${envp[@]+"${envp[@]}"} bash -c 'source "$1"; clamp_probe' _ "$probe")"
+    # Also unset CLAUDE_CODE_MAX_OUTPUT_TOKENS: the Claude Code harness exports
+    # this as 128000, which leaks into child processes and makes the probe's
+    # ${CLAUDE_CODE_MAX_OUTPUT_TOKENS-UNSET} read 128000 instead of UNSET even
+    # when the clamp correctly decides not to export.
+    out="$(env -u CMA_PROVIDER_MAX_OUTPUT -u CMA_PROVIDER_CONTEXT_LIMIT -u CLAUDE_CODE_MAX_OUTPUT_TOKENS ${envp[@]+"${envp[@]}"} bash -c 'source "$1"; clamp_probe' _ "$probe")"
   else
-    out="$(env -u CMA_PROVIDER_CONTEXT_LIMIT ${envp[@]+"${envp[@]}"} "CMA_PROVIDER_MAX_OUTPUT=$input_val" bash -c 'source "$1"; clamp_probe' _ "$probe")"
+    out="$(env -u CMA_PROVIDER_CONTEXT_LIMIT -u CLAUDE_CODE_MAX_OUTPUT_TOKENS ${envp[@]+"${envp[@]}"} "CMA_PROVIDER_MAX_OUTPUT=$input_val" bash -c 'source "$1"; clamp_probe' _ "$probe")"
   fi
   rm -f "$probe"
   printf '%s' "$out"

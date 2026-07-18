@@ -1,4 +1,4 @@
-claude-providers: alias fireworks-ai is unverified — not launching.
+claude-providers: alias fireworks-ai is failed — not launching.
   Re-verify: claude-providers sync   (re-runs verification for fireworks-ai)
   Override (operator): run the alias with --force
 # FAIL: no-engagement

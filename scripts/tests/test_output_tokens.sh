@@ -31,15 +31,15 @@ for stub in claude-sync-state claude-session; do
   printf '#!/usr/bin/env bash\nexit 0\n' > "$HOME/.local/bin/$stub"
   chmod +x "$HOME/.local/bin/$stub"
 done
-# Fake ccr: answers `version` with the real banner (the identity guard checks
-# it), records the environment on a launch subcommand — BOTH the legacy
+# Fake ccr: answers `--help` with the router banner (the identity guard checks
+# it for "ccr start"), records the environment on a launch subcommand — BOTH the legacy
 # `ccr code` grammar AND the v3.0.6 `ccr default-claude-code` grammar the
 # wrapper now uses — no-ops everything else.
 FAKEBIN="$HOME/fakebin"; mkdir -p "$FAKEBIN"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
-  version) echo "claude-code-router version: 2.0.0"; exit 0 ;;
+  --help) echo "Usage: ccr start [--host <host>] [--port <port>]"; echo "  ccr serve [--host <host>] [--port <port>]"; exit 0 ;;
   code|default-claude-code) shift; env | grep -E '^CLAUDE_CODE_MAX_OUTPUT_TOKENS=' > "$REC_ENV_OUT" || true; exit 0 ;;
   *) exit 0 ;;
 esac
@@ -150,7 +150,7 @@ assert_file "$HOME/.claude-code-router/config.json" "ccr config upserted despite
 it "ccr identity guard: a foreign ccr (CCS-style) is refused with an actionable message"
 cat > "$FAKEBIN/ccr-foreign" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "version" ]]; then echo "CCS profile manager v9"; exit 0; fi
+if [[ "${1:-}" == "--help" ]]; then echo "CCS profile manager v9 — usage: ccs <command>"; exit 0; fi
 exit 0
 EOF
 chmod +x "$FAKEBIN/ccr-foreign"
@@ -163,7 +163,7 @@ assert_eq 0 "$ok" "refusal message names the real router to install"
 it "ccr identity guard: the real claude-code-router passes"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "version" ]]; then echo "claude-code-router version: 2.0.0"; exit 0; fi
+if [[ "${1:-}" == "--help" ]]; then echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; exit 0; fi
 case "${1:-}" in
   code|default-claude-code) shift; env | grep -E '^CLAUDE_CODE_MAX_OUTPUT_TOKENS=' > "$REC_ENV_OUT" || true; exit 0 ;;
   *) exit 0 ;;

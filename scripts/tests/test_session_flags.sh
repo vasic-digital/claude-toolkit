@@ -46,12 +46,12 @@ exit 0
 EOF
 chmod +x "$HOME/.local/bin/claude-session" "$HOME/.local/bin/claude-sync-state"
 
-# Fake ccr: answers version, records args on `code`.
+# Fake ccr: answers --help, records args on `code`.
 FAKEBIN="$HOME/fakebin"; mkdir -p "$FAKEBIN"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
-  version) echo "claude-code-router version: 2.0.0"; exit 0 ;;
+  --help) echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; exit 0 ;;
   code) shift; printf '%s\n' "$*" > "$REC_ARGS_OUT"; exit 0 ;;
   *) exit 0 ;;
 esac

@@ -1,4 +1,4 @@
-Service not running, starting service...
-(node:2621049) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
-(Use `node --trace-deprecation ...` to show where the warning was created)
-# FAIL: timeout
+claude-providers: alias novita-ai is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for novita-ai)
+  Override (operator): run the alias with --force
+# FAIL: no-engagement

@@ -1,103 +1,55 @@
-Alias verification: Sat Jul 18 06:51:30 PM MSK 2026
-Testing 33 aliases
---- chutes2 (moonshotai/Kimi-K2.6-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'id': 'functions.c
-verdict=PASS
---- chutes3 (zai-org/GLM-5.1-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'call_7c9bac
-verdict=PASS
+Alias verification: Sun Jul 19 02:30:02 AM +05 2026
+Testing 21 aliases
 --- chutes (zai-org/GLM-5.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_342aae
-verdict=PASS
---- deepseek2 (deepseek-v4-pro) ---
-test1(basic)=200 test2(no_params)=Invalid schema for function 'test': null test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=tool_use
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'id': 'call_dd9121
 verdict=PASS
 --- deepseek (deepseek-v4-pro) ---
 test1(basic)=200 test2(no_params)=Invalid schema for function 'test': null test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=tool_use
 verdict=PASS
+--- fireworks-ai (accounts/fireworks/routers/glm-5p2-fast) ---
+verdict=SKIP-GATED status=failed
+--- github-models (deepseek/deepseek-r1-0528) ---
+verdict=SKIP-GATED status=failed
+--- helixagent (HelixAgent/HelixLLM) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'type': 'function'
+verdict=PASS
+--- huggingface (Qwen/Qwen3-Coder-480B-A35B-Instruct) ---
+verdict=SKIP-GATED status=failed
+--- inference (google/gemma-3) ---
+verdict=SKIP-GATED status=failed
 --- kilo (nvidia/nemotron-3-super-120b-a12b:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'type': 'function'
 verdict=PASS
 --- kimi-for-coding (kimi-for-coding) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- kimi-for-coding-highspeed (kimi-for-coding-highspeed) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- kimi-k2p7 (k2p7) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- kimi-k3 (k3) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- nvidia2 (openai/gpt-oss-20b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=15chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- nvidia3 (stepfun-ai/step-3.5-flash) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=5chunks test6(tool)=[{'id': 'chatcmpl-to
-verdict=PASS
---- nvidia4 (deepseek-ai/deepseek-v4-flash) ---
-test1(basic)=503 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=87chunks test6(tool)=[{'id': 'call_ab7eb4
-verdict=SKIP-TRANSIENT
+verdict=SKIP-GATED status=failed
+--- novita-ai (deepseek/deepseek-v3.2) ---
+verdict=SKIP-GATED status=failed
 --- nvidia (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=36chunks test6(tool)=[{'id': 'call-e9f67e
-verdict=PASS
---- opencode2 (nemotron-3-ultra-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)=Error from provider (Console): Upstream  test5(stream)=8chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- opencode3 (hy3-free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=24chunks test6(tool)=[{'id': 'call-4e0d6c
 verdict=PASS
 --- opencode (big-pickle) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
 verdict=PASS
---- openrouter2 (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=41chunks test6(tool)=[{'type': 'function'
-verdict=PASS
---- openrouter3 (poolside/laguna-xs-2.1:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'type': 'function'
-verdict=PASS
 --- openrouter (nvidia/nemotron-3-super-120b-a12b:free) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'type': 'function'
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
 verdict=PASS
---- poe2 (openai/gpt-5.2-codex) ---
-test1(basic)=QUOTA test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=QUOTA
-verdict=SKIP-QUOTA
---- poe4 (xai/grok-3) ---
-test1(basic)=QUOTA test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=QUOTA
-verdict=SKIP-QUOTA
---- poe5 (empiriolabs/deepseek-v4-pro-el) ---
-test1(basic)=QUOTA test2(no_params)=You've used up your points! Visit https: test3(ref)=You've used up your points! Visit https: test4(cache)=You've used up your points! Visit https: test5(stream)=0chunks test6(tool)=QUOTA
-verdict=SKIP-QUOTA
 --- poe (claude-sonnet-4.6) ---
 verdict=SKIP-GATED status=failed
---- sarvam (sarvam-105b) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'id': 'call_a2fa56
-verdict=PASS
---- siliconflow2 (ByteDance-Seed/Seed-OSS-36B-Instruct) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=68chunks test6(tool)=[{'id': '019f75f3ef3
-verdict=PASS
---- siliconflow3 (moonshotai/Kimi-K2.5) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=67chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- siliconflow4 (deepseek-ai/DeepSeek-R1) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=138chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
---- siliconflow5 (zai-org/GLM-5V-Turbo) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=17chunks test6(tool)=[{'index': 0, 'id': 
-verdict=PASS
 --- siliconflow (zai-org/GLM-5.2) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
 verdict=PASS
+--- tencent-tokenhub (hy3-preview) ---
+verdict=SKIP-GATED status=failed
+--- upstage (solar-pro3) ---
+verdict=SKIP-GATED status=failed
 --- xiaomi (mimo-v2.5-pro) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=tool_use
-verdict=PASS
+verdict=SKIP-GATED status=unverified
 --- zai-coding-plan (glm-5.2) ---
 verdict=SKIP-GATED status=unverified
 --- zhipuai-coding-plan (glm-5.2) ---
 verdict=SKIP-GATED status=unverified
-✓ milos85vasic: PASS
-◌ milos85vasic2nd: SKIP-QUOTA (account limit — not a toolkit failure)
-✓ milos85vasic3rd: PASS
+--- zhipuai (glm-5.2) ---
+test1(basic)=1113 test2(no_params)=余额不足或无可用资源包,请充值。 test3(ref)=余额不足或无可用资源包,请充值。 test4(cache)=余额不足或无可用资源包,请充值。 test5(stream)=0chunks test6(tool)=no
+verdict=FAIL
 
-PASS: 28 FAIL: 0 SKIP-QUOTA: 4 SKIP-TRANSIENT: 1 SKIP-GATED: 3 TOTAL: 36
+PASS: 8 FAIL: 1 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21
