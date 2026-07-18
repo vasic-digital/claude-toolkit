@@ -316,7 +316,8 @@ EOF
       sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
       mv "$tmp_cb" "$ALIAS_FILE"
       cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
-    fi  fi
+    fi
+  fi
   # Migration: the 'export CLAUDE_BIN=' header line is entirely missing (corrupted
   # alias file -- every alias launches an empty command). Prepend it so the
   # inline self-heal in cma_run/cma_run_provider does not have to fire on every
