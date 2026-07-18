@@ -44,6 +44,7 @@ EXPECTED_CONTENT = "VERIFY_OK"
 TIMEOUT_DEFAULT = 30
 CONCURRENCY_DEFAULT = 5
 CACHE_TTL_SECONDS = 86400  # 24 hours
+CACHE_VERSION = 2  # bump when verification semantics change; older caches are ignored
 MIN_CONTEXT_WINDOW = 8000
 MIN_OUTPUT_TOKENS = 1000
 
@@ -409,6 +410,13 @@ def verify_model(model_id, provider_id, endpoint, api_key, timeout=TIMEOUT_DEFAU
         result["failure_reason"] = f"HTTP {status}"
         return result
 
+    # Anti-bluff sentinel: the probe demands an exact token. A 200 whose body
+    # lacks it means the endpoint produced *a* reply, not one from the
+    # requested model (proxy fallback, silent model swap, canned text).
+    if EXPECTED_CONTENT not in content:
+        result["failure_reason"] = "sentinel VERIFY_OK missing from response"
+        return result
+
     # Step 3: Model is alive — calculate score
     score = 0
 
@@ -416,11 +424,14 @@ def verify_model(model_id, provider_id, endpoint, api_key, timeout=TIMEOUT_DEFAU
     score += WEIGHT_EXISTENCE
     result["capabilities"]["chat"] = True
 
-    # Step 4: Test tool calling (20 pts)
+    # Step 4: Test tool calling (20 pts). Claude Code is entirely tool-driven,
+    # so tool support is a hard verification gate, not just a score component.
+    tool_call_ok = False
     try:
         if test_tool_calling(model_id, endpoint, api_key, timeout):
             score += WEIGHT_TOOL_CALL
             result["capabilities"]["tool_call"] = True
+            tool_call_ok = True
     except Exception:
         pass
 
@@ -448,7 +459,10 @@ def verify_model(model_id, provider_id, endpoint, api_key, timeout=TIMEOUT_DEFAU
         score += WEIGHT_LATENCY // 2
 
     result["score"] = score
-    result["verified"] = True
+    if not tool_call_ok:
+        result["failure_reason"] = "tool calling unsupported (required by Claude Code)"
+    else:
+        result["verified"] = True
     return result
 
 
@@ -497,6 +511,10 @@ def load_cache(cache_file):
     try:
         with open(cache_file) as f:
             data = json.load(f)
+        # Version gate: caches written by older verification logic (e.g.
+        # "verified" without a tool-calling check) must never be replayed.
+        if data.get("_cache_version") != CACHE_VERSION:
+            return {}
         # Check TTL
         cached_at = data.get("_cached_at", 0)
         if time.time() - cached_at > CACHE_TTL_SECONDS:
@@ -511,6 +529,7 @@ def save_cache(cache_file, data):
     if not cache_file:
         return
     data["_cached_at"] = time.time()
+    data["_cache_version"] = CACHE_VERSION
     os.makedirs(os.path.dirname(cache_file) or ".", exist_ok=True)
     with open(cache_file, "w") as f:
         json.dump(data, f, indent=2)

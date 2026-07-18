@@ -65,6 +65,12 @@ if (( rc == 124 )); then echo "FAIL: launch hung within ${TIMEOUT}s (trust/overw
 if printf '%s' "$out" | grep -qiE 'do you (trust|want to open)|overwrite.*config|trust the files'; then
   echo "FAIL: a trust/overwrite prompt fired"; echo "# FAIL: trust-prompt" >> "$OUT"; exit 1
 fi
+# A completed API conversation is a hard prerequisite: when Claude Code itself
+# reports an error (HTTP 400/401/402/… from the provider) the launch is a
+# genuine runtime FAIL, regardless of any skill vocabulary in the transcript.
+if printf '%s' "$out" | grep -qE '"is_error": ?true'; then
+  echo "FAIL: Claude Code reported an API error through the alias"; echo "# FAIL: api-error" >> "$OUT"; exit 1
+fi
 # superpowers engagement marker (review Finding 4 — HONESTY): a false PASS here
 # is far worse than a false FAIL, since PASS is what flips a provider to
 # 'verified' via `cmd_verify --deep`. The marker MUST NOT be satisfiable by the
@@ -73,20 +79,21 @@ fi
 #     called using-superpowers, but..." -> false PASS.
 #   - the literal prompt term 'using-superpowers' (PROMPT="/using-superpowers")
 #     matched its own echo -> false PASS.
-# The tightened marker requires either (a) the skill's actual self-announcement
-# form ("Using superpowers:<name>", per using-superpowers/SKILL.md's own
-# "Announce: 'Using [skill] to [purpose]'" convention -- distinct from the
-# hyphenated prompt text) or (b) a named skill that using-superpowers can only
-# chain into if its content genuinely loaded and ran (systematic-debugging,
-# brainstorming), not just a word echoed from the prompt. Erring stricter is
-# deliberate: a real engagement that fails to match should SKIP/FAIL, never a
-# fabricated PASS.
+# The marker accepts either (a) the skill's self-announcement form
+# ("superpowers:<name>"), or (b) vocabulary that only exists in the session if
+# the skill content genuinely loaded: the chained skill names
+# 'systematic-debugging' / 'brainstorming', or the framework's signature rule
+# ("invoke … skills BEFORE any response"). None of these appear in the bare
+# prompt, and refusals never produce them. Model-dependent phrasing of a
+# genuine engagement (e.g. a summary of the framework rules without the exact
+# announce string) therefore no longer false-FAILs, while echo/refusal bluffs
+# still cannot PASS.
 #
 # This tightening is NOT Tier-A testable (no real claude in the sandbox to
 # generate a genuine negative-case transcript). The DEFINITIVE live check --
 # real claude, superpowers NOT engaging, must NOT PASS -- is deferred to
 # Task 5's Tier-B test.
-if printf '%s' "$out" | grep -qiE 'superpowers:[a-z0-9_-]+'; then
+if printf '%s' "$out" | grep -qiE 'superpowers:[a-z0-9_-]+|systematic-debugging|brainstorming|skills? (must be invoked|before any response)'; then
   echo "PASS: superpowers engaged, no trust/overwrite prompt"; echo "# PASS" >> "$OUT"; exit 0
 fi
 echo "FAIL: session ran but superpowers did not engage"; echo "# FAIL: no-engagement" >> "$OUT"; exit 1

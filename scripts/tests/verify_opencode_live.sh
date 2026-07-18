@@ -45,12 +45,14 @@ mkdir -p "$PROOF_DIR"
 # `opencode debug config` / `mcp list` echo the user's RESOLVED config, which can
 # contain literal API keys and connection-string passwords (placeholders like
 # ${VAR} are preserved). Never commit those. Filters: (1) sensitive JSON string
-# values that are not ${...} placeholders or empty; (2) user:password@ in URLs.
+# values whose KEY NAME contains key/token/secret/password/api-key (env-style
+# names like TAVILY_API_KEY included) and whose value is not a ${...} placeholder
+# or empty; (2) user:password@ in URLs; (3) known key prefixes incl. JWTs.
 cma_redact_secrets() {
   sed -E \
-    -e 's/("(apiKey|api_key|password|secret|token|access_token)"[[:space:]]*:[[:space:]]*")([^"$][^"]*)(")/\1REDACTED\4/g' \
+    -e 's/("[^"]*([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[^"]*"[[:space:]]*:[[:space:]]*")([^"$][^"]*)(")/\1REDACTED\4/g' \
     -e 's#://([^:/@ "]+):([^@/ "]{2,})@#://\1:REDACTED@#g' \
-    -e 's/(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{8,}/REDACTED/g' \
+    -e 's/(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA|tvly-|nvapi-)[A-Za-z0-9_-]{8,}/REDACTED/g' \
     -e 's/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/REDACTED/g'
 }
 

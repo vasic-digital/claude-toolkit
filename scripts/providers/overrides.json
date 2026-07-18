@@ -13,7 +13,7 @@
     "transport": "native",
     "base_url": "https://api.xiaomimimo.com/anthropic",
     "strong_model": "mimo-v2.5-pro",
-    "fast_model": "mimo-v2-flash"
+    "fast_model": "mimo-v2.5"
   },
   "opencode": {
     "strong_model": "big-pickle",
@@ -41,6 +41,14 @@
   "kilo": {
     "strong_model": "nvidia/nemotron-3-super-120b-a12b:free",
     "fast_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+  },
+  "openrouter": {
+    "strong_model": "nvidia/nemotron-3-super-120b-a12b:free",
+    "fast_model": "nvidia/nemotron-3-ultra-550b-a55b:free"
+  },
+  "nvidia": {
+    "strong_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "fast_model": "nvidia/nemotron-3-ultra-550b-a55b"
   },
   "inference": {
     "base_url": "https://api.inference.net/v1"

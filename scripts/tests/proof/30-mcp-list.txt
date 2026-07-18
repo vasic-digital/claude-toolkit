@@ -1,9 +1,6 @@
 [0m
 ┌  MCP Servers
 │
-●  ✓ codegraph [90mconnected
-│      [90mcodegraph serve --mcp
-│
 ●  ✓ cloudflare-docs [90mconnected
 │      [90mhttps://docs.mcp.cloudflare.com/sse
 │
@@ -26,10 +23,13 @@
 │      [90mnpx -y mcp-fetch-server
 │
 ●  ✓ filesystem [90mconnected
-│      [90mnpx -y @modelcontextprotocol/server-filesystem /Users/milosvasic
+│      [90mnpx -y @modelcontextprotocol/server-filesystem /home/milosvasic
 │
 ●  ✓ git [90mconnected
 │      [90mnpx -y mcp-git
+│
+●  ✓ github [90mconnected
+│      [90mnpx -y @modelcontextprotocol/server-github
 │
 ●  ✓ markdown [90mconnected
 │      [90mnpx -y mcp-server-markdown
@@ -61,6 +61,9 @@
 ●  ✓ time [90mconnected
 │      [90mnpx -y @theo.foobar/mcp-time
 │
+●  ✓ codegraph [90mconnected
+│      [90mcodegraph serve --mcp
+│
 ●  ○ Adobe-for-creativity [90mdisabled
 │      [90mhttps://adobe-creativity.adobe.io/mcp
 │
@@ -68,10 +71,16 @@
 │      [90mnpx -y endorctl ai-tools mcp-server
 │
 ●  ○ aikido-mcp [90mdisabled
-│      [90mnpx -y @aikidosec/mcp@1.0.10
+│      [90mnpx -y @aikidosec/mcp@1.0.12
 │
 ●  ○ airtable [90mdisabled
 │      [90mhttps://mcp.airtable.com/mcp
+│
+●  ○ airwallex-dev [90mdisabled
+│      [90mhttps://mcp-demo.airwallex.com/developer
+│
+●  ○ airwallex-agentos [90mdisabled
+│      [90mhttps://mcp.airwallex.com/mcp
 │
 ●  ○ aws-mcp [90mdisabled
 │      [90muvx mcp-proxy-for-aws@latest https://aws-mcp.us-east-1.api.aws/mcp
@@ -103,8 +112,11 @@
 ●  ✓ awsknowledge [90mconnected
 │      [90mhttps://knowledge-mcp.global.api.aws
 │
+●  ○ aws-devops-agent [90mdisabled
+│      [90mhttps://connect.aidevops.${DEVOPS_AGENT_REGION:-us-east-1}.api.aws/mcp
+│
 ●  ○ aws-core-aws-mcp [90mdisabled
-│      [90muvx mcp-proxy-for-aws@1.6.0 https://aws-mcp.us-east-1.api.aws/mcp --skip-auth --metadata INSTALL_SOURCE=agent-toolkit
+│      [90muvx mcp-proxy-for-aws@1.6.3 https://aws-mcp.us-east-1.api.aws/mcp --skip-auth --metadata INSTALL_SOURCE=agent-toolkit
 │
 ●  ○ awsiac [90mdisabled
 │      [90muvx awslabs.aws-iac-mcp-server@latest
@@ -118,11 +130,17 @@
 ●  ○ aws-startup-advisor-awspricing [90mdisabled
 │      [90muvx awslabs.aws-pricing-mcp-server@latest
 │
+●  ○ aws-transform-mcp [90mdisabled
+│      [90muvx awslabs.aws-transform-mcp-server@latest
+│
 ●  ○ azure [90mdisabled
 │      [90mnpx -y @azure/mcp@latest server start
 │
 ●  ○ bigdata-com [90mdisabled
 │      [90mhttps://mcp.bigdata.com
+│
+●  ○ canva [90mdisabled
+│      [90mhttps://mcp.canva.com/mcp
 │
 ●  ○ cds-mcp [90mdisabled
 │      [90mnpx -y @cap-js/mcp-server
@@ -149,7 +167,7 @@
 │      [90mhttps://observability.mcp.cloudflare.com/mcp
 │
 ●  ○ cockroachdb-toolbox [90mdisabled
-│      [90mtoolbox --config /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/0.1.9/tools.yaml --stdio
+│      [90mtoolbox --config /home/milosvasic/.claude/plugins/cache/claude-plugins-official/cockroachdb/c511ba806b17/tools.yaml --stdio
 │
 ●  ○ cockroachdb-toolbox-http [90mdisabled
 │      [90mhttp://127.0.0.1:5000/mcp
@@ -160,6 +178,12 @@
 ●  ○ CodSpeed [90mdisabled
 │      [90mhttps://mcp.codspeed.io/mcp
 │
+●  ○ confidence-flags [90mdisabled
+│      [90mhttps://mcp.confidence.dev/mcp/flags
+│
+●  ○ confidence-docs [90mdisabled
+│      [90mhttps://mcp.confidence.dev/mcp/docs
+│
 ●  ○ convex [90mdisabled
 │      [90mnpx -y convex@latest mcp start
 │
@@ -169,31 +193,31 @@
 ●  ○ visualization [90mdisabled
 │      [90mnpx -y git+https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git --mode=visualization
 │
-●  ○ datacloud_bigquery_toolbox [90mdisabled
+●  ○ bigquery [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt bigquery --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_spanner_toolbox [90mdisabled
+●  ○ spanner [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt spanner --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_alloydb-postgres-admin_toolbox [90mdisabled
+●  ○ alloydb-postgres-admin [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt alloydb-postgres-admin --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_alloydb-postgres_toolbox [90mdisabled
+●  ○ alloydb-postgres [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt alloydb-postgres --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_cloud-sql-postgresql-admin_toolbox [90mdisabled
+●  ○ cloud-sql-postgresql-admin [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt cloud-sql-postgres-admin --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_cloud-sql-postgresql_toolbox [90mdisabled
+●  ○ cloud-sql-postgresql [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt cloud-sql-postgres --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_knowledge_catalog_toolbox [90mdisabled
+●  ○ knowledge_catalog [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt dataplex --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_dataproc_toolbox [90mdisabled
+●  ○ dataproc [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt dataproc --stdio --user-agent-metadata datacloud.codex
 │
-●  ○ datacloud_serverless-spark_toolbox [90mdisabled
+●  ○ serverless-spark [90mdisabled
 │      [90mnpx -y @toolbox-sdk/server@>=1.1.0 --prebuilt serverless-spark --stdio --user-agent-metadata datacloud.codex
 │
 ●  ○ aurora-dsql [90mdisabled
@@ -203,16 +227,19 @@
 │      [90muvx awslabs.aws-iac-mcp-server@latest
 │
 ●  ○ discord [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4 --shell=bun --silent start
+│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/discord/0.0.4 --shell=bun --silent start
 │
 ●  ○ domino_server [90mdisabled
 │      [90muv --directory $/mnt/code/.claude/mcp-servers/domino_mcp_server run domino_mcp_server.py
+│
+●  ○ claude_app_mcp [90mdisabled
+│      [90mhttps://mcp.dropbox.com/claude_app_mcp
 │
 ●  ○ expo [90mdisabled
 │      [90mhttps://mcp.expo.dev/mcp
 │
 ●  ○ fakechat [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1 --shell=bun --silent start
+│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/fakechat/0.0.1 --shell=bun --silent start
 │
 ●  ○ fiftyone [90mdisabled
 │      [90mfiftyone-mcp
@@ -232,9 +259,6 @@
 ●  ○ fullstory [90mdisabled
 │      [90mhttps://api.fullstory.com/mcp/fullstory
 │
-●  ○ github [90mdisabled
-│      [90mhttps://api.githubcopilot.com/mcp/
-│
 ●  ○ gitlab [90mdisabled
 │      [90mhttps://gitlab.com/api/v4/mcp
 │
@@ -248,10 +272,13 @@
 │      [90mhttps://mcp.hunter.io/mcp
 │
 ●  ○ imessage [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0 --shell=bun --silent start
+│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/imessage/0.1.0 --shell=bun --silent start
 │
 ●  ○ intercom [90mdisabled
 │      [90mhttps://mcp.intercom.com/mcp
+│
+●  ○ jfrog [90mdisabled
+│      [90m${JFROG_URL}/mcp
 │
 ●  ○ laravel-boost [90mdisabled
 │      [90mphp artisan boost:mcp
@@ -264,6 +291,12 @@
 │
 ●  ○ logfire [90mdisabled
 │      [90mhttps://logfire-us.pydantic.dev/mcp
+│
+●  ○ logrocket [90mdisabled
+│      [90mhttps://mcp.logrocket.com/mcp?toolsets=all
+│
+●  ○ lovable [90mdisabled
+│      [90mhttps://mcp.lovable.dev
 │
 ●  ○ mapbox-devkit [90mdisabled
 │      [90mhttps://mcp-devkit.mapbox.com/mcp
@@ -285,6 +318,9 @@
 │
 ●  ○ miro [90mdisabled
 │      [90mhttps://mcp.miro.com/
+│
+●  ○ netlify [90mdisabled
+│      [90mhttps://netlify-mcp.netlify.app/mcp
 │
 ●  ○ nimble [90mdisabled
 │      [90mhttps://mcp.nimbleway.com/mcp
@@ -323,10 +359,13 @@
 │      [90mjbang quarkus-agent-mcp@quarkusio
 │
 ●  ○ railway [90mdisabled
-│      [90mrailway mcp
+│      [90mhttps://mcp.railway.com
 │
 ●  ○ resend [90mdisabled
-│      [90mnpx -y resend-mcp
+│      [90mhttps://mcp.resend.com
+│
+●  ○ rill-developer [90mdisabled
+│      [90mhttp://localhost:9009/mcp
 │
 ●  ○ rootly [90mdisabled
 │      [90mhttps://mcp.rootly.com/mcp
@@ -341,12 +380,9 @@
 │      [90mnpx -y @sap/mdk-mcp-server
 │
 ●  ○ guardian [90mdisabled
-│      [90m/Users/milosvasic/.claude/plugins/cache/claude-plugins-official/semgrep/2.0.1/scripts/hook.sh claude mcp
+│      [90m/home/milosvasic/.claude/plugins/cache/claude-plugins-official/semgrep/2.1.2/scripts/hook.sh claude mcp
 │
-●  ○ sentry [90mdisabled
-│      [90mhttps://mcp.sentry.dev/mcp
-│
-●  ○ shopify-mcp [90mdisabled
+●  ✓ shopify-mcp [90mconnected
 │      [90mnpx -y @shopify/dev-mcp@latest
 │
 ●  ○ slack [90mdisabled
@@ -365,13 +401,19 @@
 │      [90mhttps://mcp.sumup.com/mcp
 │
 ●  ○ telegram [90mdisabled
-│      [90mbun run --cwd /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6 --shell=bun --silent start
+│      [90mbun run --cwd /home/milosvasic/.claude/plugins/cache/claude-plugins-official/telegram/0.0.6 --shell=bun --silent start
 │
 ●  ○ terraform [90mdisabled
 │      [90mdocker run -i --rm -e TFE_TOKEN=${TFE_TOKEN} hashicorp/terraform-mcp-server:0.4.0
 │
 ●  ○ ui5-mcp-server [90mdisabled
 │      [90mnpx -y @ui5/mcp-server
+│
+●  ○ chrome-devtools [90mdisabled
+│      [90mnpx -y chrome-devtools-mcp@latest
+│
+●  ○ valtown [90mdisabled
+│      [90mhttps://api.val.town/v3/mcp
 │
 ●  ○ vanta-us [90mdisabled
 │      [90mhttps://mcp.vanta.com/mcp
@@ -389,7 +431,7 @@
 │      [90mhttps://mcp.windsor.ai
 │
 ●  ○ wix-mcp [90mdisabled
-│      [90mhttps://mcp.wix.com/mcp
+│      [90mnpx -y @wix/mcp-remote@latest https://mcp.wix.com/mcp
 │
 ●  ○ zapier [90mdisabled
 │      [90mhttps://mcp.zapier.com/api/v1/connect
@@ -407,7 +449,7 @@
 │      [90mhttps://mcp.zoominfo.com/mcp
 │
 ●  ○ zscaler-mcp-server [90mdisabled
-│      [90muvx --env-file /Users/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.12.7/.env zscaler-mcp@0.12.7
+│      [90muvx --env-file /home/milosvasic/.claude/plugins/cache/claude-plugins-official/zscaler/0.13.1/.env zscaler-mcp@0.13.1
 │
-└  136 server(s)
+└  150 server(s)
 

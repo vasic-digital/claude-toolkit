@@ -1,0 +1,2 @@
+providers-semantic[opencode3]: layer-3 sentinel+judge PASS
+semantic verdict: verified

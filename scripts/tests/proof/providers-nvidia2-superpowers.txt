@@ -1,4 +1,3 @@
-claude-providers: alias nvidia2 is pending — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for nvidia2)
-  Override (operator): run the alias with --force
+Service not running, starting service...
+{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":12700,"duration_api_ms":9691,"ttft_ms":6784,"ttft_stream_ms":5904,"time_to_request_ms":985,"num_turns":3,"result":"All set. The skills are ready; I'm waiting for your next instruction.","stop_reason":"end_turn","session_id":"d6866170-b278-4c3f-a944-f47a8ff8ee67","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-sonnet-5":{"inputTokens":0,"outputTokens":0,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0,"contextWindow":200000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"5d7ecd1e-bc2b-4081-89ba-1b0ebf03edea"}
 # FAIL: no-engagement

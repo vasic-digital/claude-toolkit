@@ -1,0 +1,2 @@
+providers-semantic[siliconflow2]: layer-3 sentinel+judge PASS
+semantic verdict: verified

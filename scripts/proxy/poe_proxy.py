@@ -59,7 +59,14 @@ def resolve_refs(obj, defs, _depth=0):
 
 
 def fix_tools(tools):
-    """Ensure every tool has a valid parameters field and resolve $ref."""
+    """Ensure every tool has a valid parameters field and resolve $ref.
+
+    Poe's real requirement (verified live, v1.14.0): `parameters` must exist,
+    be an object, AND carry a `properties` key (an empty one is fine). A bare
+    `{"type": "object"}` with no `properties` — the natural encoding of a
+    zero-argument tool — is rejected with the misleading
+    `400 Invalid 'tools': Field required`.
+    """
     if not tools or not isinstance(tools, list):
         return tools
     fixed = []
@@ -70,16 +77,23 @@ def fix_tools(tools):
         func = t.get("function")
         if isinstance(func, dict):
             f = dict(func)
-            if "parameters" not in f or not f["parameters"]:
-                f["parameters"] = {"type": "object", "properties": {}}
+            params = f.get("parameters")
+            if not isinstance(params, dict) or not params:
+                params = {"type": "object", "properties": {}}
+            else:
+                params = dict(params)
+                if not isinstance(params.get("properties"), dict):
+                    params["properties"] = {}
+                if "type" not in params:
+                    params["type"] = "object"
             # Resolve $ref references (Grok-4 and some providers don't support them)
-            params = f["parameters"]
-            if isinstance(params, dict) and "$defs" in params:
+            if "$defs" in params:
                 defs = params.pop("$defs")
-                f["parameters"] = resolve_refs(params, defs)
-            elif isinstance(params, dict) and "$ref" in params:
+                params = resolve_refs(params, defs)
+            elif "$ref" in params:
                 # Top-level $ref — resolve with empty defs (best effort)
-                f["parameters"] = resolve_refs(params, {})
+                params = resolve_refs(params, {})
+            f["parameters"] = params
             t["function"] = f
         fixed.append(t)
     return fixed

@@ -1,16 +1,23 @@
-Alias verification: Sat Jul 11 02:35:05 PM +05 2026
-Testing 19 aliases
-✗ deepseek: FAIL — basic(000) 
-✗ fireworks-ai: FAIL — basic(PRECONDITION_FAILED) 
-✗ github-models: FAIL — basic(000) 
-✗ huggingface: FAIL — basic(000) 
-✗ inference: FAIL — basic(400) 
-✗ novita-ai: FAIL — basic(400) 
-✗ openrouter: FAIL — basic(402) 
-✗ poe: FAIL — tools-params 
-✗ tencent-tokenhub: FAIL — basic(401002) 
-✗ upstage: FAIL — basic(api_key_is_not_allowed) 
-✗ xiaomi: FAIL — basic(000) 
-✗ zhipuai: FAIL — basic(1113) 
+Alias verification: Sat Jul 18 02:24:32 AM MSK 2026
+Testing 28 aliases
+Poe proxy listening on http://127.0.0.1:3457
+Forwarding to https://api.poe.com/v1
+Started proxy for poe2 on port 3457 (pid=1536059)
+◌ poe2: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+Poe proxy listening on http://127.0.0.1:3457
+Forwarding to https://api.poe.com/v1
+Started proxy for poe4 on port 3457 (pid=1536218)
+◌ poe4: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+Poe proxy listening on http://127.0.0.1:3457
+Forwarding to https://api.poe.com/v1
+Started proxy for poe5 on port 3457 (pid=1536371)
+◌ poe5: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+Poe proxy listening on http://127.0.0.1:3457
+Forwarding to https://api.poe.com/v1
+Started proxy for poe on port 3457 (pid=1536518)
+◌ poe: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+✓ milos85vasic: PASS
+✓ milos85vasic2nd: PASS
+✓ milos85vasic3rd: PASS
 
-PASS: 7 FAIL: 12 TOTAL: 19
+PASS: 27 FAIL: 0 SKIP-QUOTA: 4 SKIP-TRANSIENT: 0 TOTAL: 31

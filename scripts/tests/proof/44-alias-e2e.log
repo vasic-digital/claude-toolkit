@@ -1,0 +1,833 @@
+◌ poe: model=claude-sonnet-4.6
+    FAIL: direct_request - HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insufficient_quota", "code": "insufficient_quota"}}
+    FAIL: quota_check - SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insu
+◌ poe2: model=openai/gpt-5.2-codex
+    FAIL: direct_request - HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insufficient_quota", "code": "insufficient_quota"}}
+    FAIL: quota_check - SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insu
+◌ poe4: model=xai/grok-3
+    FAIL: direct_request - HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insufficient_quota", "code": "insufficient_quota"}}
+    FAIL: quota_check - SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insu
+◌ poe5: model=empiriolabs/deepseek-v4-pro-el
+    FAIL: direct_request - HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insufficient_quota", "code": "insufficient_quota"}}
+    FAIL: quota_check - SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {"error": {"message": "You've used up your points! Visit https://poe.com/api/keys to get more.", "type": "insu
+{
+  "total": 28,
+  "passed": 24,
+  "failed": 0,
+  "quota_skipped": 4,
+  "transient_skipped": 0,
+  "results": [
+    {
+      "alias": "chutes",
+      "model": "zai-org/GLM-5.2-TEE",
+      "fast_model": "Qwen/Qwen3.6-27B-TEE",
+      "transport": "router",
+      "base_url": "https://llm.chutes.ai/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. \n\nI do not have access to your local file system, internal servers, or any connected repositorie",
+          "error": "",
+          "latency_ms": 5290
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. \n\nI do not have access to your local file system, internal servers, or any connected repositories. I can only see the code and context that you paste directly into our chat. If you want me to revi"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "chutes2",
+      "model": "moonshotai/Kimi-K2.6-TEE",
+      "fast_model": "MiniMaxAI/MiniMax-M2.5-TEE",
+      "transport": "router",
+      "base_url": "https://llm.chutes.ai/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": " NO. I can only see information that you share directly within our current conversation. I do not ha",
+          "error": "",
+          "latency_ms": 5125
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": " NO. I can only see information that you share directly within our current conversation. I do not have access to your local files, repositories, IDEs, or any external systems."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "chutes3",
+      "model": "zai-org/GLM-5.1-TEE",
+      "fast_model": "deepseek-ai/DeepSeek-V3.2-TEE",
+      "transport": "router",
+      "base_url": "https://llm.chutes.ai/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I do not have access to your codebase, local files, or private repositories. I can only see the ",
+          "error": "",
+          "latency_ms": 5848
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I do not have access to your codebase, local files, or private repositories. I can only see the information and code that you explicitly paste or upload into our current conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "deepseek",
+      "model": "deepseek-v4-pro",
+      "fast_model": "deepseek-v4-flash",
+      "transport": "native",
+      "base_url": "https://api.deepseek.com/anthropic",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO, I do not have access to your codebase. I can only see the text you explicitly share in this conv",
+          "error": "",
+          "latency_ms": 586
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO, I do not have access to your codebase. I can only see the text you explicitly share in this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "deepseek2",
+      "model": "deepseek-v4-pro",
+      "fast_model": "deepseek-chat",
+      "transport": "native",
+      "base_url": "https://api.deepseek.com/anthropic",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO\n\nI can only see the information you explicitly share with me in this conversation. I don\u2019t have a",
+          "error": "",
+          "latency_ms": 562
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI can only see the information you explicitly share with me in this conversation. I don\u2019t have access to your files, repositories, or development environment unless you paste snippets or describe "
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "kilo",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "fast_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "transport": "router",
+      "base_url": "https://api.kilo.ai/api/gateway",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO \u2013 I don\u2019t have access to your local files or codebase; I can only respond based on the informatio",
+          "error": "",
+          "latency_ms": 1147
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO \u2013 I don\u2019t have access to your local files or codebase; I can only respond based on the information you provide in our conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "kimi-for-coding",
+      "model": "kimi-for-coding",
+      "fast_model": "kimi-for-coding",
+      "transport": "router",
+      "base_url": "https://api.kimi.com/coding/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. As an AI, I cannot see your codebase or files unless you paste them directly into our conversati",
+          "error": "",
+          "latency_ms": 2493
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. As an AI, I cannot see your codebase or files unless you paste them directly into our conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "nvidia",
+      "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "fast_model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have visibility into your codebase unless you share its contents with me.",
+          "error": "",
+          "latency_ms": 1031
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have visibility into your codebase unless you share its contents with me."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "nvidia2",
+      "model": "openai/gpt-oss-20b",
+      "fast_model": "stepfun-ai/step-3.7-flash",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have direct access to your files or repository; I can only respond to the text and conte",
+          "error": "",
+          "latency_ms": 874
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have direct access to your files or repository; I can only respond to the text and context you provide within our chat."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "nvidia3",
+      "model": "stepfun-ai/step-3.5-flash",
+      "fast_model": "nvidia/nemotron-3-super-120b-a12b",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don't have access to any external codebases or persistent data. I only process the text shared",
+          "error": "",
+          "latency_ms": 2640
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don't have access to any external codebases or persistent data. I only process the text shared in our current conversation. If you provide code snippets, I can analyze them, but I don't see any "
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "nvidia4",
+      "model": "deepseek-ai/deepseek-v4-flash",
+      "fast_model": "minimaxai/minimax-m2.7",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don't have access to your codebase or any external files unless you explicitly share them in t",
+          "error": "",
+          "latency_ms": 1758
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don't have access to your codebase or any external files unless you explicitly share them in this conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "nvidia5",
+      "model": "meta/llama-3.2-11b-vision-instruct",
+      "fast_model": "nvidia/nemotron-mini-4b-instruct",
+      "transport": "router",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO\n\nI'm a text-based AI assistant, I don't have the ability to visually access or see your codebase.",
+          "error": "",
+          "latency_ms": 1204
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI'm a text-based AI assistant, I don't have the ability to visually access or see your codebase. I can only interact with text-based inputs and provide text-based responses."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "opencode",
+      "model": "big-pickle",
+      "fast_model": "deepseek-v4-flash-free",
+      "transport": "router",
+      "base_url": "https://opencode.ai/zen/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "Thinking. 1.  **Analyze the User's Request:**\n    *   The user is asking \"Do you see our codebase?\".",
+          "error": "",
+          "latency_ms": 6083
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "Thinking. 1.  **Analyze the User's Request:**\n    *   The user is asking \"Do you see our codebase?\".\n    *   I need to determine if I, as an AI, can directly see the user's codebase.\n    *   The user "
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "opencode2",
+      "model": "nemotron-3-ultra-free",
+      "fast_model": "north-mini-code-free",
+      "transport": "router",
+      "base_url": "https://opencode.ai/zen/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I cannot see your codebase unless you provide it to me directly (e.g., by pasting code, uploadin",
+          "error": "",
+          "latency_ms": 1733
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I cannot see your codebase unless you provide it to me directly (e.g., by pasting code, uploading files, or sharing a repository link in platforms that support it). I only have access to the conte"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "opencode3",
+      "model": "hy3-free",
+      "fast_model": "mimo-v2.5-free",
+      "transport": "router",
+      "base_url": "https://opencode.ai/zen/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don't have access to your local files or codebase unless you share them with me in the convers",
+          "error": "",
+          "latency_ms": 2403
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don't have access to your local files or codebase unless you share them with me in the conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "openrouter",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "fast_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "transport": "router",
+      "base_url": "https://openrouter.ai/api/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have visibility into your codebase unless you share the relevant files or snippets in th",
+          "error": "",
+          "latency_ms": 903
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have visibility into your codebase unless you share the relevant files or snippets in this conversation. Without that information, I can\u2019t see or analyze your code."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "openrouter2",
+      "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "fast_model": "tencent/hy3:free",
+      "transport": "router",
+      "base_url": "https://openrouter.ai/api/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have access to your local files or repository, so I can\u2019t see the codebase unless you sh",
+          "error": "",
+          "latency_ms": 587
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have access to your local files or repository, so I can\u2019t see the codebase unless you share it with me."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "openrouter3",
+      "model": "poolside/laguna-xs-2.1:free",
+      "fast_model": "poolside/laguna-m.1:free",
+      "transport": "router",
+      "base_url": "https://openrouter.ai/api/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don't have access to your codebase or any external files unless you explicitly share them in t",
+          "error": "",
+          "latency_ms": 481
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don't have access to your codebase or any external files unless you explicitly share them in this conversation. My knowledge is based on pre-training data up to December 2024, and I cannot view,"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "poe",
+      "model": "claude-sonnet-4.6",
+      "fast_model": "gpt-5.4-mini",
+      "transport": "router",
+      "base_url": "https://api.poe.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": false,
+          "content": "",
+          "error": "HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insufficient_quota\", \"code\": \"insufficient_quota\"}}",
+          "latency_ms": 447
+        },
+        {
+          "name": "quota_check",
+          "pass": false,
+          "error": "SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insu"
+        }
+      ],
+      "overall_pass": false,
+      "quota_skip": true
+    },
+    {
+      "alias": "poe2",
+      "model": "openai/gpt-5.2-codex",
+      "fast_model": "openai/gpt-5.1-codex-mini",
+      "transport": "router",
+      "base_url": "https://api.poe.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": false,
+          "content": "",
+          "error": "HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insufficient_quota\", \"code\": \"insufficient_quota\"}}",
+          "latency_ms": 471
+        },
+        {
+          "name": "quota_check",
+          "pass": false,
+          "error": "SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insu"
+        }
+      ],
+      "overall_pass": false,
+      "quota_skip": true
+    },
+    {
+      "alias": "poe4",
+      "model": "xai/grok-3",
+      "fast_model": "empiriolabs/deepseek-v4-flash-el",
+      "transport": "router",
+      "base_url": "https://api.poe.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": false,
+          "content": "",
+          "error": "HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insufficient_quota\", \"code\": \"insufficient_quota\"}}",
+          "latency_ms": 445
+        },
+        {
+          "name": "quota_check",
+          "pass": false,
+          "error": "SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insu"
+        }
+      ],
+      "overall_pass": false,
+      "quota_skip": true
+    },
+    {
+      "alias": "poe5",
+      "model": "empiriolabs/deepseek-v4-pro-el",
+      "fast_model": "cerebras/gpt-oss-120b-cs",
+      "transport": "router",
+      "base_url": "https://api.poe.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": false,
+          "content": "",
+          "error": "HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insufficient_quota\", \"code\": \"insufficient_quota\"}}",
+          "latency_ms": 463
+        },
+        {
+          "name": "quota_check",
+          "pass": false,
+          "error": "SKIP-QUOTA (account out of funds, not a toolkit failure): HTTP 402: {\"error\": {\"message\": \"You've used up your points! Visit https://poe.com/api/keys to get more.\", \"type\": \"insu"
+        }
+      ],
+      "overall_pass": false,
+      "quota_skip": true
+    },
+    {
+      "alias": "siliconflow",
+      "model": "zai-org/GLM-5.2",
+      "fast_model": "openai/gpt-oss-20b",
+      "transport": "router",
+      "base_url": "https://api.siliconflow.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I do not have access to your local file system, private repositories, or any code you haven't ex",
+          "error": "",
+          "latency_ms": 7919
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I do not have access to your local file system, private repositories, or any code you haven't explicitly shared in this conversation. If you would like me to review or help with your code, you wil"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "siliconflow2",
+      "model": "ByteDance-Seed/Seed-OSS-36B-Instruct",
+      "fast_model": "Qwen/Qwen3-VL-30B-A3B-Thinking",
+      "transport": "router",
+      "base_url": "https://api.siliconflow.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I don\u2019t have access to external codebases, private repositories, or your specific project files.",
+          "error": "",
+          "latency_ms": 3897
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I don\u2019t have access to external codebases, private repositories, or your specific project files. I can only help if you share relevant code snippets, questions, or details about your work directly"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "siliconflow3",
+      "model": "moonshotai/Kimi-K2.5",
+      "fast_model": "moonshotai/Kimi-K2.6",
+      "transport": "router",
+      "base_url": "https://api.siliconflow.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. I can only see the code or text you paste directly into our conversation\u2014I do not have access to",
+          "error": "",
+          "latency_ms": 4206
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I can only see the code or text you paste directly into our conversation\u2014I do not have access to your local files, repositories, IDE, or any external systems."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "siliconflow4",
+      "model": "deepseek-ai/DeepSeek-R1",
+      "fast_model": "zai-org/GLM-5",
+      "transport": "router",
+      "base_url": "https://api.siliconflow.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "\nNO. As an AI, I don't have persistent access to your files, repositories, or local environment. I c",
+          "error": "",
+          "latency_ms": 14895
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "\nNO. As an AI, I don't have persistent access to your files, repositories, or local environment. I can only process information explicitly shared within this conversation.  \n\n**Brief explanation:**  \n"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "siliconflow5",
+      "model": "zai-org/GLM-5V-Turbo",
+      "fast_model": "MiniMaxAI/MiniMax-M2.5",
+      "transport": "router",
+      "base_url": "https://api.siliconflow.com/v1",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO\n\nI cannot see your codebase or any local files on your system. I can only access information that",
+          "error": "",
+          "latency_ms": 2418
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI cannot see your codebase or any local files on your system. I can only access information that you directly share or paste into our conversation. If you'd like help with specific code, please co"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    },
+    {
+      "alias": "xiaomi",
+      "model": "mimo-v2.5-pro",
+      "fast_model": "mimo-v2.5",
+      "transport": "native",
+      "base_url": "https://api.xiaomimimo.com/anthropic",
+      "tests": [
+        {
+          "name": "direct_request",
+          "pass": true,
+          "content": "**NO.** I can only see what's shared directly in this conversation. I don't have access to any local",
+          "error": "",
+          "latency_ms": 3920
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "**NO.** I can only see what's shared directly in this conversation. I don't have access to any local files, repositories, or codebases on your machine unless you paste or upload them here."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
+        },
+        {
+          "name": "tool_calling",
+          "pass": true
+        }
+      ],
+      "overall_pass": true
+    }
+  ]
+}

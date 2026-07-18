@@ -41,8 +41,10 @@ deepseek                      # launch Claude Code on DeepSeek's strongest model
 
 | Command | Does |
 |---------|------|
-| `claude-providers sync` *(default)* | Discover every LLM key, resolve it via models.dev, verify (if available), and create/refresh one alias per provider. Idempotent — safe to run repeatedly. |
-| `claude-providers list` | Table of installed provider aliases: alias name, provider, transport, strong + fast model. |
+| `claude-providers sync` *(default)* | Discover every LLM key, resolve it via models.dev, verify it with live sentinel + tool-calling probes (see §7), and create/refresh one alias per provider. Idempotent — safe to run repeatedly. |
+| `claude-providers list` | Table of **verified** provider aliases only (safe to launch): alias name, provider, transport, strong + fast model. |
+| `claude-providers list-all` | Every installed provider alias, any status. |
+| `claude-providers list-faulty` | Only aliases with an issue (`failed` / `unverified` / `pending`) — the filtered-out set. |
 | `claude-providers show <id>` | Print the resolved env file for one provider. |
 | `claude-providers remove <id>` | Remove the alias + env file; back up and remove the config dir. |
 | `claude-providers add --from-key VAR --id PROVIDER` | Register a key→provider mapping (when a key's name doesn't match models.dev), then sync. |
@@ -144,10 +146,12 @@ claude-providers sync --multi
 claude-providers sync --multi --max-aliases 10 --min-score 20
 ```
 
-**How verification works:**
+**How verification works (v1.14.0+):**
 
-Each model is tested via a live HTTP probe (sends "Reply with exactly: VERIFY_OK"
-and checks the response). Models are scored on 7 dimensions (0-100):
+Each model is tested via live HTTP probes against the provider's chat endpoint:
+a sentinel probe (sends "Reply with exactly: VERIFY_OK" and **requires** the
+response to contain `VERIFY_OK`) and a tool-calling probe (requires the model
+to actually emit a tool call). Models are scored on 7 dimensions (0-100):
 
 | Dimension | Weight | What it checks |
 |-----------|--------|----------------|
@@ -159,9 +163,16 @@ and checks the response). Models are scored on 7 dimensions (0-100):
 | Latency | 10pts | Response under 2s (full) or 5s (half) |
 | Free tier | 5pts | $0 input cost |
 
+**Tool calling is a hard gate, not just score.** A model that answers chat but
+never calls tools is marked **not verified**, no matter how high its score —
+Claude Code is entirely tool-driven, so a tool-less model always breaks at
+runtime.
+
 **Anti-bluff detection** prevents false positives:
 - HTTP 200 with error body (JSON error wrapped in success)
 - Empty response content
+- **200 responses that lack the `VERIFY_OK` sentinel** (proxy fallback, silent
+  model swap, canned text)
 - Boilerplate "I'm unable to" responses
 - Models that claim capability but don't deliver
 
@@ -172,7 +183,9 @@ and checks the response). Models are scored on 7 dimensions (0-100):
 - Default max: 5 aliases per provider (configurable)
 
 **Verification cache:** results cached for 24h to avoid re-testing on every sync.
-Cache stored in `scripts/providers/verification_cache.json`.
+Cache stored in `~/.local/share/claude-multi-account/providers/verification_cache.json`.
+The cache carries a schema version; results written by older verification logic
+(e.g. before tool calling was required) are ignored automatically.
 
 ## 6. Overrides — `scripts/providers/overrides.json`
 
@@ -201,23 +214,49 @@ Maps a key variable name to a models.dev provider id, for the cases where the
 name differs (e.g. `CODESTRAL_API_KEY` → `mistral`, `ZAI_API_KEY` → `zai`). Use
 `claude-providers add --from-key VAR --id PROVIDER` to append entries.
 
-## 7. Verification (optional, via LLMsVerifier)
+## 7. Verification — what `sync` actually checks (v1.14.0+)
 
-By default `sync` does a best-effort check (an HTTP probe of the provider's
-`/models`, when a key + network are available) and otherwise marks a provider
-`unverified` — the alias is **still created** (full verification is opt-in).
+By default `sync` verifies every provider with **two live probes** against its
+chat endpoint, using the exact model the alias will run:
 
-For authoritative verification ("does this model exist and can it see my code?")
-build the LLMsVerifier submodule:
+1. **Sentinel probe** — asks the model to reply with exactly `VERIFY_OK` and
+   requires that token in the response. A 200 without it (or with an error
+   object smuggled into the body) is a bluff: the endpoint answered *something*,
+   not the requested model.
+2. **Tool-calling probe** — requires the model to emit a real tool call
+   (`tool_calls` / `tool_use`). Claude Code is tool-driven; a model that only
+   chats is useless in practice.
+
+Verdicts:
+
+- `verified` — both probes passed. The alias is created and launchable.
+- `failed` — a definitive problem: auth/billing rejection (401/402/403), model
+  missing (404), missing sentinel, error-in-200, or no tool call. The alias is
+  **not activated** (and the launch gate refuses to run it).
+- `unverified` — the probes were inconclusive (rate-limit 429, 5xx, timeout, no
+  network, no key). The alias is still created but the **launch gate** refuses
+  to start it until a later sync reaches a verdict (override with `--force` —
+  not recommended).
+
+This replaced the old best-effort check (a bare `GET /models`), which proved
+only that the key was accepted — not that the model can actually run Claude
+Code. Both Anthropic-native (`/v1/messages`) and OpenAI-compatible
+(`/chat/completions`) endpoint shapes are probed in their native format.
+
+For an additional authoritative layer ("can this model genuinely see and
+describe my code?") build the LLMsVerifier submodule:
 
 ```bash
 git submodule update --init --depth 1 submodules/LLMsVerifier
 cd submodules/LLMsVerifier && go build -o bin/model-verification ./llm-verifier/cmd/model-verification
 ```
 
-Once `submodules/LLMsVerifier/bin/model-verification` exists, `sync` uses it: a
-provider that **fails** verification is recorded but its alias is **not**
-activated. (Requires the Go toolchain; the build reads keys from your keys file.)
+Once `submodules/LLMsVerifier/bin/model-verification` exists, `sync` prefers it
+as the existence check. `sync` also runs the two-round semantic code-visibility
+check (sentinel + independent judge) when it is available; billing/auth
+rejections there demote the alias, while transient judge/infra errors are an
+honest SKIP that never demotes. (Requires the Go toolchain; the build reads
+keys from your keys file.)
 
 ## 8. Known limitation — default session color
 
