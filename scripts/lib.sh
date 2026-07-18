@@ -538,7 +538,8 @@ EOF
        ! grep -qF 'command -v "${CLAUDE_BIN:-}"' <<<"$_prov_body" || \
        ! grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL' <<<"$_prov_body" || \
        ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' <<<"$_prov_body" || \
-       ! grep -qF '_cma_ccr_self' <<<"$_prov_body"; then
+       ! grep -qF '_cma_ccr_self' <<<"$_prov_body" || \
+       ! grep -qF 'ccr default-claude-code -- "$@"' <<<"$_prov_body"; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -547,7 +548,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + cwd-hook-gated + ccr-self-loop-guard)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -747,7 +748,7 @@ cma_run_provider() {
     # rewrites .Router.default to point at it. Under ccr v3.0.6 the live route is
     # app_config (config.json is not re-imported on restart), so the write is
     # inert-for-routing AND a latent re-onboarding hazard. Skip the upsert+restart
-    # for a ccr-self base; `ccr code` then uses ccr's existing (app_config) route.
+    # for a ccr-self base; `ccr default-claude-code` then uses ccr's existing (app_config) route.
     local _cma_ccr_self=0
     case "${base#*://}" in
       127.0.0.1:3456|127.0.0.1:3456/*|localhost:3456|localhost:3456/*) _cma_ccr_self=1 ;;
@@ -816,7 +817,7 @@ cma_run_provider() {
         rm -f "$tmp"
       fi
     fi
-    ccr code "$@"; rc=$?
+    ccr default-claude-code -- "$@"; rc=$?
     # Stop proxy if we started one
     if [[ -n "$_proxy_pid" ]]; then
       kill "$_proxy_pid" 2>/dev/null || true
