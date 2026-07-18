@@ -592,10 +592,16 @@ rm -f "$_mig"
 it "emitted cma_run_provider exports CLAUDE_CODE_AUTO_COMPACT_WINDOW from CMA_PROVIDER_CONTEXT_LIMIT (input token-limit guard)"
 _acw_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
 # shellcheck disable=SC2016  # literal EMITTED code, not for expansion here
-printf '%s\n' "$_acw_body" | grep -qF 'CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"'
+# NOTE: herestring (<<<), NOT `printf '%s\n' … | grep -q`. Under `set -o
+# pipefail`, grep -q exits at the first match and closes the pipe; printf's
+# remaining trailing write to the now-larger cma_run_provider body then takes
+# SIGPIPE (rc 141), which pipefail surfaces as the pipeline exit -> a false
+# FAIL (want=0 got=141) even though the match IS present. A herestring feeds
+# the body via a temp file (no writer to kill), so grep's real rc is preserved.
+grep -qF 'CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"' <<<"$_acw_body"
 assert_eq 0 $? "auto-compact-window exported from CMA_PROVIDER_CONTEXT_LIMIT"
 # shellcheck disable=SC2016
-printf '%s\n' "$_acw_body" | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
+grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-' <<<"$_acw_body"
 assert_eq 0 $? "export is guarded by [[ -n \${CMA_PROVIDER_CONTEXT_LIMIT:-} ]]"
 
 it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT is empty/unknown"
@@ -606,29 +612,37 @@ it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT 
 printf '%s\n' "$_acw_body" | grep -B1 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
 assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is guarded on the preceding line"
 
-it "migration regenerates an outdated cma_run_provider that lacks the auto-compact-window guard"
-# Mirror the cma_run migration regression above, for the new marker. Build an
-# OLD-format alias file whose cma_run_provider carries ALL other current markers
-# (claude-sync-state, set -a +u, claude-session, apply-color, '>| "$tmp"') but is
-# MISSING CLAUDE_CODE_AUTO_COMPACT_WINDOW. Rather than hand-write the body, take
-# the CURRENT emitted body and strip only the two auto-compact lines (the export
-# plus its guard continuation) so the body stays valid bash and migration fires
-# solely on the absent marker.
+it "migration regenerates an outdated cma_run_provider that lacks the auto-compact cap guard"
+# Mirror the cma_run migration regression above. The cma_run_provider migration
+# guard (lib.sh) keys on the '_cma_compact_cap' marker — the local that caps the
+# auto-compact window at <=200K — NOT on the bare 'CLAUDE_CODE_AUTO_COMPACT_WINDOW'
+# export (which the guard does not check). Build an OLD-format alias file whose
+# cma_run_provider carries ALL other current markers but is MISSING that guard.
+# Rather than hand-write the body, take the CURRENT emitted body and delete the
+# WHOLE auto-compact block as ONE unit — the 'local _cma_compact_cap=…' line
+# through its closing 'fi'. Deleting the block atomically (a) genuinely removes a
+# marker the guard keys on, so migration fires for the RIGHT reason, and (b) keeps
+# the body valid bash (no orphan 'fi' — the bug a line-wise 'grep -v' strip of the
+# export + its guard continuation introduced, which lost the 'if' but kept the 'fi').
 _mig2="$ALIAS_FILE.migtest2"
 {
   printf 'export CLAUDE_BIN="/usr/bin/true"\n\n'
-  printf '%s\n' "$_acw_body" | grep -v 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' | grep -v 'CMA_PROVIDER_CONTEXT_LIMIT:-'
+  awk '
+    /local _cma_compact_cap=/  { drop=1 }
+    drop && /^[[:space:]]*fi$/ { drop=0; next }
+    !drop
+  ' <<<"$_acw_body"
   printf '\nalias kimi-for-coding="cma_run_provider kimi-for-coding"\n'
 } > "$_mig2"
 bash -n "$_mig2"; assert_eq 0 $? "old-format alias file parses (bash -n)"
-grep -q 'CLAUDE_CODE_AUTO_COMPACT_WINDOW' "$_mig2"; assert_eq 1 $? "old body lacks auto-compact-window marker (pre-migration)"
+grep -q '_cma_compact_cap' "$_mig2"; assert_eq 1 $? "old body lacks _cma_compact_cap guard marker (pre-migration)"
 ( ALIAS_FILE="$_mig2" cma_ensure_alias_file ) >/dev/null 2>&1
 mig2_prov="$(grep -c '^cma_run_provider()' "$_mig2")"
 mig2_alias="$(grep -c '^alias kimi-for-coding=' "$_mig2")"
-mig2_acw="$(printf '%s\n' "$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig2")" | grep -c 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW')"
+mig2_cap="$(grep -c 'local _cma_compact_cap=' <<<"$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig2")")"
 assert_eq 1 "$mig2_prov"  "exactly one cma_run_provider() after migration"
 assert_eq 1 "$mig2_alias" "kimi-for-coding alias preserved through migration"
-assert_eq 1 "$mig2_acw"   "regenerated cma_run_provider now exports auto-compact-window"
+assert_eq 1 "$mig2_cap"   "regenerated cma_run_provider restores the _cma_compact_cap guard"
 rm -f "$_mig2"
 
 # --- set -e/pipefail guard: a provider whose alias line is absent ------------
@@ -764,7 +778,9 @@ cma_status_write acme failed acme-big existence
 
 it "activation gate is present in the emitted cma_run_provider body"
 _gate_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-printf '%s\n' "$_gate_body" | grep -qF '_cma_force'; assert_eq 0 $? "emitted body carries the --force/gate marker"
+# herestring (<<<), NOT `printf … | grep -q`: SIGPIPE-safe on the larger body
+# (see the auto-compact-window assertions above for the pipefail/SIGPIPE detail).
+grep -qF '_cma_force' <<<"$_gate_body"; assert_eq 0 $? "emitted body carries the --force/gate marker"
 
 rm -f "$(cma_status_cache)"
 

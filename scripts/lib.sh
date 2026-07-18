@@ -347,7 +347,9 @@ EOF
   # Regenerate cma_run if its body is missing ANY current marker:
   #   * 'unset ANTHROPIC_' — provider-env isolation (native must not inherit a
   #     provider endpoint left exported in the shell),
-  #   * 'claude-session'   — the per-project auto-session naming integration, and
+  #   * 'claude-session'   — the per-project auto-session naming integration,
+  #   * 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' — token-guard isolation (native must not
+  #     inherit a provider's clamped output cap / auto-compact window), and
   #   * 'claude-cwd-hook'  — the optional project-agnostic pre-launch working-dir
   #     hook (lets a consuming project bind each alias to its own checkout).
   # A stale wrapper lacking ANY would silently misbehave (wrong endpoint,
@@ -357,14 +359,15 @@ EOF
   local _cma_run_body
   _cma_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" 2>/dev/null)"
   if grep -q '^cma_run()' "$ALIAS_FILE" \
-     && { ! printf '%s\n' "$_cma_run_body" | grep -q 'unset ANTHROPIC_' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-session' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'claude-cwd-hook' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q '_cma_hook_root' \
-	          || ! printf '%s\n' "$_cma_run_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'apply-color' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -q 'command -v "\${CLAUDE_BIN:-}"' \
-          || ! printf '%s\n' "$_cma_run_body" | grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL'; }; then
+     && { ! grep -q 'unset ANTHROPIC_' <<<"$_cma_run_body" \
+          || ! grep -q 'claude-session' <<<"$_cma_run_body" \
+          || ! grep -q 'claude-cwd-hook' <<<"$_cma_run_body" \
+          || ! grep -q '_cma_hook_root' <<<"$_cma_run_body" \
+	          || ! grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' <<<"$_cma_run_body" \
+          || ! grep -q 'apply-color' <<<"$_cma_run_body" \
+          || ! grep -q 'command -v "\${CLAUDE_BIN:-}"' <<<"$_cma_run_body" \
+          || ! grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL' <<<"$_cma_run_body" \
+          || ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' <<<"$_cma_run_body"; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -372,7 +375,7 @@ EOF
       !skip           { print }
     ' "$ALIAS_FILE" > "$tmp_run"
     mv "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + auto-session + project-scoped cwd-hook)"
+    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + token-guard isolation (CLAUDE_CODE_MAX_OUTPUT_TOKENS/AUTO_COMPACT_WINDOW) + auto-session + project-scoped cwd-hook)"
   fi
   # Ensure the cma_run wrapper is present in the alias file. This is the
   # runtime hook that keeps .claude.json projects/session state synchronized
@@ -415,6 +418,15 @@ cma_run() {
   # serving model instead of the real Anthropic tier.
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
   unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL
+  # Token-guard isolation: cma_run_provider exports CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  # (output cap, clamped <=128000) and CLAUDE_CODE_AUTO_COMPACT_WINDOW (input
+  # compact trigger) for every provider alias; BOTH persist in this shell after
+  # that alias returns. A subsequent native claudeN launch MUST clear them, else
+  # native inherits a provider's (possibly small) output cap or compact window
+  # instead of the real Anthropic per-model defaults — silently capping native's
+  # output or early-compacting its context. Parallels the ANTHROPIC_DEFAULT_*
+  # tier-map isolation above.
+  unset CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_AUTO_COMPACT_WINDOW
   # Working-dir hook (opt-in; no-op when absent). Resolution order:
   #   1. CMA_CWD_HOOK env var               — explicit user override
   #   2. <git-toplevel>/.claude-cwd-hook     — per-project hook (each repo
@@ -501,27 +513,31 @@ EOF
   # cross-provider sync-state calls ('claude-sync-state'), the nounset-safe
   # keys sourcing ('set -a +u'), the per-project auto-session integration
   # ('claude-session'), the input-context token-limit guard
-  # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), or the SHARED_DIR-based proxy resolution
-  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies).
+  # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), the SHARED_DIR-based proxy resolution
+  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies), or
+  # the <=128000 output-token clamp exported for BOTH transports
+  # ('CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' — distinct from the bare token
+  # already present in the pre-clamp unset/raw-export body).
   # Each marker lives only in the current heredoc, so once regenerated the
   # function stops re-triggering.
   if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
     local _prov_body
     _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
     # shellcheck disable=SC2016  # '>| "$tmp"' is a literal code marker grepped for, not a var to expand
-    if ! printf '%s\n' "$_prov_body" | grep -q 'claude-sync-state' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'set -a +u' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'claude-session' || \
-       ! printf '%s\n' "$_prov_body" | grep -q 'apply-color' || \
-       ! printf '%s\n' "$_prov_body" | grep -q '_cma_compact_cap' || \
-       ! printf '%s\n' "$_prov_body" | grep -q '_cma_proxy_dir' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v cma_log' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '_cma_force' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '>| "$tmp"' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF 'unset ANTHROPIC_BASE_URL' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF 'command -v "${CLAUDE_BIN:-}"' || \
-       ! printf '%s\n' "$_prov_body" | grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL'; then
+    if ! grep -q 'claude-sync-state' <<<"$_prov_body" || \
+       ! grep -q 'set -a +u' <<<"$_prov_body" || \
+       ! grep -q 'claude-session' <<<"$_prov_body" || \
+       ! grep -q 'apply-color' <<<"$_prov_body" || \
+       ! grep -q '_cma_compact_cap' <<<"$_prov_body" || \
+       ! grep -q '_cma_proxy_dir' <<<"$_prov_body" || \
+       ! grep -qF 'command -v cma_log' <<<"$_prov_body" || \
+       ! grep -qF '_cma_force' <<<"$_prov_body" || \
+       ! grep -qF '>| "$tmp"' <<<"$_prov_body" || \
+       ! grep -qF 'unset ANTHROPIC_BASE_URL' <<<"$_prov_body" || \
+       ! grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' <<<"$_prov_body" || \
+       ! grep -qF 'command -v "${CLAUDE_BIN:-}"' <<<"$_prov_body" || \
+       ! grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL' <<<"$_prov_body" || \
+       ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' <<<"$_prov_body"; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -530,7 +546,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       mv "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + cwd-hook-gated)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + cwd-hook-gated)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -661,8 +677,9 @@ cma_run_provider() {
   # cap. Fully dynamic — the value is CMA_PROVIDER_CONTEXT_LIMIT, resolved from
   # the models.dev catalog (limit.context) per selected model. Applies to BOTH
   # transports (native + router), so every provider alias is protected.
-  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below on
-  # the native path) caps OUTPUT — the two are independent halves of the guard.
+  # NOTE: this caps INPUT context; CLAUDE_CODE_MAX_OUTPUT_TOKENS (set below, just
+  # before the transport branch, clamped <=128000) caps OUTPUT — the two are
+  # independent halves of the guard.
   # Auto-compact cap: only lower the window; never raise it above ~200K.
   # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need this
   # guard — exporting their full window disables auto-compaction until ~987K,
@@ -671,6 +688,41 @@ cma_run_provider() {
   if [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" && "${CMA_PROVIDER_CONTEXT_LIMIT}" -le "$_cma_compact_cap" ]]; then
     export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
   fi
+  # Output-token clamp (§11.4.108/§11.4.111 — BOTH transports). Exporting the
+  # model's THEORETICAL limit.output (deepseek 384000, xiaomi 131072) makes
+  # Claude Code request its OWN unknown-model ceiling (128000) and then FATALLY
+  # abort any length-truncated response: "…exceeded the 128000 output token
+  # maximum… set CLAUDE_CODE_MAX_OUTPUT_TOKENS". The CLI hard-caps custom models
+  # to 128000 regardless, so any value >128000 is pointless. Clamp to
+  # min(CMA_PROVIDER_MAX_OUTPUT, 128000); a missing/non-numeric catalog value
+  # defaults to 128000 (never empty). Exported ONCE here, before the transport
+  # branch, so router AND native behave identically (previously only the native
+  # branch re-exported it — an unclamped, transport-asymmetric raw value).
+  # Clamp to a sane [1, 128000] window. Order is load-bearing (POSIX-shape so it
+  # behaves identically whether this body is sourced by bash or zsh):
+  #   1. empty / non-plain-integer (negatives, "1e6", "12.5") -> default 128000.
+  #   2. >6 digits (>= 1,000,000): necessarily > 128000 AND would OVERFLOW the
+  #      shell integer in the -gt/-lt tests below ([ N -gt .. ] errors on values
+  #      past 2^63-1 -> the '&&' fails -> the raw huge value would export
+  #      UNCLAMPED, resurrecting the ">128000" fatal). CMA_PROVIDER_MAX_OUTPUT
+  #      traces to the user-settable CMA_HELIXAGENT_MAX_OUTPUT, fed via
+  #      'jq --argjson' which preserves huge-int digits verbatim -> reachable.
+  #      Collapse to the cap WITHOUT any arithmetic on the raw value.
+  #   3. <=6 digits (0..999999): now safe for the integer tests. Floor 0/00/000
+  #      to the default (never export CLAUDE_CODE_MAX_OUTPUT_TOKENS=0), clamp the
+  #      rest at 128000. A leading-zero form like 007 tests as 7 here, stays
+  #      <=128000, and exports as "007" (Claude Code parses it as decimal 7 —
+  #      min-semantics); a leading-zero 7+ digit form like 0128001 was already
+  #      collapsed by rule 2, so it is NEVER re-read as octal.
+  local _cma_out="${CMA_PROVIDER_MAX_OUTPUT:-}"
+  case "$_cma_out" in
+    ''|*[!0-9]*)                     _cma_out=128000 ;;
+    *) if   [ "${#_cma_out}" -gt 6 ];   then _cma_out=128000
+       elif [ "$_cma_out" -lt 1 ];      then _cma_out=128000
+       elif [ "$_cma_out" -gt 128000 ]; then _cma_out=128000
+       fi ;;
+  esac
+  export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
   # Pull merged state before launch; push post-session state after exit.
@@ -771,12 +823,10 @@ cma_run_provider() {
     export ANTHROPIC_DEFAULT_SONNET_MODEL="$CMA_PROVIDER_MODEL"
     export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
     export ANTHROPIC_DEFAULT_FABLE_MODEL="$CMA_PROVIDER_MODEL"
-    # Output-token guard: cap Claude Code's output at the provider model's real
-    # max (limit.output). This is the OUTPUT half of the token-limit guard; the
-    # INPUT half (CLAUDE_CODE_AUTO_COMPACT_WINDOW) is set above for both
-    # transports. CMA_PROVIDER_MAX_OUTPUT comes from the catalog via
-    # cma_provider_write_env.
-    [[ -n "${CMA_PROVIDER_MAX_OUTPUT:-}" ]] && export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$CMA_PROVIDER_MAX_OUTPUT"
+    # Output-token cap (CLAUDE_CODE_MAX_OUTPUT_TOKENS) is exported ABOVE, before
+    # the transport branch, CLAMPED to <=128000 for BOTH transports — see the
+    # "Output-token clamp" block. (Was formerly re-exported here as the RAW,
+    # unclamped CMA_PROVIDER_MAX_OUTPUT — the origin of the "128000" fatal.)
     # Auto session-per-project (bare launch only — explicit args win verbatim).
     if [[ $# -eq 0 && -x "$HOME/.local/bin/claude-session" ]]; then
       local _cma_psf
