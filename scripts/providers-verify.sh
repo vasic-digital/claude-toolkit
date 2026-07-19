@@ -102,7 +102,7 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
   # already emits via -w) and leaves the response body in $resp.
   chat_probe() {
     # shellcheck disable=SC2059  # auth_fmt is a fixed per-shape template chosen above, not user input
-    curl -s -o "$resp" -w '%{http_code}' --max-time 15 \
+    curl -4 -s -o "$resp" -w '%{http_code}' --max-time 15 \
       -H 'Content-Type: application/json' \
       --config <(printf "$auth_fmt" "$key") \
       -d "$1" "$url" 2>/dev/null || true

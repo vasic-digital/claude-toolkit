@@ -1,7 +1,7 @@
 {
   "deepseek": {
-    "transport": "native",
-    "base_url": "https://api.deepseek.com/anthropic",
+    "transport": "router",
+    "base_url": "https://api.deepseek.com",
     "strong_model": "deepseek-v4-pro",
     "fast_model": "deepseek-v4-flash"
   },
@@ -10,8 +10,8 @@
     "fast_model": "glm-4.7"
   },
   "xiaomi": {
-    "transport": "native",
-    "base_url": "https://api.xiaomimimo.com/anthropic",
+    "transport": "router",
+    "base_url": "https://api.xiaomimimo.com/v1",
     "strong_model": "mimo-v2.5-pro",
     "fast_model": "mimo-v2.5"
   },
