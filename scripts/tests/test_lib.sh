@@ -111,8 +111,14 @@ it "no committed proof artifact contains a literal secret"
 # signatures; redacted placeholders carry the word REDACTED and are excluded.
 proof_dir="$SCRIPTS_DIR/tests/proof"
 if [[ -d "$proof_dir" ]]; then
+  # Prefixes match only at a TOKEN BOUNDARY (line start or a non-word char
+  # before them): a real leaked key appears after a quote/=/:/space (e.g.
+  # "api_key":"sk-ant-…"), never embedded mid-identifier. Without the boundary,
+  # innocent identifiers captured in build/log noise false-positive — e.g. `re_`
+  # inside a Go-cache path `reti​re_connection_id_frame_test.go`, or `secret_`
+  # inside `my_secret_value`.
   leaks="$(grep -rIE \
-    -e '(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{12,}' \
+    -e '(^|[^A-Za-z0-9_-])(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{12,}' \
     -e '://[^:/@ "]+:[^@/ "]{4,}@' \
     -e 'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' \
     "$proof_dir" 2>/dev/null | grep -vc 'REDACTED' || true)"
@@ -121,6 +127,24 @@ if [[ -d "$proof_dir" ]]; then
 else
   _pass "no proof dir on this host (nothing to scan)"
 fi
+
+# Regression guard for the token-boundary anchor (a Go-cache path
+# `retire_connection_id_frame_test.go` in captured build noise once false-
+# positived on the `re_` prefix). The scanner MUST ignore a secret prefix
+# embedded mid-identifier, yet still catch a real key at a token boundary.
+it "proof-secret scanner: boundary-anchored (embedded prefix ignored, real key caught)"
+_scan_fx="$(mktemp -d "${TMPDIR:-/tmp}/cma-scanfx.XXXXXX")"
+{
+  echo "rm: cannot remove '/go/pkg/mod/quic-go/internal/wire/retire_connection_id_frame_test.go'"
+  echo "my_secret_value_identifier_here = 1"
+} > "$_scan_fx/noise.log"
+printf '"api_key":"sk-ant-abc123def456ghi789jkl"\n' > "$_scan_fx/leak.log"
+_scan_re='(^|[^A-Za-z0-9_-])(sk-ant-|sk-|gsk_|xai-|hf_|AIza|xoxb-|xoxp-|xoxs-|pc-|re_|secret_|ghp_|github_pat_|AKIA)[A-Za-z0-9_-]{12,}'
+_scan_noise="$(grep -cE "$_scan_re" "$_scan_fx/noise.log" || true)"
+_scan_leak="$(grep -cE "$_scan_re" "$_scan_fx/leak.log" || true)"
+assert_eq 0 "${_scan_noise:-0}" "embedded prefixes (retire_/my_secret_) are NOT flagged"
+assert_eq 1 "${_scan_leak:-0}" "a real boundary-anchored sk-ant- key IS flagged"
+rm -rf "$_scan_fx"
 
 # cma_merge_claude_json must UNION the projects subtree across accounts while
 # keeping each account's private auth keys (userID/oauthAccount/...) to ITSELF.

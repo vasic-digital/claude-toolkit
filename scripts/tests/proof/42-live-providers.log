@@ -21,7 +21,7 @@ SKIP: layer-3 preconditions absent for chutes
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for chutes
 
   • semantic (layer 3) for 'deepseek' — PASS/SKIP, never a faked pass
-SKIP: layer-3 preconditions absent for deepseek
+    [32m[PASS][0m layer-3 semantic PASS for deepseek
 
   • superpowers-TUI (layer 4) for 'deepseek' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for deepseek
@@ -117,7 +117,7 @@ SKIP: layer-3 preconditions absent for siliconflow
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for upstage
 
   • semantic (layer 3) for 'xiaomi' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic ran (verdict: unverified) for xiaomi
+    [32m[PASS][0m layer-3 semantic PASS for xiaomi
 
   • superpowers-TUI (layer 4) for 'xiaomi' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for xiaomi
@@ -144,4 +144,4 @@ SKIP: layer-3 preconditions absent for zhipuai
     [32m[PASS][0m layer-4 classifier honesty: neutral prompt via 'chutes' correctly did NOT match the engagement marker
 evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/50-providers-live.txt
 
-[32m✓ 39 passed, 0 failed[0m
+[32m✓ 40 passed, 0 failed[0m

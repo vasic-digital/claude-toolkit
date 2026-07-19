@@ -1,4 +1,4 @@
-Alias verification: Sun Jul 19 03:55:58 PM +05 2026
+Alias verification: Mon Jul 20 03:13:09 AM +05 2026
 Testing 21 aliases
 ◌ fireworks-ai: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ github-models: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
@@ -7,11 +7,12 @@ Testing 21 aliases
 ◌ novita-ai: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 Poe proxy listening on http://127.0.0.1:3459
 Forwarding to https://api.poe.com/v1
-Started proxy for poe on port 3459 (pid=364287)
+Started proxy for poe on port 3459 (pid=833864)
+◌ siliconflow: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ◌ tencent-tokenhub: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ upstage: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ zai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ◌ zhipuai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
-◌ zhipuai: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
+◌ zhipuai: SKIP-GATED (status=orphaned — filtered by the verification gate, not launched)
 
-PASS: 11 FAIL: 0 SKIP-QUOTA: 1 SKIP-TRANSIENT: 0 SKIP-GATED: 9 TOTAL: 21
+PASS: 10 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 11 TOTAL: 21

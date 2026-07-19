@@ -84,7 +84,7 @@ done
 # separately-installed Node one. Best-effort: with no Go toolchain the script
 # explains how to proceed and the install still completes.
 if ! bash "$LIB_DIR/claude-ccr-build.sh"; then
-  cma_warn "bundled claude-code-router (Go) not built — provider aliases need a 'ccr' on PATH (run 'claude-ccr-build' after installing Go, or install the Node router)"
+  cma_warn "bundled claude-code-router (Go) not built — provider aliases need a 'ccr' on PATH (run 'claude-ccr-build' after installing Go)"
 fi
 
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc

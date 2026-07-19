@@ -15,7 +15,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -168,7 +168,7 @@
     }
   },
   "siliconflow": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -207,7 +207,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "unverified",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -240,7 +240,7 @@
     }
   },
   "zhipuai": {
-    "status": "verified",
+    "status": "orphaned",
     "layers": {
       "existence": true,
       "semantic": "skip",

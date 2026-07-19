@@ -157,8 +157,11 @@ chmod +x "$FAKEBIN/ccr-foreign"
 cp "$FAKEBIN/ccr-foreign" "$FAKEBIN/ccr"
 out="$( ( set +eu; ACME_KEY=sk-test PATH="$FAKEBIN:/usr/bin:/bin" cma_run_provider acmemv </dev/null 2>&1 ) )"; rc=$?
 assert_eq 127 "$rc" "foreign ccr refused (rc 127)"
-case "$out" in *"not @musistudio/claude-code-router"*) ok=0 ;; *) ok=1 ;; esac
-assert_eq 0 "$ok" "refusal message names the real router to install"
+case "$out" in *"claude-ccr-build"*) ok=0 ;; *) ok=1 ;; esac
+assert_eq 0 "$ok" "refusal points at claude-ccr-build (the bundled Go router), not npm"
+# Full replacement: the guard must no longer advertise the JS/Node router.
+case "$out" in *"npm install"*|*"@musistudio"*) ok_js=1 ;; *) ok_js=0 ;; esac
+assert_eq 0 "$ok_js" "refusal no longer advertises the JS npm router (Go fully replaces JS)"
 
 it "ccr identity guard: the real claude-code-router passes"
 cat > "$FAKEBIN/ccr" <<'EOF'

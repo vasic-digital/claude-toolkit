@@ -49,7 +49,7 @@ fi
 # 2. Require the Go toolchain.
 if ! command -v go >/dev/null 2>&1; then
   cma_warn "Go toolchain not found — cannot build the bundled claude-code-router (Go)."
-  printf '  Install Go (https://go.dev/dl/) then re-run: claude-ccr-build\n  Or install the Node router instead: npm install -g @musistudio/claude-code-router\n' >&2
+  printf '  Install Go (https://go.dev/dl/) then re-run: claude-ccr-build\n  (Last resort only, if Go is unavailable: a Node @musistudio/claude-code-router on PATH also satisfies the ccr guard.)\n' >&2
   exit 1
 fi
 

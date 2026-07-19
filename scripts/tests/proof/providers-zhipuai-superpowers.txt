@@ -1,2 +1,4 @@
-{"type":"result","subtype":"success","is_error":false,"duration_ms":69,"duration_api_ms":0,"num_turns":0,"result":"Unknown command: /using-superpowers","stop_reason":null,"session_id":"65a7a161-1183-44df-95d1-c0a3bcc2034b","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"fast_mode_state":"off","uuid":"1036362a-1940-473e-9e0e-997a1550ef6f"}
+claude-providers: alias zhipuai is orphaned — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for zhipuai)
+  Override (operator): run the alias with --force
 # FAIL: no-engagement

@@ -1,2 +1,2 @@
-{"type":"result","subtype":"success","is_error":false,"duration_ms":67,"duration_api_ms":0,"num_turns":0,"result":"Unknown command: /using-superpowers","stop_reason":null,"session_id":"f3d6b3ad-c501-4cdd-b978-29b978b4a088","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"fast_mode_state":"off","uuid":"77b98252-2949-4970-b8de-b13e5e502218"}
+Profile "default-claude-code" was not found or is disabled.
 # FAIL: no-engagement

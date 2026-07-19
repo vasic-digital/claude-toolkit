@@ -550,6 +550,7 @@ EOF
        [[ "$_prov_body" != *'_cma_ccr_self'* ]] || \
        [[ "$_prov_body" != *'ccr default-claude-code -- "$@"'* ]] || \
        [[ "$_prov_body" != *'ccr --help'* ]] || \
+       [[ "$_prov_body" != *'not the bundled claude-code-router'* ]] || \
        [[ "$_prov_body" != *'_pp_try'* ]]; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
@@ -559,7 +560,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       command mv -f "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard + go-router-canonical-messages)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -824,7 +825,7 @@ cma_run_provider() {
   local _proxy_pid=""
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
     if ! command -v ccr >/dev/null 2>&1; then
-      printf 'claude-providers: provider %s needs claude-code-router (the `ccr` gateway).\n  Build the BUNDLED Go router (recommended): claude-ccr-build\n  Or install the Node router: npm install -g @musistudio/claude-code-router\n' "$id" >&2
+      printf 'claude-providers: provider %s needs claude-code-router (the `ccr` gateway).\n  Build the bundled Go router: claude-ccr-build\n' "$id" >&2
       return 127
     fi
     # Identity check (live issue 2026-07-18, revised 2026-07-19): a
@@ -838,7 +839,7 @@ cma_run_provider() {
     local _ccr_help; _ccr_help="$(ccr --help 2>&1 | head -10)"
     case "$_ccr_help" in
       *"ccr start"*|*"ccr serve"*) ;;
-      *) printf 'claude-providers: ccr on PATH is not @musistudio/claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or: npm install -g @musistudio/claude-code-router\n' "$_ccr_help" >&2
+      *) printf 'claude-providers: ccr on PATH is not the bundled claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or (re)build the bundled Go router: claude-ccr-build\n' "$_ccr_help" >&2
          return 127 ;;
     esac
     # Upsert THIS provider into ccr config with the live key (regenerated each

@@ -2,6 +2,82 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.23.0 — 2026-07-20 — Bundled Go claude-code-router is now the SOLE router (JS fully replaced) + full retest
+
+The vendored Go `claude-code-router` (submodule, installed as `ccr` via
+`claude-ccr-build`) is now the toolkit's one and only router; the original
+Node `@musistudio/claude-code-router` is no longer preferred, required, or the
+advertised fallback.
+
+### Changed
+
+- **Go fully replaces JS.** There was never any functional code requiring the
+  Node router — detection (`command -v ccr`) and the identity-guard grammar
+  check (`ccr start`/`ccr serve`) are router-agnostic and already pass the Go
+  binary. This release removes the remaining JS advertising: the missing-ccr
+  hint (`lib.sh`) and the foreign-ccr refusal now point solely at
+  `claude-ccr-build` (the bundled Go build) and no longer name
+  `@musistudio/claude-code-router` or suggest `npm install`; the
+  `claude-ccr-build` Go-toolchain-missing hint demotes the Node router to a
+  last-resort note; `install.sh`'s warning drops the JS clause. A new migration
+  marker regenerates already-installed alias files so existing users pick up the
+  reworded guard. `test_output_tokens.sh` now asserts the refusal points at
+  `claude-ccr-build` AND no longer advertises the JS npm router.
+
+### Fixed
+
+- **`test_lib.sh` proof-secret scanner: token-boundary anchoring.** The proof-dir
+  secret scanner matched a key prefix embedded mid-identifier (`re_` inside a
+  Go-module-cache path `retire_connection_id_frame_test.go` captured as build
+  noise), a false positive. Prefixes now match only at a token boundary
+  (line-start or a non-word char before them), so a real leaked key (after a
+  quote/=/:/space) is still caught while innocent identifiers are not. Pinned by
+  a fixture regression guard (embedded prefix NOT flagged, real `sk-ant-` key IS
+  flagged).
+- **Bundled `LLMsVerifier` submodule: data race fixed** (submodule commit
+  `f9b875cf`). `InMemoryContinuousEvaluator.executeRun` wrote `run.Status` on the
+  nil-`debateEval` path outside the mutex while `GetRun` read it concurrently — a
+  race the `-race` detector flagged. The write moved inside the lock; the whole
+  module now passes `go test -race ./...`, pinned by a new concurrent-stress
+  regression guard.
+
+### Verified (full live retest — captured evidence in `scripts/tests/proof/`)
+
+- Hermetic suite `run-all.sh` (29 files) — ALL GREEN; `run-proof.sh` (6 legs) —
+  ALL GREEN (live provider legs SKIP-OK without keys); `verify_ccr_live.sh` —
+  49/0; `verify_helixagent_test.sh` — 46/46.
+- Challenge bank (`submodules/challenges`): `go test -race` + meta-runner
+  (25/25) GREEN. `containers` submodule: `build`+`vet`+`-race` GREEN.
+- The `qa-all` control-plane/anti-bluff legs that require a live Helix cluster,
+  the host suspend-guard, or `go-mutesting` are honest host/tooling
+  preconditions on this machine, not toolkit-code failures.
+
+## v1.22.9 — 2026-07-20 — bundled claude-code-router v0.4.9 (`--upstream-timeout`) + verify_ccr_live.sh auth+proxy live-proof legs (49 checks)
+
+## v1.22.8 — 2026-07-20 — bundled claude-code-router v0.4.8 (authenticated outbound proxy config block, redacted password)
+
+## v1.22.7 — 2026-07-20 — bundled claude-code-router v0.4.7 (inbound auth switch, `--max-attempts`, start/ui flag forwarding)
+
+## v1.22.6 — 2026-07-20 — bundled claude-code-router v0.4.6 (docs correction; no behavior change)
+
+## v1.22.5 — 2026-07-20 — bundled claude-code-router v0.4.5 (OpenAI-facade long-context routing symmetry)
+
+## v1.22.4 — 2026-07-20 — bundled claude-code-router v0.4.4 (streaming token accounting on both relay paths)
+
+## v1.22.3 — 2026-07-20 — bundled claude-code-router v0.4.3 (TLS/HTTP3 CLI flags, OpenAI-facade metric parity, synchronous bind) + verify_ccr_live.sh TLS/HTTP3 live-proof leg
+
+## v1.22.2 — 2026-07-19 — bundled claude-code-router v0.4.2 (transport/hot-reload/load live suites)
+
+## v1.22.1 — 2026-07-19 — bundled claude-code-router v0.4.1 (metrics polish + live e2e); toolkit verify_ccr_live.sh live proof of the bundled Go ccr
+
+## v1.22.0 — 2026-07-19 — bundled claude-code-router v0.4.0 (/metrics + semantic cache wired, Router.think, exhaustive tests)
+
+## v1.21.0 — 2026-07-19 — bundled Go claude-code-router built+installed as `ccr` (claude-ccr-build); submodule bumped to v0.3.0 (response cache + cross-provider fallback wired)
+
+## v1.20.0 — 2026-07-19 — bump bundled claude-code-router to v0.2.0 (multi-protocol gateway: OpenAI inbound facade, Anthropic passthrough, classifiers, Think/LongContext routing, hot-reload, redacted logging)
+
+## v1.19.0 — 2026-07-19 — port deepseek+xiaomi to router (ccr) transport + IPv4 fix
+
 ## v1.18.0 — 2026-07-19 — HelixAgent/HelixLLM local-model exposure + 128k output-token clamp + ccr launch fixes
 
 ### Added
