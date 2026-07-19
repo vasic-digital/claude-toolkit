@@ -169,4 +169,31 @@ grep -q 'CMA_CWD_HOOK:-' <<<"$_ph_body"; assert_eq 0 $? "cma_run respects CMA_CW
 grep -q '.local/bin/claude-cwd-hook' <<<"$_ph_body"; assert_eq 0 $? "cma_run falls back to global claude-cwd-hook"
 rm -f "$_mig_ph"
 
+# --- migration-marker checks use bash builtins, not grep subprocesses --------
+# cma_ensure_alias_file re-checks ~22 markers in the emitted cma_run_provider
+# body on EVERY call. Each `grep -qF PAT <<<"$body"` forks a process; measured
+# on a real 421-line/25KB body that is ~14ms per call vs ~3ms using bash's
+# built-in `[[ "$body" == *"PAT"* ]]`.
+#
+# The substitution is only safe because it keeps inspecting the REAL body
+# content on every call. An earlier attempt cached a version stamp instead and
+# was discarded: a corrupted body with an intact stamp line would have been
+# wrongly trusted, silently skipping the self-heal (test_128k_output_clamp.sh
+# deliberately constructs exactly that shape).
+#
+# Quoting the RHS is load-bearing: unquoted, `*` and `[` in a marker such as
+# `>| "$tmp"` would be interpreted as a glob rather than matched literally.
+it "migration marker checks avoid grep subprocesses"
+_mk_body="$(awk '/^cma_ensure_alias_file\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$SCRIPTS_DIR/lib.sh")"
+_mk_grep="$(grep -cE 'grep -q[A-Za-z]* .*<<<' <<<"$_mk_body" || true)"
+assert_eq 0 "$_mk_grep" "no 'grep -q ... <<<' marker checks remain in cma_ensure_alias_file"
+
+it "migration marker checks still inspect real body content (not a cached stamp)"
+# The guard fires when a marker is MISSING, so the emitted form is `!=`.
+_mk_builtin="$(grep -cE '\[\[ "\$_(prov|cma_run)_body" != \*' <<<"$_mk_body" || true)"
+_has_builtins=1; [[ "$_mk_builtin" -gt 0 ]] && _has_builtins=0
+assert_eq 0 "$_has_builtins" "markers are checked with bash builtins against the live body"
+_mk_stamp="$(grep -ciE 'version.?stamp|CMA_ALIAS_VERSION' <<<"$_mk_body" || true)"
+assert_eq 0 "$_mk_stamp" "no version-stamp short-circuit (would skip a needed self-heal)"
+
 summary

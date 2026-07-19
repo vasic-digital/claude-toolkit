@@ -1325,8 +1325,19 @@ grep -qF 'unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS' "
 assert_eq 0 $? "CLAUDE_CODE_* unset line present in alias file"
 
 it "env-isolation markers appear in cma_run_provider body before activation gate"
-_gate_line="$(grep -n '_cma_force' "$ALIAS_FILE" | grep -v '^[0-9]*:.*grep\|^[0-9]*:.*_gate_line' | head -1 | cut -d: -f1)"
-_unset_line="$(grep -n 'unset ANTHROPIC_BASE_URL' "$ALIAS_FILE" | head -1 | cut -d: -f1)"
+# Scope BOTH line lookups to cma_run_provider's own body.
+#
+# This previously grepped the whole alias file and filtered out lines
+# containing "grep", to skip lib.sh's own migration-marker checks. Those
+# checks now use bash builtins (`[[ "$body" != *PAT* ]]`) instead of grep
+# subprocesses, so that filter stopped excluding anything — and `head -1`
+# then matched `local _cma_force=0` inside cma_run, comparing a line number
+# from ONE function against a line number from ANOTHER. The ordering property
+# itself never broke: within cma_run_provider the unset genuinely precedes the
+# gate. Extracting the body first makes the comparison mean what it claims.
+_ord_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
+_gate_line="$(grep -n '(( ! _cma_force ))' <<<"$_ord_body" | head -1 | cut -d: -f1)"
+_unset_line="$(grep -n 'unset ANTHROPIC_BASE_URL' <<<"$_ord_body" | head -1 | cut -d: -f1)"
 [[ -n "$_unset_line" && -n "$_gate_line" && "$_unset_line" -lt "$_gate_line" ]]
 assert_eq 0 $? "env-isolation unset lines precede the activation gate"
 

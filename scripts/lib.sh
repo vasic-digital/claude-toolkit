@@ -360,15 +360,15 @@ EOF
   local _cma_run_body
   _cma_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" 2>/dev/null)"
   if grep -q '^cma_run()' "$ALIAS_FILE" \
-     && { ! grep -q 'unset ANTHROPIC_' <<<"$_cma_run_body" \
-          || ! grep -q 'claude-session' <<<"$_cma_run_body" \
-          || ! grep -q 'claude-cwd-hook' <<<"$_cma_run_body" \
-          || ! grep -q '_cma_hook_root' <<<"$_cma_run_body" \
-	          || ! grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' <<<"$_cma_run_body" \
-          || ! grep -q 'apply-color' <<<"$_cma_run_body" \
-          || ! grep -q 'command -v "\${CLAUDE_BIN:-}"' <<<"$_cma_run_body" \
-          || ! grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL' <<<"$_cma_run_body" \
-          || ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' <<<"$_cma_run_body"; }; then
+     && { [[ "$_cma_run_body" != *'unset ANTHROPIC_'* ]] \
+          || [[ "$_cma_run_body" != *'claude-session'* ]] \
+          || [[ "$_cma_run_body" != *'claude-cwd-hook'* ]] \
+          || [[ "$_cma_run_body" != *'_cma_hook_root'* ]] \
+	          || [[ "$_cma_run_body" != *'! git rev-parse --show-toplevel >/dev/null 2>&1'* ]] \
+          || [[ "$_cma_run_body" != *'apply-color'* ]] \
+          || [[ "$_cma_run_body" != *'command -v "\${CLAUDE_BIN:-}"'* ]] \
+          || [[ "$_cma_run_body" != *'ANTHROPIC_DEFAULT_OPUS_MODEL'* ]] \
+          || [[ "$_cma_run_body" != *'CLAUDE_CODE_MAX_OUTPUT_TOKENS'* ]]; }; then
     local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
     awk '
       /^cma_run\(\) ?\{/ { skip=1 }
@@ -529,28 +529,28 @@ EOF
     local _prov_body
     _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
     # shellcheck disable=SC2016  # '>| "$tmp"' is a literal code marker grepped for, not a var to expand
-    if ! grep -q 'claude-sync-state' <<<"$_prov_body" || \
-       ! grep -q 'set -a +u' <<<"$_prov_body" || \
-       ! grep -q 'claude-session' <<<"$_prov_body" || \
-       ! grep -q 'apply-color' <<<"$_prov_body" || \
-       ! grep -q '_cma_compact_cap' <<<"$_prov_body" || \
-       ! grep -q '_cma_proxy_dir' <<<"$_prov_body" || \
-       ! grep -qF '_family_id' <<<"$_prov_body" || \
-       ! grep -qF 'kimi-code/credentials/kimi-code.json' <<<"$_prov_body" || \
-       ! grep -qF '_cma_out_guard' <<<"$_prov_body" || \
-       ! grep -qF '_cma_session_flags' <<<"$_prov_body" || \
-       ! grep -qF 'command -v cma_log' <<<"$_prov_body" || \
-       ! grep -qF '_cma_force' <<<"$_prov_body" || \
-       ! grep -qF '>| "$tmp"' <<<"$_prov_body" || \
-       ! grep -qF 'unset ANTHROPIC_BASE_URL' <<<"$_prov_body" || \
-       ! grep -qF '! git rev-parse --show-toplevel >/dev/null 2>&1' <<<"$_prov_body" || \
-       ! grep -qF 'command -v "${CLAUDE_BIN:-}"' <<<"$_prov_body" || \
-       ! grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL' <<<"$_prov_body" || \
-       ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' <<<"$_prov_body" || \
-       ! grep -qF '_cma_ccr_self' <<<"$_prov_body" || \
-       ! grep -qF 'ccr default-claude-code -- "$@"' <<<"$_prov_body" || \
-       ! grep -qF 'ccr --help' <<<"$_prov_body" || \
-       ! grep -qF '_pp_try' <<<"$_prov_body"; then
+    if [[ "$_prov_body" != *'claude-sync-state'* ]] || \
+       [[ "$_prov_body" != *'set -a +u'* ]] || \
+       [[ "$_prov_body" != *'claude-session'* ]] || \
+       [[ "$_prov_body" != *'apply-color'* ]] || \
+       [[ "$_prov_body" != *'_cma_compact_cap'* ]] || \
+       [[ "$_prov_body" != *'_cma_proxy_dir'* ]] || \
+       [[ "$_prov_body" != *'_family_id'* ]] || \
+       [[ "$_prov_body" != *'kimi-code/credentials/kimi-code.json'* ]] || \
+       [[ "$_prov_body" != *'_cma_out_guard'* ]] || \
+       [[ "$_prov_body" != *'_cma_session_flags'* ]] || \
+       [[ "$_prov_body" != *'command -v cma_log'* ]] || \
+       [[ "$_prov_body" != *'_cma_force'* ]] || \
+       [[ "$_prov_body" != *'>| "$tmp"'* ]] || \
+       [[ "$_prov_body" != *'unset ANTHROPIC_BASE_URL'* ]] || \
+       [[ "$_prov_body" != *'! git rev-parse --show-toplevel >/dev/null 2>&1'* ]] || \
+       [[ "$_prov_body" != *'command -v "${CLAUDE_BIN:-}"'* ]] || \
+       [[ "$_prov_body" != *'ANTHROPIC_DEFAULT_OPUS_MODEL'* ]] || \
+       [[ "$_prov_body" != *'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"'* ]] || \
+       [[ "$_prov_body" != *'_cma_ccr_self'* ]] || \
+       [[ "$_prov_body" != *'ccr default-claude-code -- "$@"'* ]] || \
+       [[ "$_prov_body" != *'ccr --help'* ]] || \
+       [[ "$_prov_body" != *'_pp_try'* ]]; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
