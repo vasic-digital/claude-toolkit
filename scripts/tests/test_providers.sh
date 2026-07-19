@@ -1268,7 +1268,12 @@ XAI_API_KEY=sk-test out="$( XAI_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-ver
     --base-url "http://127.0.0.1:${port}/v1" 2>/dev/null )"
 assert_eq "verified" "$out" "xAI chat+tools probes pass -> verified (no special-case)"
 
-summary
+# NOTE: no `summary` here. There must be exactly ONE summary call, as the very
+# last statement in the file — it is what converts TESTS_FAILED into the exit
+# code run-all.sh tallies. A stray mid-file summary is a latent false-PASS
+# hazard: if a future edit reorders sections so a mid-file summary becomes the
+# last executed statement, its status would be reported instead of the real,
+# cumulative one. (Sections 10-11 follow below; the real summary is at EOF.)
 
 # ---------------------------------------------------------------------------
 # Section 10 — HTTP probe URL normalization (providers-verify.sh)

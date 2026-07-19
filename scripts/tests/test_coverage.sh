@@ -495,4 +495,40 @@ assert_eq 0 "$b9" "cma_run calls apply-color"
 b9=1; grep -q 'apply-color' <<<"$_b9_prov" && b9=0
 assert_eq 0 "$b9" "cma_run_provider calls apply-color"
 
+# --- harness integrity: every test file MUST end by calling `summary` --------
+# run-all.sh decides pass/fail purely from each file's EXIT CODE (run-all.sh:30
+# `if bash "$f"; then`). `summary` is what turns a non-zero TESTS_FAILED into a
+# non-zero exit. A file missing it exits with its last command's status —
+# usually 0 — so its failures are silently counted as a PASS.
+# This really happened: test_providers.sh lacked `summary` and hid 5 real
+# failures behind a green "27/27 ALL GREEN" run.
+it "every test file ends by calling summary (else run-all.sh cannot see its failures)"
+_missing_summary=""
+for _tf in "$TESTS_DIR"/test_*.sh; do
+  # `summary` must appear as a standalone command, not only in a comment.
+  if ! grep -qE '^[[:space:]]*summary[[:space:]]*$' "$_tf"; then
+    _missing_summary="$_missing_summary $(basename "$_tf")"
+  fi
+done
+assert_eq "" "$_missing_summary" "no test file is missing its summary call"
+
+# --- harness integrity: no SIGPIPE-prone `printf | grep -q` before an assert -
+# `printf '%s\n' "$body" | grep -q PAT; assert_eq 0 $?` is a race: grep -q exits
+# on first match and closes the pipe, so printf dies with SIGPIPE and the
+# PIPELINE status is 141 (128+13), not grep's 0 — the assertion fails even
+# though the pattern IS present. Whether it trips depends on how early the
+# match lands, so it is a latent coin-flip that changes as bodies grow.
+# Use a here-string (`grep -q PAT <<<"$body"`) instead: no pipe, no SIGPIPE.
+it "no assertion reads \$? from a printf|grep pipeline (SIGPIPE gives 141, not 0)"
+# grep -v '^[[:space:]]*#' first: this file documents the bad pattern in a
+# comment above, and the guard must not match its own explanation.
+_sigpipe_hits=""
+for _tf in "$TESTS_DIR"/test_*.sh; do
+  if grep -vE '^[[:space:]]*#' "$_tf" \
+     | grep -qE "printf[^|]*\|[[:space:]]*grep[^;]*;[[:space:]]*assert"; then
+    _sigpipe_hits="$_sigpipe_hits $(basename "$_tf")"
+  fi
+done
+assert_eq "" "$_sigpipe_hits" "no SIGPIPE-prone assert pipelines remain"
+
 summary
