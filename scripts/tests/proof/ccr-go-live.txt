@@ -1,17 +1,17 @@
 # claude-code-router (bundled Go) — LIVE verification proof
-generated:  2026-07-19T23:51:03+0500
+generated:  2026-07-20T00:11:06+0500
 host:       Linux 6.12.41-6.12-alt1 x86_64
 go:         go version go1.26.4-X:nodwarf5 linux/amd64
-build:      BIN_DIR=/tmp/.private/milos/ccr-go-live.SjVDXV/bin bash scripts/claude-ccr-build.sh
-gateway:    http://127.0.0.1:45425
-management: http://127.0.0.1:54057
+build:      BIN_DIR=/tmp/.private/milos/ccr-go-live.syqv4s/bin bash scripts/claude-ccr-build.sh
+gateway:    http://127.0.0.1:54617
+management: http://127.0.0.1:53643
 secret:     (api_key redaction canary — never printed here)
 
 
-===== 1. build (BIN_DIR=/tmp/.private/milos/ccr-go-live.SjVDXV/bin) =====
+===== 1. build (BIN_DIR=/tmp/.private/milos/ccr-go-live.syqv4s/bin) =====
 [36m[cma][0m building bundled claude-code-router (Go): go1.26.4-X:nodwarf5 ...
-[36m[cma][0m installed bundled Go ccr: /tmp/.private/milos/ccr-go-live.SjVDXV/bin/ccr -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/claude-code-router/bin/ccr
-[33m[cma warn][0m an EARLIER 'ccr' shadows /tmp/.private/milos/ccr-go-live.SjVDXV/bin/ccr on PATH (/home/milos/.nvm/versions/node/v24.18.0/bin/ccr). Ensure /tmp/.private/milos/ccr-go-live.SjVDXV/bin precedes it, or remove the shadowing ccr.
+[36m[cma][0m installed bundled Go ccr: /tmp/.private/milos/ccr-go-live.syqv4s/bin/ccr -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/claude-code-router/bin/ccr
+[33m[cma warn][0m an EARLIER 'ccr' shadows /tmp/.private/milos/ccr-go-live.syqv4s/bin/ccr on PATH (/home/milos/.nvm/versions/node/v24.18.0/bin/ccr). Ensure /tmp/.private/milos/ccr-go-live.syqv4s/bin precedes it, or remove the shadowing ccr.
 
 ===== 2. identity (symlink + --help) =====
 --- ccr --help (head) ---
@@ -58,7 +58,7 @@ ccr_gen_ai_upstream_requests_total{provider="deadloop",model="ghost-model"} 1
 
 ===== 4e. ccr config validate =====
 exit=0
-config /tmp/.private/milos/ccr-go-live.SjVDXV/home/.claude-code-router/config.json is valid: 1 provider(s), routes: default=deadloop,ghost-model
+config /tmp/.private/milos/ccr-go-live.syqv4s/home/.claude-code-router/config.json is valid: 1 provider(s), routes: default=deadloop,ghost-model
 
 ===== 4f. ccr config show =====
 exit=0
@@ -80,14 +80,14 @@ exit=0
 
 ===== 5. TLS + HTTP/3 =====
 -----
-tls_gateway: https://127.0.0.1:60155  (management :59015)
+tls_gateway: https://127.0.0.1:42807  (management :38885)
 
 ===== 5a. GET https /health (TLS, --http2) =====
 http_code=200
 body={"providers":1,"status":"ok"}
 
 ===== 5b. Alt-Svc h3 advertisement =====
-alt-svc: h3=":60155"; ma=86400
+alt-svc: h3=":42807"; ma=86400
 
 ===== 5c. HTTP/3 probe (best-effort) =====
 http3_probe (code version)=200 3
