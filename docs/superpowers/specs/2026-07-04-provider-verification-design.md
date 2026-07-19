@@ -110,7 +110,7 @@ The toolkit owns:
 The submodule owns (project-not-aware):
 - `cmd/code-verification/` — existence + tool-call verification (existing).
 - `cmd/semantic-code-visibility/` (new) — generic two-round sentinel+judge capability.
-- Its own `CLAUDE.md` constitution (CONST-036→040, CONST-051, proposed CONST-052).
+- Its own `CLAUDE.md` constitution (CONST-036→040, CONST-051, CONST-069).
 
 ### 2.3 CONST-051 boundary contract
 
@@ -181,7 +181,7 @@ It emits a JSON verdict:
 
 The submodule **MUST NOT**:
 - Bundle a default fixture, prompt, sentinel, or rubric that references any consumer
-  project (codified as CONST-052).
+  project (codified as CONST-069).
 - Read any consumer's `providers/` directory or `VERIFIED_CACHE`.
 - Reference `claude_toolkit`, `cma_`, `claude-providers`, or the release-tag prefix in
   its source.
@@ -247,21 +247,13 @@ see your codebase through this path" — actionable, not a test defect. The spec
 manual MUST cite the Anthropic gateway-protocol docs + the claude-code-router README with
 retrieval dates (§11.4.99).
 
-### 3.4 CONST-052 (proposed new constitution entry)
+### 3.4 CONST-069 (renumbered from proposed CONST-052)
 
-> **CORRECTION (2026-07-04, reconciled against the cascaded constitution). DO NOT reuse
-> CONST-052.** The number **CONST-052 is ALREADY TAKEN** — the cascaded constitution
-> defines CONST-052 as the **"Lowercase-Snake_Case-Naming Mandate"** (cascaded from the
-> constitution submodule §11.4.29; present verbatim in
-> `submodules/LLMsVerifier/CLAUDE.md`). Numbering this boundary-contract rule CONST-052
-> would COLLIDE with that existing, unrelated mandate. Phase 3 MUST renumber the boundary
-> contract to the next free `CONST-NNN` (do NOT pick the new number here) and update every
-> "CONST-052" reference that means the boundary contract — in §2.3's `MUST NOT` list
-> ("codified as CONST-052") and in this §3.4 — to that new number. **DO NOT reuse
-> CONST-052 for the boundary contract.** Separately, the proposed rule text below says
-> "accept … rubric as CLI args," but the built command has NO `--rubric` flag (see the §2.3
-> correction) — the rubric is delivered via the `--judge-prompt` template; reword the rule
-> to match when renumbering.
+> **RESOLVED (2026-07-19):** The proposed CONST-052 collided with the existing
+> "Lowercase-Snake_Case-Naming Mandate" (cascaded from the constitution submodule
+> §11.4.29). Renumbered to **CONST-069** (next-free per `docs/research/2026-07-04-const052-collision-renumber-draft.md`).
+> Also corrected: the rule text said "accept … rubric as CLI args" but the built command
+> has NO `--rubric` flag — the rubric is delivered via `--judge-prompt`. Updated below.
 
 > "The `semantic-code-visibility` capability MUST accept fixture, prompt, sentinel,
 > judge-config, and rubric as CLI args. It MUST NOT bundle consumer-project-specific
@@ -735,7 +727,7 @@ implementation so citations reflect ship-time docs.
 ### 8.4 Constitution update
 
 `submodules/LLMsVerifier/CLAUDE.md` gets:
-- **CONST-052 (new)**: the `semantic-code-visibility` boundary contract (Section 3.4).
+- **CONST-069 (new)**: the `semantic-code-visibility` boundary contract (Section 3.4).
 - **§11.4.X (new)**: submodule capabilities that empirically verify a consumer's
   load-bearing premise MUST document that premise as unconfirmed-in-upstream-docs and
   frame the capability as empirical verification, not assumption.
@@ -755,7 +747,7 @@ dir name — identical across main repo + submodule. Tag: `<prefix>/v1.12.0` on 
 **Change logs:**
 - Main repo: the 11-point overhaul, grouped by user-facing behavior / CLI / config /
   docs / tests / constitution.
-- LLMsVerifier submodule: the new `semantic-code-visibility` command + CONST-052,
+- LLMsVerifier submodule: the new `semantic-code-visibility` command + CONST-069,
   scoped to the submodule's own changes (no toolkit references — CONST-051).
 
 **Release flow (gh + glab, §11.4.113 no force-push):**
