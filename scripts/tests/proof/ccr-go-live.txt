@@ -1,0 +1,82 @@
+# claude-code-router (bundled Go) — LIVE verification proof
+generated:  2026-07-19T22:38:43+0500
+host:       Linux 6.12.41-6.12-alt1 x86_64
+go:         go version go1.26.4-X:nodwarf5 linux/amd64
+build:      BIN_DIR=/tmp/.private/milos/ccr-go-live.L9LRoX/bin bash scripts/claude-ccr-build.sh
+gateway:    http://127.0.0.1:48761
+management: http://127.0.0.1:51377
+secret:     (api_key redaction canary — never printed here)
+
+
+===== 1. build (BIN_DIR=/tmp/.private/milos/ccr-go-live.L9LRoX/bin) =====
+[36m[cma][0m building bundled claude-code-router (Go): go1.26.4-X:nodwarf5 ...
+[36m[cma][0m installed bundled Go ccr: /tmp/.private/milos/ccr-go-live.L9LRoX/bin/ccr -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/claude-code-router/bin/ccr
+[33m[cma warn][0m an EARLIER 'ccr' shadows /tmp/.private/milos/ccr-go-live.L9LRoX/bin/ccr on PATH (/home/milos/.nvm/versions/node/v24.18.0/bin/ccr). Ensure /tmp/.private/milos/ccr-go-live.L9LRoX/bin precedes it, or remove the shadowing ccr.
+
+===== 2. identity (symlink + --help) =====
+--- ccr --help (head) ---
+ccr - Claude Code Router
+
+Usage:
+  ccr start [--host <host>] [--port <port>] [--open|--no-open] [--gateway|--no-gateway]
+  ccr ui    [--host <host>] [--port <port>] [--open|--no-open] [--gateway|--no-gateway]
+  ccr serve [--host <host>] [--port <port>] [--open|--no-open] [--gateway|--no-gateway]
+  ccr stop
+  ccr <profile-name-or-id> [cli|app] [-- <agent args>]
+
+Commands:
+  start   Start the router service in the background (writes a pidfile).
+  ui      Start the service and open the management UI in a browser.
+  serve   Run the router service in the foreground. Alias: web.
+  web     Alias for serve.
+  stop    Stop the background service started with "start" (or "ui").
+
+Flags (start, ui, serve, web):
+  --host <host>            Management interface host (default 127.0.0.1, env CCR_WEB_HOST)
+  --port <port>            Management interface port (default 3458, env CCR_WEB_PORT)
+  --open, --no-open        Open (or don't open) the management UI in a browser
+
+===== 3. serve =====
+
+===== 4a. GET /health =====
+http_code=200
+body={"providers":1,"status":"ok"}
+
+===== 4b. GET /ready =====
+http_code=200
+body={"status":"ready"}
+
+===== 4c. POST /v1/messages (502 envelope) =====
+http_code=502
+body={"error":{"message":"upstream request failed: proxy: request to provider \"deadloop\" failed: Post \"http://127.0.0.1:1/v1/chat/completions\": dial tcp 127.0.0.1:1: connect: connection refused","type":"api_error"},"type":"error"}
+
+===== 4d. GET /metrics (excerpt) =====
+ccr_http_requests_total{method="GET",path="/health",status="200"} 2
+ccr_http_requests_total{method="GET",path="/ready",status="200"} 1
+ccr_http_requests_total{method="POST",path="/v1/messages",status="502"} 1
+ccr_gen_ai_upstream_requests_total{provider="deadloop",model="ghost-model"} 1
+
+===== 4e. ccr config validate =====
+exit=0
+config /tmp/.private/milos/ccr-go-live.L9LRoX/home/.claude-code-router/config.json is valid: 1 provider(s), routes: default=deadloop,ghost-model
+
+===== 4f. ccr config show =====
+exit=0
+{
+  "Providers": [
+    {
+      "name": "deadloop",
+      "api_base_url": "http://127.0.0.1:1/v1/chat/completions",
+      "api_key": "[REDACTED]",
+      "models": [
+        "ghost-model"
+      ]
+    }
+  ],
+  "Router": {
+    "default": "deadloop,ghost-model"
+  }
+}
+
+===== 5. shutdown + secret sweep =====
+secret_occurrences_in_proof=0
