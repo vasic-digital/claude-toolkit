@@ -68,6 +68,9 @@ Subcommands:
   verify <id> [--deep] re-run verification for one provider + persist status
                        (layers 1-3; --deep also runs the live superpowers-TUI layer 4)
   remove <id>          remove a provider alias + its config dir (backed up)
+  prune [--dry-run]    report (or, unless --dry-run, remove) ORPHANED providers —
+                       status.json/*.env records that no longer resolve against
+                       the current catalog + keys file
   add --from-key VAR [--id PROVIDER]   register a key->provider mapping then sync
 
 Options:
@@ -419,7 +422,78 @@ resolve_records() {
   '
 }
 
+# --- status-cache deletion + orphan detection --------------------------------
+# cma_status_delete <id> — remove one provider's entry from the status cache.
+# Atomic (mktemp + mv, never an in-place redirect that could truncate the file
+# on a partial/failed write). No-op if the cache is absent/empty or the id has
+# no entry. lib.sh owns cma_status_write/cma_status_read/cma_status_all (the
+# read/write API + the cma_status_cache() path helper, reused here) but ships
+# no delete — that lives here since claude-providers.sh is the sole owner of
+# provider lifecycle mutations (create/remove/prune).
+cma_status_delete() {
+  local id="$1" f; f="$(cma_status_cache)"
+  [[ -s "$f" ]] || return 0
+  cma_require jq
+  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
+  if jq --arg id "$id" 'del(.[$id])' "$f" > "$tmp" 2>/dev/null; then
+    command mv -f "$tmp" "$f"
+  else
+    rm -f "$tmp"; cma_warn "could not update status cache $f"
+  fi
+}
 
+# cma_find_orphans <resolved-ids-space-separated>
+# An "orphan" is a provider id that has a status.json entry and/or a leftover
+# *.env file, but is NOT in the CURRENT resolved-records set (its catalog
+# entry disappeared, its key was removed from the keys file, its key-alias/
+# override entry was deleted, ...). Emits one candidate id per line. Uses the
+# same padded-string membership test ("$seen"/case) already used elsewhere in
+# this file for dedupe, rather than a jq/grep set-diff, so provider ids can
+# never be misinterpreted as regex/glob patterns.
+cma_find_orphans() {
+  local resolved=" $1 " pdir; pdir="$(cma_providers_dir)"
+  local sf; sf="$(cma_status_cache)"
+  local candidates="" cid
+  if [[ -s "$sf" ]]; then
+    while IFS= read -r cid; do
+      [[ -n "$cid" ]] || continue
+      case "$candidates" in *" $cid "*) ;; *) candidates="$candidates $cid " ;; esac
+    done < <(jq -r 'keys[]' "$sf" 2>/dev/null)
+  fi
+  if [[ -d "$pdir" ]] && compgen -G "$pdir/*.env" >/dev/null 2>&1; then
+    local f base
+    for f in "$pdir"/*.env; do
+      base="$(basename "$f" .env)"
+      case "$candidates" in *" $base "*) ;; *) candidates="$candidates $base " ;; esac
+    done
+  fi
+  for cid in $candidates; do
+    case "$resolved" in *" $cid "*) ;; *) printf '%s\n' "$cid" ;; esac
+  done
+}
+
+# cma_demote_orphans <resolved-ids-space-separated>
+# Warns about + demotes every id cma_find_orphans reports, so the launch-time
+# activation gate (which trusts ONLY status=="verified") stops trusting a
+# provider that quietly disappeared from the catalog/keys. Deliberately does
+# NOT touch the .env/alias/config dir — actual removal is an explicit
+# `claude-providers remove`/`prune` action, never implicit sync fallout.
+cma_demote_orphans() {
+  local resolved="$1" pdir; pdir="$(cma_providers_dir)"
+  local sf; sf="$(cma_status_cache)"
+  local oid
+  while IFS= read -r oid; do
+    [[ -n "$oid" ]] || continue
+    local model="" ef="$pdir/$oid.env"
+    if [[ -f "$ef" ]]; then
+      # shellcheck disable=SC1090
+      model="$( ( set -a; . "$ef"; set +a; printf '%s' "${CMA_PROVIDER_MODEL:-}" ) )"
+    fi
+    [[ -n "$model" ]] || model="$(jq -r --arg id "$oid" '.[$id].model // ""' "$sf" 2>/dev/null)"
+    cma_warn "provider '$oid' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it."
+    cma_status_write "$oid" orphaned "$model" orphan
+  done < <(cma_find_orphans "$resolved")
+}
 
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
@@ -442,6 +516,8 @@ cmd_sync() {
   total="$(jq 'length' <<<"$records")"
   resolved="$(jq '[.[]|select(.status=="resolved")]|length' <<<"$records")"
   cma_log "discovered $total key vars; $resolved resolve to a provider"
+  local resolved_ids
+  resolved_ids="$(jq -r '[.[] | select(.status=="resolved") | .provider_id] | unique | join(" ")' <<<"$records")"
 
   # Always-on plugins (additive union) — once, before per-provider work.
   if (( ! DRY_RUN )); then
@@ -526,6 +602,12 @@ cmd_sync() {
     cma_log "provider '$pid' -> alias '$alias' [$transport] model=$model ($vstatus${flayer:+/$flayer})"
     n_created=$((n_created+1))
   done < <(jq -r '.[] | [.status,.provider_id,.alias,.key_var,.transport,.base_url,.strong_model,.fast_model,.context_limit,.max_output] | @tsv' <<<"$records")
+
+  # Orphan detection: any status.json/*.env record whose provider id is NOT in
+  # the CURRENT resolved set (catalog/key/override dropped it) is demoted +
+  # warned about — never silently left trusting a stale 'verified' forever.
+  # Skipped under --dry-run (nothing else in a dry-run sync is written either).
+  (( DRY_RUN )) || cma_demote_orphans "$resolved_ids"
 
   cma_log "sync done: $n_created active, $n_disabled disabled (failed verify), $n_skipped not-resolved"
   cma_log "reload your shell or: source $ALIAS_FILE"
@@ -658,7 +740,61 @@ cmd_remove() {
     mv "$cdir" "${cdir}.preunify.$(date +%Y%m%d%H%M%S)"
     cma_log "backed up + removed config dir $cdir"
   fi
+  # Clear the verification status record too — otherwise a removed provider's
+  # LAST status (possibly "verified") lingers in status.json forever. That is
+  # not just clutter: a future re-add of the same id (or an orphan left behind
+  # by a partial removal) would read the stale record via the activation gate.
+  cma_status_delete "$id"
   cma_log "removed provider '$id' (alias '${alias:-none}')"
+}
+
+# --- subcommand: prune -------------------------------------------------------
+# claude-providers prune [--dry-run]
+# Reports (and, unless --dry-run, removes) every ORPHANED provider — a
+# status.json record and/or *.env file whose id no longer resolves against the
+# CURRENT catalog + keys file (see cma_find_orphans above). This is the
+# explicit, operator-invoked counterpart to cmd_sync's automatic
+# demote-on-detect: sync never deletes anything, prune is the only path that
+# actually removes an orphan's alias/env/config dir — via the same cmd_remove
+# used for a manual `claude-providers remove <id>`. An orphan that has ONLY a
+# status.json entry (no .env — e.g. left over from a previous incomplete
+# removal) is handled by deleting just the status record, since cmd_remove
+# requires an .env file to exist.
+cmd_prune() {
+  ensure_catalog
+  local records; records="$(resolve_records)"
+  local resolved_ids
+  resolved_ids="$(jq -r '[.[] | select(.status=="resolved") | .provider_id] | unique | join(" ")' <<<"$records")"
+
+  local pdir; pdir="$(cma_providers_dir)"
+  local orphans; orphans="$(cma_find_orphans "$resolved_ids")"
+  if [[ -z "$orphans" ]]; then
+    cma_log "prune: no orphaned providers found"
+    return 0
+  fi
+
+  local oid n=0
+  while IFS= read -r oid; do
+    [[ -n "$oid" ]] || continue
+    n=$((n+1))
+    if (( DRY_RUN )); then
+      printf '  would prune: %s (orphaned — no longer resolves against the current catalog/keys)\n' "$oid"
+      continue
+    fi
+    cma_log "pruning orphaned provider '$oid'"
+    if [[ -f "$pdir/$oid.env" ]]; then
+      cmd_remove "$oid"
+    else
+      # status-only orphan: nothing else to remove, just drop the stale record.
+      cma_status_delete "$oid"
+    fi
+  done <<< "$orphans"
+
+  if (( DRY_RUN )); then
+    cma_log "prune --dry-run: $n orphan(s) found; nothing changed"
+  else
+    cma_log "prune: removed $n orphaned provider(s)"
+  fi
 }
 
 # --- subcommand: add --------------------------------------------------------
@@ -832,7 +968,7 @@ cmd_sync_multi() {
 # --- arg parsing + dispatch -------------------------------------------------
 SUBCMD="sync"
 case "${1:-}" in
-  sync|list|list-all|list-faulty|show|verify|remove|add) SUBCMD="$1"; shift ;;
+  sync|list|list-all|list-faulty|show|verify|remove|prune|add) SUBCMD="$1"; shift ;;
   -h|--help) usage; exit 0 ;;
 esac
 POSITIONAL=()
@@ -894,6 +1030,7 @@ case "$SUBCMD" in
   show)        cmd_show "${POSITIONAL[@]:-}" ;;
   verify)      cmd_verify "${POSITIONAL[@]:-}" ;;
   remove)      cmd_remove "${POSITIONAL[@]:-}" ;;
+  prune)       cmd_prune ;;
   add)         cmd_add "${POSITIONAL[@]:-}" ;;
 esac
 

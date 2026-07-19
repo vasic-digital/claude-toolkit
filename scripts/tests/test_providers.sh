@@ -1382,4 +1382,93 @@ cma_status_write "acme4" "unverified" "acme-tiny" "existence"
 ( CLAUDE_BIN=/usr/bin/true ACME_API_KEY=sk-test source "$ALIAS_FILE"; cma_run_provider acme4 ) >/dev/null 2>&1; _grc=$?
 assert_eq 3 "$_grc" "unverified multi-alias acme4 blocked by gate (rc 3)"
 
+# ---------------------------------------------------------------------------
+# Section 13 — provider-removal & orphan lifecycle: cmd_remove must clear the
+# status.json entry (previously it never did — .env/alias/config dir were
+# removed but the stale record lingered forever, and a stale "verified" record
+# is still trusted by the launch-time activation gate, which only checks
+# status=="verified" and never checks whether the provider still resolves);
+# cmd_sync must detect + demote any status.json/*.env record whose provider id
+# no longer resolves against the current catalog+keys ("orphan") instead of
+# leaving it forever; and the new `prune` subcommand reports (--dry-run) or
+# actually removes orphans via the same cmd_remove path.
+#
+# Every id here is unique to this section and never present in the fixture
+# catalog seeded above, so this section cannot collide with, or be polluted
+# by, any earlier section's provider state.
+# ---------------------------------------------------------------------------
+
+it "cmd_remove clears the status.json entry for the removed provider"
+cma_provider_write_env "removeme" "REMOVEME_KEY" "router" "https://api.removeme.example/v1" \
+  "removeme-big" "removeme-fast" "$HOME/.claude-prov-removeme" "" "" "removeme"
+cma_provider_write_alias "removeme" "removeme"
+cma_status_write removeme verified removeme-big ""
+assert_eq "verified" "$(cma_status_read removeme)" "precondition: removeme status verified before remove"
+bash "$PROVIDERS_SH" remove removeme >/dev/null 2>&1
+assert_eq "pending" "$(cma_status_read removeme)" "status reads back as pending (no stale record) after remove"
+_rm_key_present=0
+jq -e '.removeme' "$(cma_status_cache)" >/dev/null 2>&1 && _rm_key_present=1
+assert_eq 0 "$_rm_key_present" "removeme key is actually absent from status.json, not just null"
+
+it "cmd_remove leaves OTHER status.json entries untouched (no over-broad delete)"
+cma_status_write removeme-sibling verified sibling-model ""
+cma_provider_write_env "removeme2" "REMOVEME2_KEY" "router" "https://api.removeme2.example/v1" \
+  "removeme2-big" "" "$HOME/.claude-prov-removeme2" "" "" "removeme2"
+cma_status_write removeme2 verified removeme2-big ""
+bash "$PROVIDERS_SH" remove removeme2 >/dev/null 2>&1
+assert_eq "verified" "$(cma_status_read removeme-sibling)" "sibling status entry survives an unrelated remove"
+assert_eq "pending" "$(cma_status_read removeme2)" "removeme2's own entry is gone"
+
+it "sync demotes an orphaned status.json record instead of leaving it 'verified' forever"
+# 'orphan-alpha' has no backing key anywhere in $KEYS and no catalog entry in
+# $PCACHE — it can never be part of a resolved record, so any sync run must
+# treat its lingering "verified" status as stale.
+cma_status_write orphan-alpha verified orphan-alpha-model ""
+assert_eq "verified" "$(cma_status_read orphan-alpha)" "precondition: orphan-alpha marked verified"
+_orphan_warn="$(bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" 2>&1 >/dev/null)"
+_orphan_status="$(cma_status_read orphan-alpha)"
+cond=1; [[ "$_orphan_status" != "verified" ]] && cond=0
+assert_eq 0 "$cond" "orphan-alpha no longer reports verified after sync (now: $_orphan_status)"
+grep -qi 'orphan' <<<"$_orphan_warn"; assert_eq 0 $? "sync emits an orphan warning on stderr"
+grep -q 'orphan-alpha' <<<"$_orphan_warn"; assert_eq 0 $? "warning names the specific orphaned id"
+
+it "sync's orphan detection also covers a leftover *.env with no prior status.json entry"
+cma_provider_write_env "orphan-beta" "ORPHAN_BETA_KEY" "router" "https://api.orphan-beta.example/v1" \
+  "orphan-beta-model" "" "$HOME/.claude-prov-orphan-beta" "" "" "orphan-beta"
+cma_provider_write_alias "orphan-beta" "orphan-beta"
+assert_eq "pending" "$(cma_status_read orphan-beta)" "precondition: orphan-beta has no status entry yet (env-only orphan)"
+bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+_orphan_beta_status="$(cma_status_read orphan-beta)"
+cond=1; [[ "$_orphan_beta_status" != "verified" && "$_orphan_beta_status" != "pending" ]] && cond=0
+assert_eq 0 "$cond" "env-only orphan gets an explicit demoted status, not silently left pending/verified (now: $_orphan_beta_status)"
+
+it "sync never demotes a provider that still resolves (guard against orphan-detection over-matching)"
+bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >/dev/null 2>&1
+_acme_status_after="$(cma_status_read acme)"
+cond=1; [[ "$_acme_status_after" == "orphaned" ]] && cond=0
+assert_eq 1 "$cond" "acme (still resolves every sync) is never marked orphaned"
+assert_eq "unverified" "$_acme_status_after" "acme keeps its normal --no-verify status (not clobbered by orphan demotion)"
+
+it "prune --dry-run reports the orphans but changes nothing"
+_before_alpha_status="$(cma_status_read orphan-alpha)"
+_before_beta_env=0; [[ -f "$PDIR/orphan-beta.env" ]] && _before_beta_env=1
+_dry_out="$(bash "$PROVIDERS_SH" prune --dry-run --offline --keys-file "$KEYS" 2>&1)"
+grep -q 'orphan-alpha' <<<"$_dry_out"; assert_eq 0 $? "dry-run reports orphan-alpha"
+grep -q 'orphan-beta' <<<"$_dry_out"; assert_eq 0 $? "dry-run reports orphan-beta"
+assert_eq "$_before_alpha_status" "$(cma_status_read orphan-alpha)" "dry-run does not change orphan-alpha's status"
+_after_beta_env=0; [[ -f "$PDIR/orphan-beta.env" ]] && _after_beta_env=1
+assert_eq "$_before_beta_env" "$_after_beta_env" "dry-run does not remove orphan-beta's env file"
+grep -q 'cma_run_provider orphan-beta"' "$ALIAS_FILE"; assert_eq 0 $? "dry-run does not remove orphan-beta's alias line"
+
+it "prune actually removes orphaned providers when invoked for real"
+bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" >/dev/null 2>&1
+assert_eq "pending" "$(cma_status_read orphan-alpha)" "orphan-alpha's status record is gone after real prune"
+_env_gone=1; [[ -f "$PDIR/orphan-beta.env" ]] && _env_gone=0
+assert_eq 1 "$_env_gone" "orphan-beta's env file is removed after real prune"
+grep -q 'cma_run_provider orphan-beta"' "$ALIAS_FILE" ; assert_eq 1 $? "orphan-beta's alias line is removed after real prune"
+
+it "prune is a no-op (with a clear message) once no orphans remain"
+_clean_out="$(bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" 2>&1)"
+grep -qi 'no orphan' <<<"$_clean_out"; assert_eq 0 $? "prune reports there is nothing left to prune"
+
 summary
