@@ -548,7 +548,8 @@ EOF
        ! grep -qF 'ANTHROPIC_DEFAULT_OPUS_MODEL' <<<"$_prov_body" || \
        ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' <<<"$_prov_body" || \
        ! grep -qF '_cma_ccr_self' <<<"$_prov_body" || \
-       ! grep -qF 'ccr default-claude-code -- "$@"' <<<"$_prov_body"; then
+       ! grep -qF 'ccr default-claude-code -- "$@"' <<<"$_prov_body" || \
+       ! grep -qF 'ccr --help' <<<"$_prov_body"; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -557,7 +558,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       command mv -f "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
