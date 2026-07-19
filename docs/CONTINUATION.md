@@ -1,10 +1,14 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-19
-**Last HEAD:** `main @ v1.18.2` (✅ **v1.18.2 RELEASED** — migration marker for ccr --help identity check. Tag `v1.18.2` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
+**Last HEAD:** `main @ v1.19.0` (✅ **v1.19.0 RELEASED** — all providers on ccr + IPv4 fix. Tag `v1.19.0` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
 **Working tree:** clean
 **Active branch:** `main`
-**Next action:** none — v1.18.2 is a bugfix release. Continue from Phase 2/3 provider verification work per the programme state below.
+**Next action:** Phase 2/3 provider verification work per the programme state below. 11 providers still failing (account-side: suspended accounts, expired keys).
+
+## v1.19.0 — DELIVERED (commit fec3c4f)
+
+All 12 active providers now route through ccr uniformly. Deepseek and xiaomi ported from native (Anthropic) transport to router (OpenAI-compatible) transport via overrides.json. IPv4 fix in providers-verify.sh (curl -4) resolves HTTP 000 on hosts with broken IPv6 routing. Full suite 27/27 green. Gh + glab releases live.
 
 ## v1.18.2 — DELIVERED (commit b51228e)
 
