@@ -71,7 +71,7 @@ deepseek                      # launch Claude Code on DeepSeek's strongest model
     `@ai-sdk/anthropic`). The alias runs `claude` with `ANTHROPIC_BASE_URL` /
     `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` set.
   - `router` — provider is OpenAI-compatible / Gemini. The alias launches
-    through `claude-code-router` (`ccr code`), which translates the protocol.
+    through `claude-code-router` (`ccr default-claude-code`), which translates the protocol.
 
 ## 5. Config dirs, plugins, and shared state
 
@@ -195,18 +195,27 @@ models.dev-derived value:
 ```json
 {
   "deepseek": {
-    "alias": "dseek",
-    "transport": "native",
-    "base_url": "https://api.deepseek.com/anthropic",
-    "strong_model": "deepseek-reasoner",
-    "fast_model": "deepseek-chat"
+    "alias": "dseek"
   }
 }
 ```
 
-This is how you (for example) promote DeepSeek to its native Anthropic endpoint
-(`/anthropic`) instead of routing it, or give it the short alias `dseek` — all
-without touching any code.
+This is how you (for example) give DeepSeek the short alias `dseek` — without
+touching any code.
+
+> **Do not copy transport/base_url from an example.** As of **v1.19.0** every
+> provider — DeepSeek and Xiaomi included — is pinned to `router` transport on
+> its OpenAI-compatible endpoint, because both were verified working there and
+> a single uniform path is far easier to debug. The shipped pins are:
+>
+> ```json
+> "deepseek": { "transport": "router", "base_url": "https://api.deepseek.com" }
+> "xiaomi":   { "transport": "router", "base_url": "https://api.xiaomimimo.com/v1" }
+> ```
+>
+> Pasting an older `"transport": "native"` / `.../anthropic` block would revert
+> that fix. Always check the live values in `scripts/providers/overrides.json`
+> before overriding transport or base_url.
 
 ### `scripts/providers/key-aliases.json`
 
@@ -313,7 +322,7 @@ claude-providers remove <id>          # remove alias + env, back up config dir
 claude-providers add --from-key VAR --id PROVIDER   # register mapping + sync
 
 # Launch a provider session (after: source the alias file or open a new shell)
-deepseek                              # native provider -> claude
+deepseek                              # router provider -> claude via ccr
 <router-provider>                     # routed provider -> claude via ccr
 deepseek -p "your prompt"             # non-interactive print mode
 
@@ -371,7 +380,7 @@ override in `scripts/providers/overrides.json` pins the strong model to
 coding workloads on this plan.
 
 Transport is **router** — the alias launches through `claude-code-router`
-(`ccr code`), which translates the Anthropic protocol to the OpenAI-compatible
+(`ccr default-claude-code`), which translates the Anthropic protocol to the OpenAI-compatible
 z.ai API.
 
 #### Models available on the Coding Plan
@@ -511,7 +520,7 @@ An override in `scripts/providers/overrides.json` pins:
   tool_call
 
 Transport is **router** — the alias launches through `claude-code-router`
-(`ccr code`), which translates the Anthropic protocol to the OpenAI-compatible
+(`ccr default-claude-code`), which translates the Anthropic protocol to the OpenAI-compatible
 Zen API (`https://opencode.ai/zen/v1/chat/completions`).
 
 No transport or base_url override is needed — the models.dev catalog already
@@ -607,7 +616,7 @@ provider ID. An override in `scripts/providers/overrides.json` pins:
 - **fast_model** `Qwen/Qwen3.6-27B-TEE` — fast Qwen model, 262K context
 
 Transport is **router** — the alias launches through `claude-code-router`
-(`ccr code`), which translates the Anthropic protocol to the OpenAI-compatible
+(`ccr default-claude-code`), which translates the Anthropic protocol to the OpenAI-compatible
 Chutes API.
 
 #### Models available on Chutes
@@ -666,7 +675,7 @@ The API is OpenAI-compatible at `https://api.poe.com/v1`.
 
 The key variable `POE_API_KEY` (or `ApiKey_Poe`) in your keys file maps to the
 `poe` provider ID. Transport is **router** — the alias launches through
-`claude-code-router` (`ccr code`).
+`claude-code-router` (`ccr default-claude-code`).
 
 #### Aliases
 

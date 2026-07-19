@@ -12,7 +12,7 @@ There's no hard limit. Each provider gets its own config directory (`~/.claude-p
 
 ### What's the difference between `native` and `router` transport?
 
-- **Native:** The provider speaks the Anthropic Messages API directly (e.g., `https://api.deepseek.com/anthropic`). Claude Code talks to it without a router.
+- **Native:** The provider speaks the Anthropic Messages API directly (a base URL ending in `/anthropic`, served as `/anthropic/v1/messages`). Claude Code talks to it without a router. As of v1.19.0 no provider ships pinned to native — see the next question.
 - **Router:** The provider speaks the OpenAI chat/completions API. Requests go through `ccr` (claude-code-router), which translates between Claude Code's Anthropic format and the provider's OpenAI format.
 
 ### Why are all providers now on router transport?
