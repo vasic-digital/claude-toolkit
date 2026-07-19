@@ -44,10 +44,20 @@ advertised fallback.
 ### Verified (full live retest — captured evidence in `scripts/tests/proof/`)
 
 - Hermetic suite `run-all.sh` (29 files) — ALL GREEN; `run-proof.sh` (6 legs) —
-  ALL GREEN (live provider legs SKIP-OK without keys); `verify_ccr_live.sh` —
-  49/0; `verify_helixagent_test.sh` — 46/46.
+  ALL GREEN; `verify_ccr_live.sh` — 49/0; `verify_helixagent_test.sh` — 46/46.
 - Challenge bank (`submodules/challenges`): `go test -race` + meta-runner
   (25/25) GREEN. `containers` submodule: `build`+`vet`+`-race` GREEN.
+- **Live provider aliases** (`api_keys.sh` present): `claude-providers sync` +
+  the `run-proof` alias legs verify **10–11 aliases LIVE** end-to-end (chutes,
+  deepseek, helixagent, inference, kilo, opencode, openrouter, poe, siliconflow,
+  xiaomi; nvidia works at HTTP 200 but the strict 2-probe verify intermittently
+  hits free-tier rate-limiting). The remaining providers are **honestly gated —
+  every failure is account-side, not a toolkit bug**: direct probes captured
+  401 (key rejected — mappings verified correct), 402/403 (no funds / suspended /
+  quota), 429 (fair-usage rate-limit / insufficient balance). Evidence:
+  `scripts/tests/proof/60-provider-triage.txt`. `claude-providers prune` removed
+  3 stale status-only orphans. The launch gate refuses every non-`verified`
+  alias — the anti-bluff design working as intended.
 - The `qa-all` control-plane/anti-bluff legs that require a live Helix cluster,
   the host suspend-guard, or `go-mutesting` are honest host/tooling
   preconditions on this machine, not toolkit-code failures.

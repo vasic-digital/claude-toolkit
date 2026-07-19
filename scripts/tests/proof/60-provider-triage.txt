@@ -1,0 +1,22 @@
+# Provider live-verification triage — evidence that faulty providers are ACCOUNT-SIDE
+# Generated during v1.23.0 full live retest. Each faulty provider was DIRECT-PROBED
+# (POST <base>/chat/completions with the mapped key + resolved model) to capture the
+# real HTTP status. Keys redacted. No toolkit config bug was found; keyvar mappings
+# verified correct. The toolkit correctly GATES every account-side failure (anti-bluff).
+#
+# provider            HTTP  cause (verbatim provider response, truncated)                     class
+# ------------------  ----  ---------------------------------------------------------------  --------------
+# nvidia               200  works; strict 2-probe verify intermittently 429s (free-tier)     transient/gated
+# github-models        401  Unauthorized (mapped key GITHUB_MODELS_API_KEY rejected)          account/key
+# huggingface          402  "depleted your monthly included credits"                          account/no-funds
+# kimi-for-coding      403  "reached your usage limit for this billing cycle"                 account/quota
+# novita-ai            401  "FAILED_TO_AUTH: failed to authenticate API key"                  account/key
+# tencent-tokenhub     401  "The API Key does not exist or signature verification failed"     account/key
+# upstage              403  "API key suspended due to insufficient credit"                    account/no-funds
+# zai-coding-plan      429  "Fair Usage Policy ... request frequency has been limited"        account/rate-limit
+# zhipuai-coding-plan  429  "Fair Usage Policy" (zh)                                          account/rate-limit
+# zhipuai              429  "余额不足或无可用资源包,请充值" (insufficient balance, recharge)   account/no-funds
+# fireworks / zhipuai  ---  orphaned (no resolving key) -> pruned                             cleanup
+#
+# CONCLUSION: none are toolkit defects. The 10-11 verified aliases are genuinely
+# live-verified; the rest are honestly gated pending USER account funding / key renewal.
