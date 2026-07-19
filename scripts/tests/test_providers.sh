@@ -1449,23 +1449,76 @@ cond=1; [[ "$_acme_status_after" == "orphaned" ]] && cond=0
 assert_eq 1 "$cond" "acme (still resolves every sync) is never marked orphaned"
 assert_eq "unverified" "$_acme_status_after" "acme keeps its normal --no-verify status (not clobbered by orphan demotion)"
 
-it "prune --dry-run reports the orphans but changes nothing"
-_before_alpha_status="$(cma_status_read orphan-alpha)"
-_before_beta_env=0; [[ -f "$PDIR/orphan-beta.env" ]] && _before_beta_env=1
+
+# ---------------------------------------------------------------------------
+# Section 13b — the two DISTINCT orphan classes prune must tell apart:
+#   * orphan-alpha (from above): a status.json record with NO backing .env —
+#     STATUS-ONLY. Invisible to list/list-all/list-faulty and unreachable by
+#     `remove` (which requires the env file), so it is unconditionally safe
+#     dead weight; prune drops it even without any extra flag.
+#   * orphan-beta (from above): a *.env-backed provider that no longer
+#     resolves — UNRESOLVED. It has a live alias/config dir that might hold
+#     real state and its non-resolution might just mean a key is temporarily
+#     missing, so plain `prune` only ever REPORTS it; actually removing it
+#     requires the explicit --unresolved flag.
+#   * acme (from Section 3 onward): resolves on every sync/prune call in this
+#     file (ACME_API_KEY is in $KEYS, "acme" is in the fixture catalog) — the
+#     healthy provider that must never be flagged by either class.
+# ---------------------------------------------------------------------------
+
+it "prune --dry-run labels orphan-alpha status-only and orphan-beta unresolved, distinctly"
 _dry_out="$(bash "$PROVIDERS_SH" prune --dry-run --offline --keys-file "$KEYS" 2>&1)"
 grep -q 'orphan-alpha' <<<"$_dry_out"; assert_eq 0 $? "dry-run reports orphan-alpha"
 grep -q 'orphan-beta' <<<"$_dry_out"; assert_eq 0 $? "dry-run reports orphan-beta"
+_alpha_line="$(grep 'orphan-alpha' <<<"$_dry_out")"
+_beta_line="$(grep 'orphan-beta' <<<"$_dry_out")"
+grep -qi 'status-only' <<<"$_alpha_line"; assert_eq 0 $? "orphan-alpha (no .env) is labeled status-only"
+grep -qi 'unresolved' <<<"$_beta_line"; assert_eq 0 $? "orphan-beta (has .env) is labeled unresolved"
+grep -q 'would prune' <<<"$_alpha_line"; assert_eq 0 $? "status-only orphan is would-prune even without --unresolved"
+grep -q 'would prune' <<<"$_beta_line"; assert_eq 1 $? "unresolved orphan is NOT would-prune without --unresolved"
+grep -qi 'not pruned' <<<"$_beta_line"; assert_eq 0 $? "unresolved orphan is explicitly marked NOT pruned"
+grep -q -- '--unresolved' <<<"$_beta_line"; assert_eq 0 $? "unresolved orphan's line tells the operator about --unresolved"
+
+it "prune --dry-run never flags acme, a provider that still resolves"
+echo "$_dry_out" | grep -qw 'acme'; assert_eq 1 $? "acme (still resolves) never appears in prune --dry-run output"
+
+it "prune --dry-run: dry-run changes nothing for either class"
+_before_alpha_status="$(cma_status_read orphan-alpha)"
+_before_beta_env=0; [[ -f "$PDIR/orphan-beta.env" ]] && _before_beta_env=1
+bash "$PROVIDERS_SH" prune --dry-run --offline --keys-file "$KEYS" >/dev/null 2>&1
 assert_eq "$_before_alpha_status" "$(cma_status_read orphan-alpha)" "dry-run does not change orphan-alpha's status"
 _after_beta_env=0; [[ -f "$PDIR/orphan-beta.env" ]] && _after_beta_env=1
 assert_eq "$_before_beta_env" "$_after_beta_env" "dry-run does not remove orphan-beta's env file"
 grep -q 'cma_run_provider orphan-beta"' "$ALIAS_FILE"; assert_eq 0 $? "dry-run does not remove orphan-beta's alias line"
 
-it "prune actually removes orphaned providers when invoked for real"
-bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" >/dev/null 2>&1
-assert_eq "pending" "$(cma_status_read orphan-alpha)" "orphan-alpha's status record is gone after real prune"
+it "prune --dry-run --unresolved previews pruning BOTH classes together"
+_dry_both="$(bash "$PROVIDERS_SH" prune --dry-run --unresolved --offline --keys-file "$KEYS" 2>&1)"
+grep 'orphan-alpha' <<<"$_dry_both" | grep -q 'would prune'; assert_eq 0 $? "status-only still would-prune under --unresolved"
+grep 'orphan-beta' <<<"$_dry_both" | grep -q 'would prune'; assert_eq 0 $? "unresolved orphan also would-prune with --unresolved"
+echo "$_dry_both" | grep -qw 'acme'; assert_eq 1 $? "acme still never appears, even with --unresolved"
+
+it "plain prune removes the status-only orphan for real but leaves the unresolved orphan alone"
+_real_out="$(bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" 2>&1)"
+assert_eq "pending" "$(cma_status_read orphan-alpha)" "orphan-alpha's status record is gone after a plain, real prune"
+_beta_env_present=0; [[ -f "$PDIR/orphan-beta.env" ]] && _beta_env_present=1
+assert_eq 1 "$_beta_env_present" "orphan-beta's env file SURVIVES a plain prune (needs --unresolved)"
+grep -q 'cma_run_provider orphan-beta"' "$ALIAS_FILE"; assert_eq 0 $? "orphan-beta's alias line survives a plain prune"
+grep -qi 'unresolved' <<<"$_real_out"; assert_eq 0 $? "plain prune's real-run output still calls out the untouched unresolved orphan"
+grep -q -- '--unresolved' <<<"$_real_out"; assert_eq 0 $? "plain prune tells the operator how to remove it (--unresolved)"
+
+it "prune --unresolved removes the unresolved orphan for real"
+bash "$PROVIDERS_SH" prune --unresolved --offline --keys-file "$KEYS" >/dev/null 2>&1
 _env_gone=1; [[ -f "$PDIR/orphan-beta.env" ]] && _env_gone=0
-assert_eq 1 "$_env_gone" "orphan-beta's env file is removed after real prune"
-grep -q 'cma_run_provider orphan-beta"' "$ALIAS_FILE" ; assert_eq 1 $? "orphan-beta's alias line is removed after real prune"
+assert_eq 1 "$_env_gone" "orphan-beta's env file is removed after prune --unresolved"
+grep -q 'cma_run_provider orphan-beta"' "$ALIAS_FILE" ; assert_eq 1 $? "orphan-beta's alias line is removed after prune --unresolved"
+assert_eq "pending" "$(cma_status_read orphan-beta)" "orphan-beta's status record is also gone (cmd_remove clears it)"
+
+it "prune never touches acme when actually removing orphans (healthy provider guard)"
+_acme_status_before="$(cma_status_read acme)"
+bash "$PROVIDERS_SH" prune --unresolved --offline --keys-file "$KEYS" >/dev/null 2>&1
+assert_eq "$_acme_status_before" "$(cma_status_read acme)" "acme's status is untouched by a real prune run"
+assert_file "$PDIR/acme.env" "acme env file still present after prune"
+grep -q '^alias acme="cma_run_provider acme"' "$ALIAS_FILE"; assert_eq 0 $? "acme alias still present after prune"
 
 it "prune is a no-op (with a clear message) once no orphans remain"
 _clean_out="$(bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" 2>&1)"

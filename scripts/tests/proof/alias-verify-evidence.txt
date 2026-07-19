@@ -1,10 +1,10 @@
-Alias verification: Sun Jul 19 02:30:02 AM +05 2026
+Alias verification: Sun Jul 19 03:55:58 PM +05 2026
 Testing 21 aliases
 --- chutes (zai-org/GLM-5.2-TEE) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=10chunks test6(tool)=[{'id': 'call_dd9121
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'id': 'call_7b96ff
 verdict=PASS
 --- deepseek (deepseek-v4-pro) ---
-test1(basic)=200 test2(no_params)=Invalid schema for function 'test': null test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=tool_use
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
 verdict=PASS
 --- fireworks-ai (accounts/fireworks/routers/glm-5p2-fast) ---
 verdict=SKIP-GATED status=failed
@@ -15,8 +15,9 @@ test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chun
 verdict=PASS
 --- huggingface (Qwen/Qwen3-Coder-480B-A35B-Instruct) ---
 verdict=SKIP-GATED status=failed
---- inference (google/gemma-3) ---
-verdict=SKIP-GATED status=failed
+--- inference (glm-5.2) ---
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=0chunks test6(tool)=[{'id': 'call_0cc8d1
+verdict=PASS
 --- kilo (nvidia/nemotron-3-super-120b-a12b:free) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=9chunks test6(tool)=[{'type': 'function'
 verdict=PASS
@@ -25,7 +26,7 @@ verdict=SKIP-GATED status=failed
 --- novita-ai (deepseek/deepseek-v3.2) ---
 verdict=SKIP-GATED status=failed
 --- nvidia (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning) ---
-test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=24chunks test6(tool)=[{'id': 'call-4e0d6c
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=27chunks test6(tool)=[{'id': 'call-9e3c68
 verdict=PASS
 --- opencode (big-pickle) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
@@ -34,7 +35,8 @@ verdict=PASS
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'type': 'function'
 verdict=PASS
 --- poe (claude-sonnet-4.6) ---
-verdict=SKIP-GATED status=failed
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=3chunks test6(tool)=[{'id': 'toolu_01YUA
+verdict=PASS
 --- siliconflow (zai-org/GLM-5.2) ---
 test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=18chunks test6(tool)=[{'index': 0, 'id': 
 verdict=PASS
@@ -43,13 +45,14 @@ verdict=SKIP-GATED status=failed
 --- upstage (solar-pro3) ---
 verdict=SKIP-GATED status=failed
 --- xiaomi (mimo-v2.5-pro) ---
-verdict=SKIP-GATED status=unverified
+test1(basic)=200 test2(no_params)= test3(ref)= test4(cache)= test5(stream)=8chunks test6(tool)=[{'id': 'call_ad9f91
+verdict=PASS
 --- zai-coding-plan (glm-5.2) ---
 verdict=SKIP-GATED status=unverified
 --- zhipuai-coding-plan (glm-5.2) ---
 verdict=SKIP-GATED status=unverified
 --- zhipuai (glm-5.2) ---
-test1(basic)=1113 test2(no_params)=余额不足或无可用资源包,请充值。 test3(ref)=余额不足或无可用资源包,请充值。 test4(cache)=余额不足或无可用资源包,请充值。 test5(stream)=0chunks test6(tool)=no
-verdict=FAIL
+test1(basic)=QUOTA test2(no_params)=余额不足或无可用资源包,请充值。 test3(ref)=余额不足或无可用资源包,请充值。 test4(cache)=余额不足或无可用资源包,请充值。 test5(stream)=0chunks test6(tool)=QUOTA
+verdict=SKIP-QUOTA
 
-PASS: 8 FAIL: 1 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21
+PASS: 11 FAIL: 0 SKIP-QUOTA: 1 SKIP-TRANSIENT: 0 SKIP-GATED: 9 TOTAL: 21

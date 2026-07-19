@@ -1,17 +1,17 @@
-Alias verification: Sun Jul 19 02:30:02 AM +05 2026
+Alias verification: Sun Jul 19 03:55:58 PM +05 2026
 Testing 21 aliases
 ◌ fireworks-ai: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ github-models: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ huggingface: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
-◌ inference: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ kimi-for-coding: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ novita-ai: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
-◌ poe: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
+Poe proxy listening on http://127.0.0.1:3459
+Forwarding to https://api.poe.com/v1
+Started proxy for poe on port 3459 (pid=364287)
 ◌ tencent-tokenhub: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
 ◌ upstage: SKIP-GATED (status=failed — filtered by the verification gate, not launched)
-◌ xiaomi: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ◌ zai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
 ◌ zhipuai-coding-plan: SKIP-GATED (status=unverified — filtered by the verification gate, not launched)
-✗ zhipuai: FAIL — basic(1113) no-tool-call 
+◌ zhipuai: SKIP-QUOTA (account out of funds/credits — not a toolkit failure)
 
-PASS: 8 FAIL: 1 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21
+PASS: 11 FAIL: 0 SKIP-QUOTA: 1 SKIP-TRANSIENT: 0 SKIP-GATED: 9 TOTAL: 21

@@ -1,26 +1,17 @@
-◌ chutes: model=zai-org/GLM-5.2-TEE
-    FAIL: direct_request - The read operation timed out
-    FAIL: transient_check - SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): The read operation timed out
 ◌ fireworks-ai: model=accounts/fireworks/routers/glm-5p2-fast
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ github-models: model=deepseek/deepseek-r1-0528
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ huggingface: model=Qwen/Qwen3-Coder-480B-A35B-Instruct
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ inference: model=google/gemma-3
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ kimi-for-coding: model=kimi-for-coding
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ novita-ai: model=deepseek/deepseek-v3.2
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ poe: model=claude-sonnet-4.6
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ tencent-tokenhub: model=hy3-preview
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ upstage: model=solar-pro3
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ xiaomi: model=mimo-v2.5-pro
-    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
 ◌ zai-coding-plan: model=glm-5.2
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
 ◌ zhipuai-coding-plan: model=glm-5.2
@@ -30,11 +21,11 @@
     FAIL: transient_check - SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): HTTP 429: {"error":{"code":"1113","message":"余额不足或无可用资源包,请充值。"}}
 {
   "total": 21,
-  "passed": 7,
+  "passed": 11,
   "failed": 0,
   "quota_skipped": 0,
-  "transient_skipped": 2,
-  "gated_skipped": 12,
+  "transient_skipped": 1,
+  "gated_skipped": 9,
   "results": [
     {
       "alias": "chutes",
@@ -45,38 +36,41 @@
       "tests": [
         {
           "name": "direct_request",
-          "pass": false,
-          "content": "",
-          "error": "The read operation timed out",
-          "latency_ms": 30356
+          "pass": true,
+          "content": "NO. I am an AI language model and do not have direct access to your local file system, private repos",
+          "error": "",
+          "latency_ms": 6905
         },
         {
-          "name": "transient_check",
-          "pass": false,
-          "error": "SKIP-TRANSIENT (provider capacity/timeout, not a toolkit failure): The read operation timed out"
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. I am an AI language model and do not have direct access to your local file system, private repositories, or any prior context. To review your codebase, you will need to explicitly share the code b"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "transient_skip": true
+      "overall_pass": true
     },
     {
       "alias": "deepseek",
       "model": "deepseek-v4-pro",
       "fast_model": "deepseek-v4-flash",
-      "transport": "native",
-      "base_url": "https://api.deepseek.com/anthropic",
+      "transport": "router",
+      "base_url": "https://api.deepseek.com",
       "tests": [
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO.\n\nI don\u2019t have access to your local files, repositories, or any external system. I can only work ",
+          "content": "NO. I do not have access to your local files, directories, or any codebase unless you explicitly sha",
           "error": "",
-          "latency_ms": 741
+          "latency_ms": 663
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO.\n\nI don\u2019t have access to your local files, repositories, or any external system. I can only work with the information you paste into the conversation."
+          "content_preview": "NO. I do not have access to your local files, directories, or any codebase unless you explicitly share the relevant code or context in this chat."
         },
         {
           "name": "error_pattern_check",
@@ -129,12 +123,12 @@
           "pass": true,
           "content": "NO\n\nI don't have access to your codebase or any external files. I can only see and respond to the me",
           "error": "",
-          "latency_ms": 274
+          "latency_ms": 230
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO\n\nI don't have access to your codebase or any external files. I can only see and respond to the messages you send in our conversation. If you'd like me to review code, you'd need to paste it directl"
+          "content_preview": "NO\n\nI don't have access to your codebase or any external files. I can only see and respond to the messages in our current conversation. If you'd like me to review code, you would need to paste it dire"
         },
         {
           "name": "error_pattern_check",
@@ -161,19 +155,29 @@
     },
     {
       "alias": "inference",
-      "model": "google/gemma-3",
-      "fast_model": "meta/llama-3.2-1b-instruct",
+      "model": "glm-5.2",
+      "fast_model": "gpt-4.1-nano",
       "transport": "router",
       "base_url": "https://api.inference.net/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO. \n\nI do not have access to your codebase, local files, or private repositories. I can only see th",
+          "error": "",
+          "latency_ms": 5277
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO. \n\nI do not have access to your codebase, local files, or private repositories. I can only see the text and code that you explicitly paste into our conversation or provide through a specific platfo"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "kilo",
@@ -185,14 +189,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I don\u2019t have visibility into your repository or any external files unless you share them directl",
+          "content": "NO. I don\u2019t have access to your local files or any external codebase unless you share it directly in",
           "error": "",
-          "latency_ms": 1286
+          "latency_ms": 1287
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I don\u2019t have visibility into your repository or any external files unless you share them directly in our conversation. If you paste snippets or describe the code, I can help analyze or suggest imp"
+          "content_preview": "NO. I don\u2019t have access to your local files or any external codebase unless you share it directly in our conversation. If you paste snippets or describe the code, I can help analyze or improve it."
         },
         {
           "name": "error_pattern_check",
@@ -243,14 +247,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO \u2013 I don\u2019t have visibility into your codebase unless you share it with me.",
+          "content": "NO. I don\u2019t have direct access to your codebase unless you share its contents with me.",
           "error": "",
-          "latency_ms": 1279
+          "latency_ms": 1199
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO \u2013 I don\u2019t have visibility into your codebase unless you share it with me."
+          "content_preview": "NO. I don\u2019t have direct access to your codebase unless you share its contents with me."
         },
         {
           "name": "error_pattern_check",
@@ -269,14 +273,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "Thinking. 1.  **Analyze the Request:**\n    *   Target: \"Do you see our codebase?\"\n    *   Constraint",
+          "content": "NO. I do not have access to your external file system, repositories, or any codebase outside of the ",
           "error": "",
-          "latency_ms": 6763
+          "latency_ms": 6579
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "Thinking. 1.  **Analyze the Request:**\n    *   Target: \"Do you see our codebase?\"\n    *   Constraint: \"Reply with YES or NO and explain briefly.\"\n\n2.  **Analyze the Context:**\n    *   I am a large lan"
+          "content_preview": "NO. I do not have access to your external file system, repositories, or any codebase outside of the specific code snippets or context you provide within our current conversation."
         },
         {
           "name": "error_pattern_check",
@@ -295,14 +299,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO \u2013 I don\u2019t have visibility into your codebase unless you\u2019ve shared it directly in this conversatio",
+          "content": "NO  \nI don\u2019t have access to your codebase unless you share specific snippets or files in our convers",
           "error": "",
-          "latency_ms": 871
+          "latency_ms": 963
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO \u2013 I don\u2019t have visibility into your codebase unless you\u2019ve shared it directly in this conversation; I only see what\u2019s provided in the chat."
+          "content_preview": "NO  \nI don\u2019t have access to your codebase unless you share specific snippets or files in our conversation."
         },
         {
           "name": "error_pattern_check",
@@ -319,13 +323,23 @@
       "base_url": "https://api.poe.com/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "**NO.**\n\nI don't have access to any codebase, repository, or external files. I can only see what is ",
+          "error": "",
+          "latency_ms": 5063
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "**NO.**\n\nI don't have access to any codebase, repository, or external files. I can only see what is directly shared within this conversation (e.g., code snippets you paste into the chat).\n\nIf you'd li"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "siliconflow",
@@ -337,14 +351,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I cannot see your codebase. I only have access to the text you provide directly in this chat. If",
+          "content": "NO. I am an AI language model and do not have access to your local files, private repositories, or a",
           "error": "",
-          "latency_ms": 8380
+          "latency_ms": 7199
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I cannot see your codebase. I only have access to the text you provide directly in this chat. If you want me to review specific files or code, you will need to paste the code into our conversation"
+          "content_preview": "NO. I am an AI language model and do not have access to your local files, private repositories, or any external codebases. If you want me to review or help with your code, you will need to copy and pa"
         },
         {
           "name": "error_pattern_check",
@@ -389,17 +403,27 @@
       "alias": "xiaomi",
       "model": "mimo-v2.5-pro",
       "fast_model": "mimo-v2.5",
-      "transport": "native",
-      "base_url": "https://api.xiaomimimo.com/anthropic",
+      "transport": "router",
+      "base_url": "https://api.xiaomimimo.com/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO, I don't have access to your codebase unless you explicitly share code snippets or files with me.",
+          "error": "",
+          "latency_ms": 7252
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO, I don't have access to your codebase unless you explicitly share code snippets or files with me. I can help analyze code you provide directly in our conversation."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "zai-coding-plan",
@@ -445,7 +469,7 @@
           "pass": false,
           "content": "",
           "error": "HTTP 429: {\"error\":{\"code\":\"1113\",\"message\":\"\u4f59\u989d\u4e0d\u8db3\u6216\u65e0\u53ef\u7528\u8d44\u6e90\u5305,\u8bf7\u5145\u503c\u3002\"}}",
-          "latency_ms": 1194
+          "latency_ms": 946
         },
         {
           "name": "transient_check",

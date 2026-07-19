@@ -1,4 +1,2 @@
-claude-providers: alias inference is failed — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for inference)
-  Override (operator): run the alias with --force
+{"type":"result","subtype":"success","is_error":false,"duration_ms":89,"duration_api_ms":0,"num_turns":0,"result":"Unknown command: /using-superpowers","stop_reason":null,"session_id":"25e72add-fa93-47eb-a527-a35e2eb9839f","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{},"permission_denials":[],"fast_mode_state":"off","uuid":"8fd25040-89bc-4d96-bc5d-9ed44f928c58"}
 # FAIL: no-engagement

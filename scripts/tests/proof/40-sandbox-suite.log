@@ -2,7 +2,7 @@
 [1m==> test_128k_output_clamp.sh[0m
 
   • cma_ensure_alias_file emits an alias file with both wrappers
-    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.H16hYK/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.aJyTlW/.local/share/claude-multi-account/aliases.sh
     [32m[PASS][0m control needle: prov_body extractor is not blind (1)
     [32m[PASS][0m control needle: run_body extractor is not blind (1)
 
@@ -54,7 +54,7 @@
 
   • GREEN: the migration seam re-emits the clamp + isolation on the next ensure
 [36m[cma][0m migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + token-guard isolation (CLAUDE_CODE_MAX_OUTPUT_TOKENS/AUTO_COMPACT_WINDOW) + auto-session + project-scoped cwd-hook)
-[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)
+[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard)
     [32m[PASS][0m clamp export restored (1)
     [32m[PASS][0m isolation unset restored (1)
     [32m[PASS][0m clamp arithmetic still 384000->128000 after re-emit (128000)
@@ -71,23 +71,23 @@
 
   • claude-add-account --yes uses sensible defaults
     [32m[PASS][0m exit 0 (0)
-    [32m[PASS][0m config dir created: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3
-    [32m[PASS][0m projects linked: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3/projects -> /tmp/.private/milos/cma-test.R4Sfid/.claude-shared/projects
-    [32m[PASS][0m settings.json is OWN (not a shared symlink): /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3/settings.json
-    [32m[PASS][0m own real settings.json exists: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3/settings.json
+    [32m[PASS][0m config dir created: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3
+    [32m[PASS][0m projects linked: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3/projects -> /tmp/.private/milos/cma-test.8SmOGg/.claude-shared/projects
+    [32m[PASS][0m settings.json is OWN (not a shared symlink): /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3/settings.json
+    [32m[PASS][0m own real settings.json exists: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3/settings.json
     [32m[PASS][0m own settings.json carries enabledPlugins (seeded from template) (has("enabledPlugins") = true)
-    [32m[PASS][0m plugins (cache) still shared: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3/plugins -> /tmp/.private/milos/cma-test.R4Sfid/.claude-shared/plugins
-    [32m[PASS][0m history.jsonl still shared: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3/history.jsonl -> /tmp/.private/milos/cma-test.R4Sfid/.claude-shared/history.jsonl
-    [32m[PASS][0m CLAUDE.md linked: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude3/CLAUDE.md -> /tmp/.private/milos/cma-test.R4Sfid/.claude-shared/CLAUDE.md
+    [32m[PASS][0m plugins (cache) still shared: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3/plugins -> /tmp/.private/milos/cma-test.8SmOGg/.claude-shared/plugins
+    [32m[PASS][0m history.jsonl still shared: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3/history.jsonl -> /tmp/.private/milos/cma-test.8SmOGg/.claude-shared/history.jsonl
+    [32m[PASS][0m CLAUDE.md linked: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude3/CLAUDE.md -> /tmp/.private/milos/cma-test.8SmOGg/.claude-shared/CLAUDE.md
     [32m[PASS][0m alias line written: 'alias claude3=' in aliases.sh
-    [32m[PASS][0m alias points at new dir: 'CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.R4Sfid/.claude-claude3' in aliases.sh
+    [32m[PASS][0m alias points at new dir: 'CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.8SmOGg/.claude-claude3' in aliases.sh
 
   • claude-add-account refuses to overwrite an existing dir
     [32m[PASS][0m exits non-zero when dir exists (0)
 
   • claude-add-account accepts a custom alias name and custom dir
-    [32m[PASS][0m custom dir created: /tmp/.private/milos/cma-test.R4Sfid/.claude-mywork
-    [32m[PASS][0m projects linked: /tmp/.private/milos/cma-test.R4Sfid/.claude-mywork/projects -> /tmp/.private/milos/cma-test.R4Sfid/.claude-shared/projects
+    [32m[PASS][0m custom dir created: /tmp/.private/milos/cma-test.8SmOGg/.claude-mywork
+    [32m[PASS][0m projects linked: /tmp/.private/milos/cma-test.8SmOGg/.claude-mywork/projects -> /tmp/.private/milos/cma-test.8SmOGg/.claude-shared/projects
     [32m[PASS][0m custom alias written: 'alias mywork=' in aliases.sh
 
   • claude-add-account validates alias names
@@ -95,7 +95,7 @@
 
   • claude-add-account is non-interactive without --yes (CMA_NONINTERACTIVE=1)
     [32m[PASS][0m exit 0 without --yes (0)
-    [32m[PASS][0m config dir created via defaults: /tmp/.private/milos/cma-test.R4Sfid/.claude-claude4
+    [32m[PASS][0m config dir created via defaults: /tmp/.private/milos/cma-test.8SmOGg/.claude-claude4
     [32m[PASS][0m alias written non-interactively: 'alias claude4=' in aliases.sh
     [32m[PASS][0m earlier claude3 alias survives: 'alias claude3=' in aliases.sh
     [32m[PASS][0m earlier mywork alias survives: 'alias mywork=' in aliases.sh
@@ -136,41 +136,41 @@
 
   • claude-bootstrap --count 2 --yes provisions cleanly
     [32m[PASS][0m exit 0 (0)
-    [32m[PASS][0m shared store created: /tmp/.private/milos/cma-test.Qs9inF/.claude-shared
-    [32m[PASS][0m shared projects dir created: /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/projects
-    [32m[PASS][0m shared settings.json seeded: /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/settings.json
+    [32m[PASS][0m shared store created: /tmp/.private/milos/cma-test.EywdRv/.claude-shared
+    [32m[PASS][0m shared projects dir created: /tmp/.private/milos/cma-test.EywdRv/.claude-shared/projects
+    [32m[PASS][0m shared settings.json seeded: /tmp/.private/milos/cma-test.EywdRv/.claude-shared/settings.json
     [32m[PASS][0m settings.json seeded with empty object: '{}' in settings.json
-    [32m[PASS][0m account 1 dir created: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1
-    [32m[PASS][0m account 2 dir created: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude2
-    [32m[PASS][0m claude1 projects linked: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/projects -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/projects
-    [32m[PASS][0m claude1 CLAUDE.md linked: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/CLAUDE.md -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/CLAUDE.md
-    [32m[PASS][0m claude2 projects linked: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude2/projects -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/projects
-    [32m[PASS][0m claude2 todos linked: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude2/todos -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/todos
-    [32m[PASS][0m claude1 settings.json is OWN (not a shared symlink): /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/settings.json
-    [32m[PASS][0m claude1 has own real settings.json: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/settings.json
+    [32m[PASS][0m account 1 dir created: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1
+    [32m[PASS][0m account 2 dir created: /tmp/.private/milos/cma-test.EywdRv/.claude-claude2
+    [32m[PASS][0m claude1 projects linked: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/projects -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/projects
+    [32m[PASS][0m claude1 CLAUDE.md linked: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/CLAUDE.md -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/CLAUDE.md
+    [32m[PASS][0m claude2 projects linked: /tmp/.private/milos/cma-test.EywdRv/.claude-claude2/projects -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/projects
+    [32m[PASS][0m claude2 todos linked: /tmp/.private/milos/cma-test.EywdRv/.claude-claude2/todos -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/todos
+    [32m[PASS][0m claude1 settings.json is OWN (not a shared symlink): /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/settings.json
+    [32m[PASS][0m claude1 has own real settings.json: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/settings.json
     [32m[PASS][0m claude1 own settings.json is valid JSON object (type = object)
-    [32m[PASS][0m claude1 plugins (cache) still shared: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/plugins -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/plugins
-    [32m[PASS][0m claude1 history.jsonl still shared: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/history.jsonl -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/history.jsonl
-    [32m[PASS][0m claude2 settings.json is OWN (not a shared symlink): /tmp/.private/milos/cma-test.Qs9inF/.claude-claude2/settings.json
-    [32m[PASS][0m claude1 has private .claude.json: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/.claude.json
-    [32m[PASS][0m claude1 .claude.json stays private: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/.claude.json
-    [32m[PASS][0m claude1 mcp-auth-cache stays private: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1/mcp-needs-auth-cache.json
-    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.Qs9inF/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m claude1 plugins (cache) still shared: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/plugins -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/plugins
+    [32m[PASS][0m claude1 history.jsonl still shared: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/history.jsonl -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/history.jsonl
+    [32m[PASS][0m claude2 settings.json is OWN (not a shared symlink): /tmp/.private/milos/cma-test.EywdRv/.claude-claude2/settings.json
+    [32m[PASS][0m claude1 has private .claude.json: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/.claude.json
+    [32m[PASS][0m claude1 .claude.json stays private: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/.claude.json
+    [32m[PASS][0m claude1 mcp-auth-cache stays private: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1/mcp-needs-auth-cache.json
+    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.EywdRv/.local/share/claude-multi-account/aliases.sh
     [32m[PASS][0m claude1 alias written: 'alias claude1=' in aliases.sh
     [32m[PASS][0m claude2 alias written: 'alias claude2=' in aliases.sh
-    [32m[PASS][0m claude1 alias points at its dir: 'CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.Qs9inF/.claude-claude1' in aliases.sh
-    [32m[PASS][0m claude2 alias points at its dir: 'CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.Qs9inF/.claude-claude2' in aliases.sh
+    [32m[PASS][0m claude1 alias points at its dir: 'CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.EywdRv/.claude-claude1' in aliases.sh
+    [32m[PASS][0m claude2 alias points at its dir: 'CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.EywdRv/.claude-claude2' in aliases.sh
 
   • claude-bootstrap refuses to clobber existing account dirs on re-run
     [32m[PASS][0m re-run exits non-zero (claude-bootstrap.sh:124-130) (0)
-    [32m[PASS][0m claude1 dir survives refused re-run: /tmp/.private/milos/cma-test.Qs9inF/.claude-claude1
+    [32m[PASS][0m claude1 dir survives refused re-run: /tmp/.private/milos/cma-test.EywdRv/.claude-claude1
     [32m[PASS][0m claude1 alias survives refused re-run: 'alias claude1=' in aliases.sh
 
   • claude-bootstrap --aliases provisions custom names
     [32m[PASS][0m exit 0 (0)
-    [32m[PASS][0m personal dir created: /tmp/.private/milos/cma-test.Qs9inF/.claude-personal
-    [32m[PASS][0m work dir created: /tmp/.private/milos/cma-test.Qs9inF/.claude-work
-    [32m[PASS][0m personal projects linked: /tmp/.private/milos/cma-test.Qs9inF/.claude-personal/projects -> /tmp/.private/milos/cma-test.Qs9inF/.claude-shared/projects
+    [32m[PASS][0m personal dir created: /tmp/.private/milos/cma-test.EywdRv/.claude-personal
+    [32m[PASS][0m work dir created: /tmp/.private/milos/cma-test.EywdRv/.claude-work
+    [32m[PASS][0m personal projects linked: /tmp/.private/milos/cma-test.EywdRv/.claude-personal/projects -> /tmp/.private/milos/cma-test.EywdRv/.claude-shared/projects
     [32m[PASS][0m personal alias written: 'alias personal=' in aliases.sh
     [32m[PASS][0m work alias written: 'alias work=' in aliases.sh
     [32m[PASS][0m claude1 alias survives second run: 'alias claude1=' in aliases.sh
@@ -218,11 +218,11 @@
 
   • verify_constitution.sh passes on the real repo and writes evidence
     [32m[PASS][0m exit 0 on the real repo (0)
-    [32m[PASS][0m evidence file written for the real repo: /tmp/.private/milos/cma-test.IJVTsA/proof-real/45-constitution.txt
+    [32m[PASS][0m evidence file written for the real repo: /tmp/.private/milos/cma-test.rw4QXn/proof-real/45-constitution.txt
 
   • well-formed fixture repo passes (SKIPs count as pass)
     [32m[PASS][0m exit 0 on well-formed fixture (0)
-    [32m[PASS][0m evidence file written for the fixture: /tmp/.private/milos/cma-test.IJVTsA/proof-fixture/45-constitution.txt
+    [32m[PASS][0m evidence file written for the fixture: /tmp/.private/milos/cma-test.rw4QXn/proof-fixture/45-constitution.txt
 
   • breaking doc lockstep (missing GEMINI.md) fails the verifier
     [32m[PASS][0m nonzero exit (1) when GEMINI.md is missing
@@ -233,7 +233,7 @@
 [1m==> test_coverage.sh[0m
 
   • cma_ensure_alias_file: fresh creation writes header and both wrappers
-    [32m[PASS][0m alias file created from scratch: /tmp/.private/milos/cma-test.J2i2sY/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m alias file created from scratch: /tmp/.private/milos/cma-test.lwKDoy/.local/share/claude-multi-account/aliases.sh
     [32m[PASS][0m CLAUDE_BIN export present: 'export CLAUDE_BIN=' in aliases.sh
     [32m[PASS][0m cma_run wrapper written: 'cma_run()' in aliases.sh
     [32m[PASS][0m cma_run_provider wrapper written: 'cma_run_provider()' in aliases.sh
@@ -243,13 +243,13 @@
     [32m[PASS][0m cma_run_provider() appears exactly once (1)
 
   • cma_ensure_alias_file: old-format alias (direct $CLAUDE_BIN) migrated to cma_run; unrelated lines survive
-[36m[cma][0m migrated existing aliases in /tmp/.private/milos/cma-test.J2i2sY/.local/share/claude-multi-account/aliases.sh to use cma_run wrapper
+[36m[cma][0m migrated existing aliases in /tmp/.private/milos/cma-test.lwKDoy/.local/share/claude-multi-account/aliases.sh to use cma_run wrapper
     [32m[PASS][0m migrated alias now uses cma_run: 'cma_run' in aliases.sh
     [32m[PASS][0m old bare $CLAUDE_BIN reference gone: ' $CLAUDE_BIN"' absent from aliases.sh
     [32m[PASS][0m unrelated user line preserved after migration: 'MY_CUSTOM_VAR=preserved' in aliases.sh
 
   • cma_ensure_alias_file (B9): migrates old cma_run_provider body; claude-sync-state added, alias lines after function preserved
-[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)
+[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard)
     [32m[PASS][0m migrated cma_run_provider body contains claude-sync-state (0)
     [32m[PASS][0m alias claude1 line preserved after cma_run_provider migration: 'alias claude1=' in aliases.sh
     [32m[PASS][0m cma_run_provider() appears exactly once after migration (1)
@@ -261,7 +261,7 @@
     [32m[PASS][0m setsid (detached session) → cma_can_prompt returns false (rc=1)
 
   • cma_enable_plugins: creates settings.json and sets plugin key to true
-    [32m[PASS][0m settings.json created by cma_enable_plugins: /tmp/.private/milos/cma-test.J2i2sY/.claude-shared/settings.json
+    [32m[PASS][0m settings.json created by cma_enable_plugins: /tmp/.private/milos/cma-test.lwKDoy/.claude-shared/settings.json
     [32m[PASS][0m plugin key is true (.enabledPlugins["superpowers@anthropics"] = true)
 
   • cma_enable_plugins: additive — second call adds new key without removing existing
@@ -316,8 +316,8 @@
 
   • cma_provider_write_env (B3): injection payload in model name does not execute on source
     [32m[PASS][0m _cma_q injection payload does not execute on source (0)
-rm: cannot remove '/tmp/.private/milos/cma.m8QiH2': Is a directory
-rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
+rm: cannot remove '/tmp/.private/milos/cma.7Vm0ts': Is a directory
+rm: cannot remove '/tmp/.private/milos/cma.yiX5vt': Is a directory
 
   • cma_provider_write_env (B5): context_limit/max_output round-trip through source
     [32m[PASS][0m CMA_PROVIDER_CONTEXT_LIMIT round-trips through source (262144)
@@ -354,10 +354,10 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
     [32m[PASS][0m explicit CLAUDE_BIN returned as-is (/custom/path/claude)
 
   • cma_resolve_claude_bin: finds ~/.npm-global/bin/claude when not on PATH / not in ~/.local/bin
-    [32m[PASS][0m resolves the npm-global claude location (/tmp/.private/milos/cma.EMPjfP/.npm-global/bin/claude)
+    [32m[PASS][0m resolves the npm-global claude location (/tmp/.private/milos/cma.iPqqbf/.npm-global/bin/claude)
 
   • cma_ensure_alias_file: stale non-executable CLAUDE_BIN is rewritten to a resolved claude
-    [32m[PASS][0m stale CLAUDE_BIN rewritten to the resolved (npm-global) claude (/tmp/.private/milos/cma.LHljyr/.npm-global/bin/claude)
+    [32m[PASS][0m stale CLAUDE_BIN rewritten to the resolved (npm-global) claude (/tmp/.private/milos/cma.RWA0XH/.npm-global/bin/claude)
 
   • cma_ensure_alias_file: no abort when the existing alias file lacks export CLAUDE_BIN
     [32m[PASS][0m cma_ensure_alias_file completed (did not abort under set -e) (0)
@@ -366,7 +366,13 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
     [32m[PASS][0m cma_run calls apply-color (0)
     [32m[PASS][0m cma_run_provider calls apply-color (0)
 
-[32m✓ 61 passed, 0 failed[0m
+  • every test file ends by calling summary (else run-all.sh cannot see its failures)
+    [32m[PASS][0m no test file is missing its summary call ()
+
+  • no assertion reads $? from a printf|grep pipeline (SIGPIPE gives 141, not 0)
+    [32m[PASS][0m no SIGPIPE-prone assert pipelines remain ()
+
+[32m✓ 63 passed, 0 failed[0m
 
 [1m==> test_curl_install.sh[0m
 
@@ -436,8 +442,8 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
 
   • MD_FILE env override is honored and HTML is generated
     [32m[PASS][0m export exits 0 (0)
-    [32m[PASS][0m html generated: /tmp/.private/milos/cma-test.R81OeT/Documents/fixture.html
-    [32m[PASS][0m pdf generated: /tmp/.private/milos/cma-test.R81OeT/Documents/fixture.pdf
+    [32m[PASS][0m html generated: /tmp/.private/milos/cma-test.5ZrGdA/Documents/fixture.html
+    [32m[PASS][0m pdf generated: /tmp/.private/milos/cma-test.5ZrGdA/Documents/fixture.pdf
 
   • <!-- INCLUDE: --> markers are expanded in output
     [32m[PASS][0m include expanded: 'SAMPLE_SCRIPT_BODY_MARKER' in fixture.html
@@ -447,8 +453,8 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
     [32m[PASS][0m PDF magic header present (0)
 
   • regeneration is non-destructive (file timestamps move forward)
-    [32m[PASS][0m html still present after rerun: /tmp/.private/milos/cma-test.R81OeT/Documents/fixture.html
-    [32m[PASS][0m pdf still present after rerun: /tmp/.private/milos/cma-test.R81OeT/Documents/fixture.pdf
+    [32m[PASS][0m html still present after rerun: /tmp/.private/milos/cma-test.5ZrGdA/Documents/fixture.html
+    [32m[PASS][0m pdf still present after rerun: /tmp/.private/milos/cma-test.5ZrGdA/Documents/fixture.pdf
 
 [32m✓ 8 passed, 0 failed[0m
 
@@ -458,12 +464,12 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
     [32m[PASS][0m install.sh exit code (0)
 
   • install.sh symlinks claude-* commands into ~/.local/bin -> SCRIPTS_DIR
-    [32m[PASS][0m claude-unify linked: /tmp/.private/milos/cma-test.PWBWcs/.local/bin/claude-unify -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/claude-unify.sh
-    [32m[PASS][0m claude-add-account linked: /tmp/.private/milos/cma-test.PWBWcs/.local/bin/claude-add-account -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/claude-add-account.sh
-    [32m[PASS][0m claude-list-accounts linked: /tmp/.private/milos/cma-test.PWBWcs/.local/bin/claude-list-accounts -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/claude-list-accounts.sh
+    [32m[PASS][0m claude-unify linked: /tmp/.private/milos/cma-test.BK5835/.local/bin/claude-unify -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/claude-unify.sh
+    [32m[PASS][0m claude-add-account linked: /tmp/.private/milos/cma-test.BK5835/.local/bin/claude-add-account -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/claude-add-account.sh
+    [32m[PASS][0m claude-list-accounts linked: /tmp/.private/milos/cma-test.BK5835/.local/bin/claude-list-accounts -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/claude-list-accounts.sh
 
   • install.sh creates the managed alias file with the wrapper + CLAUDE_BIN export
-    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.PWBWcs/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.BK5835/.local/share/claude-multi-account/aliases.sh
     [32m[PASS][0m cma_run wrapper present: 'cma_run()' in aliases.sh
     [32m[PASS][0m CLAUDE_BIN exported: 'export CLAUDE_BIN=' in aliases.sh
 
@@ -477,8 +483,8 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
 
   • install.sh registers claude<N> aliases for pre-existing account dirs
     [32m[PASS][0m install.sh exit code with pre-existing accounts (0)
-    [32m[PASS][0m claude1 alias registered: 'alias claude1="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.yAYkvP/.claude-1 cma_run"' in aliases.sh
-    [32m[PASS][0m claude2 alias registered: 'alias claude2="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.yAYkvP/.claude-2 cma_run"' in aliases.sh
+    [32m[PASS][0m claude1 alias registered: 'alias claude1="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.fm3Wgw/.claude-1 cma_run"' in aliases.sh
+    [32m[PASS][0m claude2 alias registered: 'alias claude2="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.fm3Wgw/.claude-2 cma_run"' in aliases.sh
     [32m[PASS][0m exactly two claudeN aliases registered (2)
 
 [32m✓ 15 passed, 0 failed[0m
@@ -580,9 +586,9 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
     [32m[PASS][0m claude5 removed: 'alias claude5=' absent from aliases.sh
 
   • cma_ensure_alias_file sources from the shell rc file
-[36m[cma][0m added source line to /tmp/.private/milos/cma-test.UP1Uvx/.bashrc
-    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.UP1Uvx/.local/share/claude-multi-account/aliases.sh
-    [32m[PASS][0m rc file gets source line: 'source "/tmp/.private/milos/cma-test.UP1Uvx/.local/share/claude-multi-account/aliases.sh"' in .bashrc
+[36m[cma][0m added source line to /tmp/.private/milos/cma-test.GytSgg/.bashrc
+    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.GytSgg/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m rc file gets source line: 'source "/tmp/.private/milos/cma-test.GytSgg/.local/share/claude-multi-account/aliases.sh"' in .bashrc
 
   • cma_detect_accounts skips the shared store
     [32m[PASS][0m finds .claude-acct1 (0)
@@ -596,8 +602,8 @@ rm: cannot remove '/tmp/.private/milos/cma.FaRrOm': Is a directory
     [32m[PASS][0m finds .claude-real (0)
 
   • cma_realpath resolves a symlink chain to its canonical target (no readlink -f)
-    [32m[PASS][0m cma_realpath follows the symlink chain (/tmp/.private/milos/cma-test.UP1Uvx/rp/real/file)
-    [32m[PASS][0m cma_realpath is identity on a real path (/tmp/.private/milos/cma-test.UP1Uvx/rp/real/file)
+    [32m[PASS][0m cma_realpath follows the symlink chain (/tmp/.private/milos/cma-test.GytSgg/rp/real/file)
+    [32m[PASS][0m cma_realpath is identity on a real path (/tmp/.private/milos/cma-test.GytSgg/rp/real/file)
 
   • no runtime script INVOKES 'readlink -f' (absent on BSD/macOS)
     [32m[PASS][0m zero 'readlink -f' invocations in runtime scripts (0)
@@ -635,7 +641,7 @@ grep: warning: stray \ before -
     [32m[PASS][0m claude3 alias resolved: 'claude3' in 63
 
   • reports the shared store path
-    [32m[PASS][0m shared store path printed: '/tmp/.private/milos/cma-test.zRcviz/.claude-shared' in 63
+    [32m[PASS][0m shared store path printed: '/tmp/.private/milos/cma-test.k1YK0f/.claude-shared' in 63
 
   • flags accounts with missing credentials
     [32m[PASS][0m claude3 creds:no (0)
@@ -646,7 +652,7 @@ grep: warning: stray \ before -
 [1m==> test_opencode.sh[0m
 
   • generates a valid OpenCode config
-    [32m[PASS][0m config written: /tmp/.private/milos/cma-test.zqAKMh/.config/opencode/opencode.json
+    [32m[PASS][0m config written: /tmp/.private/milos/cma-test.ePiWr6/.config/opencode/opencode.json
     [32m[PASS][0m valid JSON
 
   • preserves pre-existing provider and mcp entries
@@ -674,7 +680,7 @@ grep: warning: stray \ before -
     [32m[PASS][0m secret env retained (.mcp.secretsy.environment.API_KEY = ${API_KEY})
 
   • expands ${CLAUDE_PLUGIN_ROOT} to the real install path
-    [32m[PASS][0m plugin root expanded (.mcp.rooty.command[1] = /tmp/.private/milos/cma-test.zqAKMh/plugins/rooty/1.0.0/serve.py)
+    [32m[PASS][0m plugin root expanded (.mcp.rooty.command[1] = /tmp/.private/milos/cma-test.ePiWr6/plugins/rooty/1.0.0/serve.py)
     [32m[PASS][0m no leftover placeholder (.mcp.rooty.command | map(select(contains("CLAUDE_PLUGIN_ROOT"))) | length = 0)
 
   • deduplicates identical servers across plugins
@@ -725,7 +731,7 @@ grep: warning: stray \ before -
 
   • router launch is robust against an interactive 'mv -i' alias (command mv -f)
     [32m[PASS][0m router launch succeeded with a shadowing mv function present (0)
-    [32m[PASS][0m ccr config upserted despite the mv shadow: /tmp/.private/milos/cma-test.k9T58r/.claude-code-router/config.json
+    [32m[PASS][0m ccr config upserted despite the mv shadow: /tmp/.private/milos/cma-test.blDwUl/.claude-code-router/config.json
 
   • ccr identity guard: a foreign ccr (CCS-style) is refused with an actionable message
     [32m[PASS][0m foreign ccr refused (rc 127) (127)
@@ -767,8 +773,8 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
 [32m✓ 8 passed, 0 failed[0m
 
 [1m==> test_providers.sh[0m
-/tmp/.private/milos/cma-test.xvfnnU/.claude-acct1
-/tmp/.private/milos/cma-test.xvfnnU/.claude-acct2
+/tmp/.private/milos/cma-test.qgxdWm/.claude-acct1
+/tmp/.private/milos/cma-test.qgxdWm/.claude-acct2
 
   • real accounts are still detected
     [32m[PASS][0m acct1 detected (0)
@@ -879,16 +885,16 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
     [32m[PASS][0m --multi directory keys-file -> non-zero exit (not silent 0 key vars) (0)
 
   • sync persists per-provider verification status (--no-verify -> unverified)
-    [32m[PASS][0m status cache written by sync: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/status.json
+    [32m[PASS][0m status cache written by sync: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/status.json
     [32m[PASS][0m acme status persisted (unverified)
     [32m[PASS][0m mistral status persisted (unverified)
     [32m[PASS][0m opencode status persisted (unverified)
     [32m[PASS][0m no dummy key values leaked into status cache: 'dummy-' absent from status.json
 
   • env files created for each resolved provider
-    [32m[PASS][0m acme env: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/acme.env
-    [32m[PASS][0m beta env: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/beta.env
-    [32m[PASS][0m mistral env: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/mistral.env
+    [32m[PASS][0m acme env: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/acme.env
+    [32m[PASS][0m beta env: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/beta.env
+    [32m[PASS][0m mistral env: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/mistral.env
 
   • provider aliases written via cma_run_provider
     [32m[PASS][0m acme alias (0)
@@ -902,7 +908,7 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
     [32m[PASS][0m beta router (0)
 
   • zai-coding-plan env file created with coding endpoint and strong/fast overrides
-    [32m[PASS][0m zai-coding-plan env: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/zai-coding-plan.env
+    [32m[PASS][0m zai-coding-plan env: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/zai-coding-plan.env
     [32m[PASS][0m coding endpoint (0)
     [32m[PASS][0m strong model glm-5.2 (0)
     [32m[PASS][0m fast model glm-4.7 (0)
@@ -911,31 +917,30 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
   • zai-coding-plan alias written via cma_run_provider
     [32m[PASS][0m zai-coding-plan alias (0)
 
-  • xiaomi env file created with native transport + /anthropic base + pinned models
-    [32m[PASS][0m xiaomi env: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/xiaomi.env
-    [32m[PASS][0m xiaomi native transport (0)
-    [32m[PASS][0m xiaomi /anthropic base (0)
+  • xiaomi env file created with router transport + /v1 base + pinned models
+    [32m[PASS][0m xiaomi env: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/xiaomi.env
+    [32m[PASS][0m xiaomi router transport (0)
+    [32m[PASS][0m xiaomi /v1 base (0)
     [32m[PASS][0m xiaomi strong model mimo-v2.5-pro (0)
-    [31m[FAIL][0m xiaomi fast model mimo-v2-flash
-           want=0 got=1
+    [32m[PASS][0m xiaomi fast model mimo-v2.5 (0)
     [32m[PASS][0m xiaomi keyvar pinned (0)
 
   • xiaomi alias written via cma_run_provider
     [32m[PASS][0m xiaomi alias (0)
 
   • config dir created and shared items symlinked
-    [32m[PASS][0m acme config dir: /tmp/.private/milos/cma-test.xvfnnU/.claude-prov-acme
-    [32m[PASS][0m plugins linked: /tmp/.private/milos/cma-test.xvfnnU/.claude-prov-acme/plugins -> /tmp/.private/milos/cma-test.xvfnnU/.claude-shared/plugins
+    [32m[PASS][0m acme config dir: /tmp/.private/milos/cma-test.qgxdWm/.claude-prov-acme
+    [32m[PASS][0m plugins linked: /tmp/.private/milos/cma-test.qgxdWm/.claude-prov-acme/plugins -> /tmp/.private/milos/cma-test.qgxdWm/.claude-shared/plugins
 
   • xiaomi config dir created and shared items symlinked
-    [32m[PASS][0m xiaomi config dir: /tmp/.private/milos/cma-test.xvfnnU/.claude-prov-xiaomi
-    [32m[PASS][0m xiaomi plugins linked: /tmp/.private/milos/cma-test.xvfnnU/.claude-prov-xiaomi/plugins -> /tmp/.private/milos/cma-test.xvfnnU/.claude-shared/plugins
+    [32m[PASS][0m xiaomi config dir: /tmp/.private/milos/cma-test.qgxdWm/.claude-prov-xiaomi
+    [32m[PASS][0m xiaomi plugins linked: /tmp/.private/milos/cma-test.qgxdWm/.claude-prov-xiaomi/plugins -> /tmp/.private/milos/cma-test.qgxdWm/.claude-shared/plugins
 
   • xiaomi provider dir excluded from account detection
     [32m[PASS][0m prov-xiaomi excluded from detection (1)
 
   • opencode env file created with router transport + zen/v1 base + pinned models
-    [32m[PASS][0m opencode env: /tmp/.private/milos/cma-test.xvfnnU/.local/share/claude-multi-account/providers/opencode.env
+    [32m[PASS][0m opencode env: /tmp/.private/milos/cma-test.qgxdWm/.local/share/claude-multi-account/providers/opencode.env
     [32m[PASS][0m opencode router transport (0)
     [32m[PASS][0m opencode zen/v1 base (0)
     [32m[PASS][0m opencode strong model big-pickle (0)
@@ -946,8 +951,8 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
     [32m[PASS][0m opencode alias (0)
 
   • opencode config dir created and shared items symlinked
-    [32m[PASS][0m opencode config dir: /tmp/.private/milos/cma-test.xvfnnU/.claude-prov-opencode
-    [32m[PASS][0m opencode plugins linked: /tmp/.private/milos/cma-test.xvfnnU/.claude-prov-opencode/plugins -> /tmp/.private/milos/cma-test.xvfnnU/.claude-shared/plugins
+    [32m[PASS][0m opencode config dir: /tmp/.private/milos/cma-test.qgxdWm/.claude-prov-opencode
+    [32m[PASS][0m opencode plugins linked: /tmp/.private/milos/cma-test.qgxdWm/.claude-prov-opencode/plugins -> /tmp/.private/milos/cma-test.qgxdWm/.claude-shared/plugins
 
   • opencode provider dir excluded from account detection
     [32m[PASS][0m prov-opencode excluded from detection (1)
@@ -980,8 +985,8 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
   • cma_run_provider runs under zsh (native transport) without bad substitution
     [32m[PASS][0m no zsh bad substitution (1)
     [32m[PASS][0m wrapper exits 0 under zsh (0)
-/tmp/.private/milos/cma-test.xvfnnU/.claude-xacct1
-/tmp/.private/milos/cma-test.xvfnnU/.claude-xacct2
+/tmp/.private/milos/cma-test.qgxdWm/.claude-xacct1
+/tmp/.private/milos/cma-test.qgxdWm/.claude-xacct2
 
   • sync-state merge includes provider dirs
     [32m[PASS][0m sync-state all exit 0 (0)
@@ -1016,8 +1021,7 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
     [32m[PASS][0m cma_run re-appended after migration (not dropped) (1)
     [32m[PASS][0m cma_run_provider preserved (1)
     [32m[PASS][0m claudeN alias preserved through migration (1)
-    [31m[FAIL][0m regenerated cma_run carries the env-isolation fix
-           want=1 got=2
+    [32m[PASS][0m regenerated cma_run carries the env-isolation fix (1)
 
   • emitted cma_run_provider exports CLAUDE_CODE_AUTO_COMPACT_WINDOW from CMA_PROVIDER_CONTEXT_LIMIT (input token-limit guard)
     [32m[PASS][0m auto-compact-window exported from CMA_PROVIDER_CONTEXT_LIMIT (0)
@@ -1037,10 +1041,8 @@ poe_proxy: capped tools to 200 (dropped 218 overflow MCP tools to stay under Poe
     [32m[PASS][0m old-format alias file parses (bash -n) (0)
     [32m[PASS][0m old body lacks family proxy marker (pre-migration) (1)
     [32m[PASS][0m old body lacks OAuth freshness marker (pre-migration) (1)
-    [31m[FAIL][0m regenerated body carries family proxy discovery
-           want=0 got=141
-    [31m[FAIL][0m regenerated body carries OAuth token freshness
-           want=0 got=141
+    [32m[PASS][0m regenerated body carries family proxy discovery (0)
+    [32m[PASS][0m regenerated body carries OAuth token freshness (0)
     [32m[PASS][0m kimi-for-coding alias preserved through migration (1)
 
   • claude-providers list-all does NOT abort on a provider with no alias line
@@ -1221,7 +1223,7 @@ cma_run() {
   return $rc
 }
 
-alias claude1="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.xvfnnU/.claude-acct1 cma_run"
+alias claude1="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.qgxdWm/.claude-acct1 cma_run"
 
 cma_run_provider() {
   # Self-heal CLAUDE_BIN (same as cma_run — §11.4.185). Prevents "-bash: : command
@@ -1547,14 +1549,38 @@ cma_run_provider() {
       _proxy_script="$_cma_proxy_dir/${_family_id}_proxy.py"
     fi
     if [[ -n "$_proxy_script" ]]; then
-      local _proxy_port=3457
+      # Port-squatter guard (live-proven 2026-07-19: `poe: FAIL tools-params`).
+      # The old code hardcoded 3457 and then waited on `lsof -i :3457`, i.e. it
+      # only asked "is SOMETHING listening?" — which any squatter satisfies. On
+      # this host ccr itself had held 3457 for 21h, so python3 could never bind,
+      # the wait returned instantly, and `base` was pointed at ccr. Every
+      # request then bypassed the proxy's schema fixes and Poe rejected the
+      # tool definitions ("Field required: parameters") — the exact thing
+      # poe_proxy.py exists to prevent, silently disabled.
+      # Fix: find a genuinely free port, then confirm OUR pid owns it.
+      local _proxy_port=3457 _pp_try=0
+      while lsof -i ":$_proxy_port" >/dev/null 2>&1 && (( _pp_try < 20 )); do
+        _proxy_port=$((_proxy_port + 1)); _pp_try=$((_pp_try + 1))
+      done
       python3 "$_proxy_script" --port "$_proxy_port" &
       _proxy_pid=$!
       local _waited=0
-      while ! lsof -i :$_proxy_port >/dev/null 2>&1 && (( _waited < 25 )); do
+      # Wait for OUR process to be listening — not merely for the port to be busy.
+      while ! lsof -a -p "$_proxy_pid" -i ":$_proxy_port" >/dev/null 2>&1 && (( _waited < 25 )); do
+        kill -0 "$_proxy_pid" 2>/dev/null || break   # proxy died: stop waiting
         sleep 0.2
         _waited=$((_waited + 1))
       done
+      if ! lsof -a -p "$_proxy_pid" -i ":$_proxy_port" >/dev/null 2>&1; then
+        # Never point at a foreign listener. Fall back to the provider's direct
+        # endpoint and say so loudly, rather than silently losing the shims.
+        command -v cma_log >/dev/null 2>&1 && \
+          cma_log "WARNING: proxy for $CMA_PROVIDER_ID did not start on port $_proxy_port — using the direct endpoint (schema shims INACTIVE)" || true
+        _proxy_pid=""
+        _proxy_script=""
+      fi
+    fi
+    if [[ -n "$_proxy_script" ]]; then
       base="http://127.0.0.1:${_proxy_port}/v1/chat/completions"
       # cma_log is a lib.sh helper; the self-contained alias file has no such
       # function, so guard the call to avoid a 'cma_log: command not found' on
@@ -1649,7 +1675,7 @@ alias zai-coding-plan="cma_run_provider zai-coding-plan")
   • claude-semantic-visibility.sh builds (cached) + forwards flags to the binary
     [32m[PASS][0m driver execs the built binary (0)
     [32m[PASS][0m driver forwards flags verbatim (0)
-    [32m[PASS][0m binary was cached under .local-cache: /tmp/.private/milos/cma-test.xvfnnU/.local-cache/semantic-code-visibility
+    [32m[PASS][0m binary was cached under .local-cache: /tmp/.private/milos/cma-test.qgxdWm/.local-cache/semantic-code-visibility
 
   • claude-semantic-visibility.sh --help/-h ALWAYS works, even with no built binary (bug fix)
     [32m[PASS][0m --help exits 0 with no built binary (0)
@@ -1688,7 +1714,7 @@ alias zai-coding-plan="cma_run_provider zai-coding-plan")
     [32m[PASS][0m evidence file carries the driver's round1_sentinel (0)
 
   • providers-semantic normalizes a judge base URL ending in /v1 before passing --judge-base-url (bug fix)
-    [32m[PASS][0m argv-recorder stub wrote its received args: /tmp/.private/milos/cma-test.xvfnnU/scv-argv.txt
+    [32m[PASS][0m argv-recorder stub wrote its received args: /tmp/.private/milos/cma-test.qgxdWm/scv-argv.txt
     [32m[PASS][0m judge base url has /v1 stripped, no double /v1/v1 (https://api.example.com)
 
   • cmd_sync: existence=verified + semantic=unverified -> status unverified/semantic
@@ -1752,14 +1778,6 @@ CLAUDE_EFFORT)
   • providers-verify treats xAI like any OpenAI-shaped provider (sentinel + tool call -> verified)
     [32m[PASS][0m xAI chat+tools probes pass -> verified (no special-case) (verified)
 
-[31m✗ 4 failed, 226 passed[0m
-
-Failures:
-  - xiaomi env file created with native transport + /anthropic base + pinned models :: xiaomi fast model mimo-v2-flash
-  - migration regenerating cma_run does NOT drop it (BRE empty-group \(\) bug regression) :: regenerated cma_run carries the env-isolation fix
-  - migration regenerates an outdated cma_run_provider lacking the Kimi markers (v1.15.0) :: regenerated body carries family proxy discovery
-  - migration regenerates an outdated cma_run_provider lacking the Kimi markers (v1.15.0) :: regenerated body carries OAuth token freshness
-
   • providers-verify keeps /anthropic and probes /anthropic/v1/messages for native-transport providers
     [32m[PASS][0m native /anthropic base -> verified (prefix kept, /anthropic/v1/messages probed) (verified)
 
@@ -1790,10 +1808,50 @@ Failures:
   • multi-alias activation gate: unverified alias blocks (rc 3)
     [32m[PASS][0m unverified multi-alias acme4 blocked by gate (rc 3) (3)
 
+  • cmd_remove clears the status.json entry for the removed provider
+    [32m[PASS][0m precondition: removeme status verified before remove (verified)
+    [32m[PASS][0m status reads back as pending (no stale record) after remove (pending)
+    [32m[PASS][0m removeme key is actually absent from status.json, not just null (0)
+
+  • cmd_remove leaves OTHER status.json entries untouched (no over-broad delete)
+    [32m[PASS][0m sibling status entry survives an unrelated remove (verified)
+    [32m[PASS][0m removeme2's own entry is gone (pending)
+
+  • sync demotes an orphaned status.json record instead of leaving it 'verified' forever
+    [32m[PASS][0m precondition: orphan-alpha marked verified (verified)
+    [32m[PASS][0m orphan-alpha no longer reports verified after sync (now: orphaned) (0)
+    [32m[PASS][0m sync emits an orphan warning on stderr (0)
+    [32m[PASS][0m warning names the specific orphaned id (0)
+
+  • sync's orphan detection also covers a leftover *.env with no prior status.json entry
+    [32m[PASS][0m precondition: orphan-beta has no status entry yet (env-only orphan) (pending)
+    [32m[PASS][0m env-only orphan gets an explicit demoted status, not silently left pending/verified (now: orphaned) (0)
+
+  • sync never demotes a provider that still resolves (guard against orphan-detection over-matching)
+    [32m[PASS][0m acme (still resolves every sync) is never marked orphaned (1)
+    [32m[PASS][0m acme keeps its normal --no-verify status (not clobbered by orphan demotion) (unverified)
+
+  • prune --dry-run reports the orphans but changes nothing
+    [32m[PASS][0m dry-run reports orphan-alpha (0)
+    [32m[PASS][0m dry-run reports orphan-beta (0)
+    [32m[PASS][0m dry-run does not change orphan-alpha's status (orphaned)
+    [32m[PASS][0m dry-run does not remove orphan-beta's env file (1)
+    [32m[PASS][0m dry-run does not remove orphan-beta's alias line (0)
+
+  • prune actually removes orphaned providers when invoked for real
+    [32m[PASS][0m orphan-alpha's status record is gone after real prune (pending)
+    [32m[PASS][0m orphan-beta's env file is removed after real prune (1)
+    [32m[PASS][0m orphan-beta's alias line is removed after real prune (1)
+
+  • prune is a no-op (with a clear message) once no orphans remain
+    [32m[PASS][0m prune reports there is nothing left to prune (0)
+
+[32m✓ 264 passed, 0 failed[0m
+
 [1m==> test_provider_tier_default_model.sh[0m
 
   • cma_run_provider body emits all 4 tier default-model exports on fresh install
-    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.65oUC3/.local/share/claude-multi-account/aliases.sh
+    [32m[PASS][0m alias file created: /tmp/.private/milos/cma-test.M15L9w/.local/share/claude-multi-account/aliases.sh
     [32m[PASS][0m 4 tier exports in cma_run_provider body (4)
 
   • tier exports map opus/sonnet/fable to the strong model and haiku to the fast fallback
@@ -1817,7 +1875,7 @@ Failures:
 
   • GREEN: the migration guard re-emits all 4 tier exports on the next ensure
 [36m[cma][0m migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + token-guard isolation (CLAUDE_CODE_MAX_OUTPUT_TOKENS/AUTO_COMPACT_WINDOW) + auto-session + project-scoped cwd-hook)
-[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix)
+[36m[cma][0m migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard)
     [32m[PASS][0m migration seam restored 4 tier exports (4)
     [32m[PASS][0m provider unset line restored (1)
     [32m[PASS][0m native unset line restored (1)
@@ -1832,7 +1890,7 @@ Failures:
 [1m==> test_rc_sourcing.sh[0m
 
   • prune: drops a dangling aliases.sh source line, preserves everything else
-[36m[cma][0m pruned stale aliases.sh source line(s) from /tmp/.private/milos/cma-test.RsdFZd/rc1
+[36m[cma][0m pruned stale aliases.sh source line(s) from /tmp/.private/milos/cma-test.dM8z0t/rc1
     [32m[PASS][0m no dangling aliases.sh source line remains (0)
     [32m[PASS][0m valid source line preserved (0)
     [32m[PASS][0m comment line NOT pruned (0)
@@ -1929,13 +1987,13 @@ Failures:
     [32m[PASS][0m special chars stripped, words joined by hyphen (my-cool-project)
 
   • id: returns a valid RFC-4122-shaped UUID
-    [32m[PASS][0m UUID shape valid (got: 6867f75b-af37-7c5b-6014-2b0aeafece57) (0)
+    [32m[PASS][0m UUID shape valid (got: 765ac2df-f08c-8d23-7835-8d0fd27b2bc0) (0)
 
   • id: stable — two calls to the same directory give identical output
-    [32m[PASS][0m id is deterministic across calls (6867f75b-af37-7c5b-6014-2b0aeafece57)
+    [32m[PASS][0m id is deterministic across calls (765ac2df-f08c-8d23-7835-8d0fd27b2bc0)
 
   • id: different project directories produce different UUIDs
-    [32m[PASS][0m alpha (10f666eb-0cf5-e186-2f72-4263c6027048) ≠ beta (4351b074-e5f7-e893-9921-ad1a29b5bcc6) (0)
+    [32m[PASS][0m alpha (dc022b07-7aa0-57b3-b23c-ded3a32b84f1) ≠ beta (46aed927-d05c-32b1-c28e-a555a65a65e1) (0)
 
   • color: each label maps to a known palette color
     [32m[PASS][0m label 'claude1' → 'purple' is in palette (0)
@@ -1956,30 +2014,30 @@ Failures:
     [32m[PASS][0m first-run output does NOT contain --resume (0)
 
   • flags first-run: --name matches the kebab-case of the project dir basename
-    [32m[PASS][0m flags --name is 'first-run-proj' (got: --session-id 6db10082-75a3-8575-a9c6-454b8f388e78 --name first-run-proj) (0)
+    [32m[PASS][0m flags --name is 'first-run-proj' (got: --session-id 1a1d808f-1d2c-a80d-5a84-a8b29c139395 --name first-run-proj) (0)
 
   • flags first-run: --session-id is a valid UUID
-    [32m[PASS][0m flags --session-id is a valid UUID (got: 6db10082-75a3-8575-a9c6-454b8f388e78) (0)
+    [32m[PASS][0m flags --session-id is a valid UUID (got: 1a1d808f-1d2c-a80d-5a84-a8b29c139395) (0)
 
   • flags resume: when session .jsonl exists, output is '--resume <uuid> --name <kebab>'
-    [32m[PASS][0m resume output is '--resume <uuid> --name <snake>' (--resume 1d9c6994-325b-0a89-d9f4-1e29043edebe --name resume-proj)
+    [32m[PASS][0m resume output is '--resume <uuid> --name <snake>' (--resume 0c882875-0281-06d7-4373-e2ab5493b271 --name resume-proj)
 
   • flags resume: output carries --name (renames legacy unnamed sessions), no --session-id
     [32m[PASS][0m resume output has no --session-id (0)
     [32m[PASS][0m resume output carries --name resume-proj (0)
 
   • flags resume: consecutive separators in the path still resume (per-char slug)
-    [32m[PASS][0m path with '/.' resumes (not re-creates); got: --resume c7188f39-c2ac-e91a-8e28-771b7d7aeb54 --name cs-proj (0)
+    [32m[PASS][0m path with '/.' resumes (not re-creates); got: --resume 496db1ee-0a4b-caab-eeb5-be4d33316f27 --name cs-proj (0)
 
   • trust: .claude.json gains hasTrustDialogAccepted=true after a flags call
-    [32m[PASS][0m .claude.json was created by flags: /tmp/.private/milos/cma-test.3Wy1pC/cfg_trust/.claude.json
-    [32m[PASS][0m hasTrustDialogAccepted is true for /tmp/.private/milos/cma-test.3Wy1pC/trust_proj (.projects["/tmp/.private/milos/cma-test.3Wy1pC/trust_proj"].hasTrustDialogAccepted = true)
+    [32m[PASS][0m .claude.json was created by flags: /tmp/.private/milos/cma-test.0usipr/cfg_trust/.claude.json
+    [32m[PASS][0m hasTrustDialogAccepted is true for /tmp/.private/milos/cma-test.0usipr/trust_proj (.projects["/tmp/.private/milos/cma-test.0usipr/trust_proj"].hasTrustDialogAccepted = true)
 
   • trust: repeated flags calls are idempotent (file stays valid JSON)
     [32m[PASS][0m trust flag still true after repeated flags calls (true)
 
   • git-root: id and name from a deep subdir match those from the repo root
-    [32m[PASS][0m id is identical from repo root and deep subdir (61ab9993-1191-c71b-18f4-9e6401365569)
+    [32m[PASS][0m id is identical from repo root and deep subdir (50b5b6e7-bd6f-86ee-b48a-65ceecf987ab)
     [32m[PASS][0m name is identical from repo root and deep subdir (git-root-test)
 
   • apply-color: writes the alias colour into a session that has none (set -e regression)
@@ -2012,20 +2070,20 @@ Failures:
   • flags: many-session stress (200 files) to exercise pipefail SIGPIPE guard
     [32m[PASS][0m stress: flags returns --resume with 200 files pipefail guard (0)
     [32m[PASS][0m stress: flags carries --name many-sessions-proj (0)
-    [32m[PASS][0m stress: latest-id returns the most recent session (bda9ecfb-a65e-8f6a-7fc8-fcd601be8224)
+    [32m[PASS][0m stress: latest-id returns the most recent session (86665a97-552f-9c7a-e0bd-7e518291bf89)
 
 [32m✓ 45 passed, 0 failed[0m
 
 [1m==> test_sessions.sh[0m
-/tmp/.private/milos/cma-test.EiqjVA/.claude-acct1
-/tmp/.private/milos/cma-test.EiqjVA/.claude-acct2
+/tmp/.private/milos/cma-test.iwINEW/.claude-acct1
+/tmp/.private/milos/cma-test.iwINEW/.claude-acct2
 
   • unify succeeds with the new .claude.json merge logic
     [32m[PASS][0m unify rc=0 (0)
     [32m[PASS][0m unify logged the .claude.json merge step (0)
 
   • acct1's .claude.json now contains the Android_15 project entry from acct2
-    [32m[PASS][0m acct1 .claude.json exists: /tmp/.private/milos/cma-test.EiqjVA/.claude-acct1/.claude.json
+    [32m[PASS][0m acct1 .claude.json exists: /tmp/.private/milos/cma-test.iwINEW/.claude-acct1/.claude.json
     [32m[PASS][0m acct1 sees Android_15 lastSessionId (session-android-uuid)
     [32m[PASS][0m acct1 also sees iOS project entry (session-ios-uuid)
     [32m[PASS][0m deep-nested MCP server config crossed accounts (android-mcp)
@@ -2046,12 +2104,12 @@ Failures:
     [32m[PASS][0m both accounts agree on numStartups after merge (42)
 
   • session JSONL written under acct2 is byte-identical when read via acct1's projects/ symlink
-    [32m[PASS][0m acct1 can resolve the session file via its symlinked projects/ dir: /tmp/.private/milos/cma-test.EiqjVA/.claude-acct1/projects/-projects-Android_15/session-android-uuid.jsonl
+    [32m[PASS][0m acct1 can resolve the session file via its symlinked projects/ dir: /tmp/.private/milos/cma-test.iwINEW/.claude-acct1/projects/-projects-Android_15/session-android-uuid.jsonl
     [32m[PASS][0m session JSONL byte-identical across accounts (a8abbbaa2d804bfa04ac58e96638747dbcf2ba33bdc7fdbf01eda0e78407e290)
     [32m[PASS][0m session content readable from acct1 view (assistant)
 
   • project memory written under acct2 is visible from acct1
-    [32m[PASS][0m memory file resolves via acct1's symlinked projects/: /tmp/.private/milos/cma-test.EiqjVA/.claude-acct1/projects/-projects-Android_15/memory/project_notes.md
+    [32m[PASS][0m memory file resolves via acct1's symlinked projects/: /tmp/.private/milos/cma-test.iwINEW/.claude-acct1/projects/-projects-Android_15/memory/project_notes.md
     [32m[PASS][0m memory content identical (project memory written from acct2)
 
   • re-running unify keeps every account's .claude.json byte-stable (idempotent)
@@ -2065,8 +2123,8 @@ Failures:
     [32m[PASS][0m userID still acct1's after sync (user-acct1-hash)
 
   • an account with no .claude.json gets the shared projects map seeded by sync
-/tmp/.private/milos/cma-test.EiqjVA/.claude-acct3
-    [32m[PASS][0m acct3 got a seeded .claude.json: /tmp/.private/milos/cma-test.EiqjVA/.claude-acct3/.claude.json
+/tmp/.private/milos/cma-test.iwINEW/.claude-acct3
+    [32m[PASS][0m acct3 got a seeded .claude.json: /tmp/.private/milos/cma-test.iwINEW/.claude-acct3/.claude.json
     [32m[PASS][0m acct3 seeded with the union of projects (2) (0)
 
   • corrupt .claude.json in one account is skipped without poisoning the merge
@@ -2100,40 +2158,40 @@ Failures:
     [32m[PASS][0m claude-unify exits 0 (0)
 
   • every shared item becomes a symlink into the shared store
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 projects linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/projects -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/projects
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 projects linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/projects -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/projects
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 todos linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/todos -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/todos
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 todos linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/todos -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/todos
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 tasks linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/tasks -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/tasks
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 tasks linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/tasks -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/tasks
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 plans linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/plans -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/plans
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 plans linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/plans -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/plans
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 file-history linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/file-history -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/file-history
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 file-history linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/file-history -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/file-history
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 paste-cache linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/paste-cache -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/paste-cache
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 paste-cache linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/paste-cache -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/paste-cache
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 plugins linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/plugins -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/plugins
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 plugins linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/plugins -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/plugins
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 shell-snapshots linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/shell-snapshots -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/shell-snapshots
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 shell-snapshots linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/shell-snapshots -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/shell-snapshots
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 session-env linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/session-env -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/session-env
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 session-env linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/session-env -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/session-env
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 telemetry linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/telemetry -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/telemetry
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 telemetry linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/telemetry -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/telemetry
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 sessions linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/sessions -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/sessions
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 sessions linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/sessions -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/sessions
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 backups linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/backups -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/backups
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 backups linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/backups -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/backups
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 cache linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/cache -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/cache
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 cache linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/cache -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/cache
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 history.jsonl linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/history.jsonl -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/history.jsonl
-    [32m[PASS][0m /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 history.jsonl linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/history.jsonl -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/history.jsonl
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 projects linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/projects -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/projects
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 projects linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/projects -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/projects
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 todos linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/todos -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/todos
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 todos linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/todos -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/todos
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 tasks linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/tasks -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/tasks
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 tasks linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/tasks -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/tasks
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 plans linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/plans -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/plans
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 plans linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/plans -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/plans
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 file-history linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/file-history -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/file-history
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 file-history linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/file-history -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/file-history
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 paste-cache linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/paste-cache -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/paste-cache
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 paste-cache linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/paste-cache -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/paste-cache
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 plugins linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/plugins -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/plugins
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 plugins linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/plugins -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/plugins
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 shell-snapshots linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/shell-snapshots -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/shell-snapshots
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 shell-snapshots linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/shell-snapshots -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/shell-snapshots
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 session-env linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/session-env -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/session-env
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 session-env linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/session-env -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/session-env
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 telemetry linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/telemetry -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/telemetry
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 telemetry linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/telemetry -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/telemetry
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 sessions linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/sessions -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/sessions
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 sessions linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/sessions -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/sessions
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 backups linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/backups -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/backups
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 backups linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/backups -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/backups
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 cache linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/cache -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/cache
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 cache linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/cache -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/cache
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 history.jsonl linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/history.jsonl -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/history.jsonl
+    [32m[PASS][0m /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 history.jsonl linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/history.jsonl -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/history.jsonl
 
   • settings.json is each dir's OWN real file (§11.4 own-settings), not a shared symlink
-    [32m[PASS][0m acct1 settings.json is OWN: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/settings.json
-    [32m[PASS][0m acct2 settings.json is OWN: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/settings.json
-    [32m[PASS][0m acct1 own settings.json exists: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/settings.json
-    [32m[PASS][0m acct2 own settings.json exists: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/settings.json
+    [32m[PASS][0m acct1 settings.json is OWN: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/settings.json
+    [32m[PASS][0m acct2 settings.json is OWN: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/settings.json
+    [32m[PASS][0m acct1 own settings.json exists: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/settings.json
+    [32m[PASS][0m acct2 own settings.json exists: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/settings.json
     [32m[PASS][0m acct1 own settings carries the enabledPlugins union (.enabledPlugins.a = true)
     [32m[PASS][0m acct1 own settings gained acct2's plugin via the propagated union (.enabledPlugins.c = true)
 
@@ -2155,34 +2213,34 @@ Failures:
 
   • memory: newest account's version wins on filename conflict
     [32m[PASS][0m acct2 wins: 'NEWER' in user_role.md
-    [32m[PASS][0m acct2-only memory survives: /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/projects/-home-test/memory/project_notes.md
+    [32m[PASS][0m acct2-only memory survives: /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/projects/-home-test/memory/project_notes.md
 
   • plugin manifest paths are rewritten to the shared store
-    [32m[PASS][0m installPath rewritten (.plugins["test-plugin@test-marketplace"][0].installPath = /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/plugins/cache/test-marketplace/test-plugin/1.0.0)
-    [32m[PASS][0m installLocation rewritten (.["test-marketplace"].installLocation = /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/plugins/marketplaces/test-marketplace)
+    [32m[PASS][0m installPath rewritten (.plugins["test-plugin@test-marketplace"][0].installPath = /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/plugins/cache/test-marketplace/test-plugin/1.0.0)
+    [32m[PASS][0m installLocation rewritten (.["test-marketplace"].installLocation = /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/plugins/marketplaces/test-marketplace)
 
   • credentials are NOT shared — each account keeps its own
-    [32m[PASS][0m acct1 creds local: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/.credentials.json
-    [32m[PASS][0m acct2 creds local: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct2/.credentials.json
+    [32m[PASS][0m acct1 creds local: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/.credentials.json
+    [32m[PASS][0m acct2 creds local: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct2/.credentials.json
     [32m[PASS][0m acct1 creds intact: 'acct1' in .credentials.json
     [32m[PASS][0m acct2 creds intact: 'acct2' in .credentials.json
 
   • unify registers claude<N> aliases for every detected account that lacks one
-    [32m[PASS][0m acct1 gets claude1 alias: 'alias claude1="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.cPQHnN/.claude-acct1 cma_run"' in aliases.sh
-    [32m[PASS][0m acct2 gets claude2 alias: 'alias claude2="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.cPQHnN/.claude-acct2 cma_run"' in aliases.sh
+    [32m[PASS][0m acct1 gets claude1 alias: 'alias claude1="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.r7pRaH/.claude-acct1 cma_run"' in aliases.sh
+    [32m[PASS][0m acct2 gets claude2 alias: 'alias claude2="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.r7pRaH/.claude-acct2 cma_run"' in aliases.sh
     [32m[PASS][0m exactly two claudeN aliases registered (2)
 
   • unify preserves claude<N> basenames and fills gaps with next free claudeN
-    [32m[PASS][0m claude4 dir keeps claude4 alias: 'alias claude4="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.cPQHnN/.claude-claude4 cma_run"' in aliases.sh
-    [32m[PASS][0m zebra dir gets next free claude3 alias: 'alias claude3="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.cPQHnN/.claude-zebra cma_run"' in aliases.sh
+    [32m[PASS][0m claude4 dir keeps claude4 alias: 'alias claude4="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.r7pRaH/.claude-claude4 cma_run"' in aliases.sh
+    [32m[PASS][0m zebra dir gets next free claude3 alias: 'alias claude3="CLAUDE_CONFIG_DIR=/tmp/.private/milos/cma-test.r7pRaH/.claude-zebra cma_run"' in aliases.sh
     [32m[PASS][0m four claudeN aliases total (1,2,3,4) (4)
 
   • re-running claude-unify is idempotent (settings.json byte-stable)
     [32m[PASS][0m settings.json unchanged (17f8b44d0d9d4543f8247ce146dc341b578776fd15ac110c6a606f01fe947400)
-    [32m[PASS][0m symlink target unchanged (/tmp/.private/milos/cma-test.cPQHnN/.claude-shared/projects)
+    [32m[PASS][0m symlink target unchanged (/tmp/.private/milos/cma-test.r7pRaH/.claude-shared/projects)
 
   • N>2 accounts: adding a third and re-running unifies it too
-    [32m[PASS][0m acct3 projects linked: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct3/projects -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/projects
+    [32m[PASS][0m acct3 projects linked: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct3/projects -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/projects
     [32m[PASS][0m acct3 plugin merged (.enabledPlugins.d = true)
     [32m[PASS][0m acct3 history merged: 'cmd5' in history.jsonl
 
@@ -2193,11 +2251,11 @@ Failures:
     [32m[PASS][0m acct2 still carries the propagated enabledPlugins union (.enabledPlugins.a = true)
 
   • absorb_default_plugins (B1): files under DEFAULT_DIR/plugins/cache are absorbed into shared store
-    [32m[PASS][0m absorb_default_plugins: file.txt absorbed from DEFAULT_DIR/plugins/cache into SHARED_DIR: /tmp/.private/milos/cma-test.cPQHnN/.claude-shared-b1/plugins/cache/foo/1.0.0/file.txt
+    [32m[PASS][0m absorb_default_plugins: file.txt absorbed from DEFAULT_DIR/plugins/cache into SHARED_DIR: /tmp/.private/milos/cma-test.r7pRaH/.claude-shared-b1/plugins/cache/foo/1.0.0/file.txt
 
   • link_default_plugin_subdirs (B2): DEFAULT_DIR/plugins/cache becomes a symlink into shared store
     [32m[PASS][0m DEFAULT_DIR/plugins/cache is a symlink after unify (0)
-    [32m[PASS][0m symlink resolves to SHARED_DIR/plugins/cache (/tmp/.private/milos/cma-test.cPQHnN/.claude-shared-b1/plugins/cache)
+    [32m[PASS][0m symlink resolves to SHARED_DIR/plugins/cache (/tmp/.private/milos/cma-test.r7pRaH/.claude-shared-b1/plugins/cache)
 
   • link_default_plugin_subdirs (B2 idempotent): second unify creates no additional .preunify.* backup
     [32m[PASS][0m no new .preunify.* backup created on second unify run (idempotent) (1)
@@ -2233,8 +2291,8 @@ Failures:
     [32m[PASS][0m the true (oldest) original is restored deterministically: 'OLDEST-original' in memo
 
   • --rollback restores backups and archives the shared store
-    [32m[PASS][0m acct1 projects restored as real dir: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/projects
-    [32m[PASS][0m no longer a symlink: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct1/projects
+    [32m[PASS][0m acct1 projects restored as real dir: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/projects
+    [32m[PASS][0m no longer a symlink: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct1/projects
     [32m[PASS][0m shared store moved aside (0)
     [32m[PASS][0m archive sibling exists (0)
 
@@ -2242,9 +2300,9 @@ Failures:
     [32m[PASS][0m the two shared-item lists agree (modulo the intentional CLAUDE.md special-case) (backups cache daemon file-history history.jsonl jobs paste-cache plans plugins projects session-env sessions shell-snapshots stats-cache.json tasks telemetry todos )
 
   • daemon dir is merged into shared + symlinked from every account
-    [32m[PASS][0m shared daemon dir created: /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/daemon
-    [32m[PASS][0m acct3 daemon is a symlink into shared: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct3/daemon -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/daemon
-    [32m[PASS][0m acct4 daemon is a symlink into shared: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct4/daemon -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/daemon
+    [32m[PASS][0m shared daemon dir created: /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/daemon
+    [32m[PASS][0m acct3 daemon is a symlink into shared: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct3/daemon -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/daemon
+    [32m[PASS][0m acct4 daemon is a symlink into shared: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct4/daemon -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/daemon
 
   • daemon/roster.json: workers are UNION-merged (newer updatedAt wins per worker), not last-file-wins
     [32m[PASS][0m all four workers present (union) (.workers | keys | sort | join(",") = w-a,w-b,w-old,w-share)
@@ -2254,12 +2312,12 @@ Failures:
     [32m[PASS][0m top-level updatedAt is the max (.updatedAt = 2000)
 
   • jobs dir is merged into shared + symlinked from every account
-    [32m[PASS][0m shared jobs dir created: /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/jobs
-    [32m[PASS][0m acct3 jobs is a symlink into shared: /tmp/.private/milos/cma-test.cPQHnN/.claude-acct3/jobs -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/jobs
+    [32m[PASS][0m shared jobs dir created: /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/jobs
+    [32m[PASS][0m acct3 jobs is a symlink into shared: /tmp/.private/milos/cma-test.r7pRaH/.claude-acct3/jobs -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/jobs
 
   • cma_migrate_daemon_dirs_once: local provider daemon dirs are merged, unioned, symlinked, backed up
-    [32m[PASS][0m p1 daemon replaced by shared symlink: /tmp/.private/milos/cma-test.cPQHnN/.claude-prov-p1/daemon -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/daemon
-    [32m[PASS][0m p2 daemon replaced by shared symlink: /tmp/.private/milos/cma-test.cPQHnN/.claude-prov-p2/daemon -> /tmp/.private/milos/cma-test.cPQHnN/.claude-shared/daemon
+    [32m[PASS][0m p1 daemon replaced by shared symlink: /tmp/.private/milos/cma-test.r7pRaH/.claude-prov-p1/daemon -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/daemon
+    [32m[PASS][0m p2 daemon replaced by shared symlink: /tmp/.private/milos/cma-test.r7pRaH/.claude-prov-p2/daemon -> /tmp/.private/milos/cma-test.r7pRaH/.claude-shared/daemon
     [32m[PASS][0m p1 original daemon backed up (.preunify) (0)
     [32m[PASS][0m both providers' workers unioned into the existing registry ([.workers | keys[] | select(. == "w-prov1" or . == "w-prov2" or . == "w-share")] | sort | join(",") = w-prov1,w-prov2,w-share)
     [32m[PASS][0m newer worker version wins across providers (.workers["w-share"].sessionId = s-share-NEWER)
@@ -2280,7 +2338,7 @@ Failures:
 [1m==> test_verify_scripts.sh[0m
 
   • model_verify.py compiles cleanly under python3 -W error (py_compile)
-    [32m[PASS][0m exit 0 for: python3 -W error -c import py_compile,sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True) /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/model_verify.py /tmp/.private/milos/cma-test.nuAKJG/model_verify.compiled.pyc
+    [32m[PASS][0m exit 0 for: python3 -W error -c import py_compile,sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True) /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/model_verify.py /tmp/.private/milos/cma-test.8BZDJI/model_verify.compiled.pyc
 
   • model_verify.py imports as a module (top level is side-effect free)
     [32m[PASS][0m module imports + a helper call works (IMPORT_OK)
@@ -2484,5 +2542,5 @@ Failures:
 [32m✓ 11 passed, 0 failed[0m
 
 ============================================
-Test files: 27   passed: 27   failed: 0
+Test files: 27   passed: 27   failed: 0   (skipped-prereq: 0)
 ALL GREEN

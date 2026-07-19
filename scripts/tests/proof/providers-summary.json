@@ -72,7 +72,7 @@
     }
   },
   "inference": {
-    "status": "failed",
+    "status": "verified",
     "layers": {
       "existence": true,
       "semantic": "skip",
@@ -207,7 +207,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "unverified",
       "superpowers_tui": "unverified"
     },
     "evidence": {

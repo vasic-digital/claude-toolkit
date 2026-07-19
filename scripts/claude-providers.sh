@@ -51,7 +51,7 @@ VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
-REFRESH_ALIASES=0 QUIET=0
+REFRESH_ALIASES=0 QUIET=0 PRUNE_UNRESOLVED=0
 MAX_ALIASES=5 MIN_SCORE=25 VERIFY_CONCURRENCY=5
 
 usage() {
@@ -68,9 +68,20 @@ Subcommands:
   verify <id> [--deep] re-run verification for one provider + persist status
                        (layers 1-3; --deep also runs the live superpowers-TUI layer 4)
   remove <id>          remove a provider alias + its config dir (backed up)
-  prune [--dry-run]    report (or, unless --dry-run, remove) ORPHANED providers —
-                       status.json/*.env records that no longer resolve against
-                       the current catalog + keys file
+  prune [--dry-run] [--unresolved]
+                       report (or, unless --dry-run, remove) orphaned providers.
+                       Two distinct classes are detected and reported separately:
+                         status-only  — a status.json record with no backing
+                                        *.env file. Always pure dead weight
+                                        (invisible to list/list-all/remove);
+                                        removed unconditionally, even without
+                                        --unresolved.
+                         unresolved   — a *.env-backed provider whose id no
+                                        longer resolves against the current
+                                        catalog/keys (its key may just be
+                                        temporarily missing). Reported but
+                                        NOT removed unless --unresolved is
+                                        also passed.
   add --from-key VAR [--id PROVIDER]   register a key->provider mapping then sync
 
 Options:
@@ -78,6 +89,9 @@ Options:
   --no-verify          skip LLMsVerifier/HTTP verification (aliases still created)
   --offline            do not fetch models.dev; require the local cache
   --dry-run            print what would change; write nothing
+  --unresolved         with prune: also remove UNRESOLVED orphans (has a
+                       *.env but no longer resolves) — without this flag,
+                       prune only ever auto-removes status-only orphans
   --multi              with sync: verify all models, create multiple aliases per provider
   --max-aliases N      max aliases per provider (default: 5)
   --min-score N        minimum verification score (default: 25)
@@ -472,6 +486,66 @@ cma_find_orphans() {
   done
 }
 
+# --- prune-only: the two DISTINCT orphan classes ----------------------------
+# cma_find_orphans (above) answers one question — "is this candidate id
+# missing from the CURRENT resolved set?" — over the UNION of status.json
+# keys and *.env basenames. That union conflates two genuinely different
+# situations, which is exactly the discrepancy this section resolves:
+#
+#   STATUS-ONLY: a status.json entry with NO backing *.env file. This can
+#   happen even for an id that resolves PERFECTLY FINE today — cmd_sync's
+#   failed-verification branch writes a status record ("failed") but
+#   deliberately never calls cma_provider_write_env (see cmd_sync above), so
+#   a provider that fails its very first existence probe gets a status entry
+#   and nothing else. Whatever the cause, an id with no *.env is invisible to
+#   list/list-all/list-faulty (_list_rows iterates *.env files only) and
+#   unreachable by `claude-providers remove` (which requires the env file to
+#   exist) — so it is permanently stuck, pure dead weight in status.json.
+#   Deleting the record is always safe: if the id still resolves, the next
+#   sync recreates an equivalent (or better) record from scratch; if it does
+#   not, nothing else referenced it anyway.
+#
+#   UNRESOLVED: an id WITH a *.env file (so it IS visible/launchable state)
+#   whose provider id is no longer in the CURRENT resolved set. Unlike
+#   STATUS-ONLY, this id has a live alias, config dir (~/<prefix>prov-<id>,
+#   possibly holding real session/plugin state), and status record — the
+#   underlying cause is very often a key temporarily missing from the keys
+#   file rather than a permanent catalog change, so removing it is a real,
+#   possibly-inconvenient action, not pure cleanup. cmd_prune therefore
+#   requires the (see below) explicit `--unresolved` flag before touching
+#   this class for real.
+#
+# Neither helper takes/needs the padded-string dance cma_find_orphans uses
+# for candidates: cma_find_status_only_orphans has no "resolved" input at
+# all, and cma_find_unresolved_orphans only ever walks *.env basenames (never
+# treats a provider id as a regex/glob pattern).
+
+# cma_find_status_only_orphans — status.json ids with no *.env. Unconditional:
+# deliberately NOT filtered by resolved-ness (see rationale above). Emits one
+# candidate id per line.
+cma_find_status_only_orphans() {
+  local pdir; pdir="$(cma_providers_dir)"
+  local sf; sf="$(cma_status_cache)"
+  [[ -s "$sf" ]] || return 0
+  local id
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    [[ -f "$pdir/$id.env" ]] || printf '%s\n' "$id"
+  done < <(jq -r 'keys[]' "$sf" 2>/dev/null)
+}
+
+# cma_find_unresolved_orphans <resolved-ids-space-separated> — *.env ids that
+# are NOT in the current resolved set. Emits one candidate id per line.
+cma_find_unresolved_orphans() {
+  local resolved=" $1 " pdir; pdir="$(cma_providers_dir)"
+  [[ -d "$pdir" ]] && compgen -G "$pdir/*.env" >/dev/null 2>&1 || return 0
+  local f base
+  for f in "$pdir"/*.env; do
+    base="$(basename "$f" .env)"
+    case "$resolved" in *" $base "*) ;; *) printf '%s\n' "$base" ;; esac
+  done
+}
+
 # cma_demote_orphans <resolved-ids-space-separated>
 # Warns about + demotes every id cma_find_orphans reports, so the launch-time
 # activation gate (which trusts ONLY status=="verified") stops trusting a
@@ -749,51 +823,94 @@ cmd_remove() {
 }
 
 # --- subcommand: prune -------------------------------------------------------
-# claude-providers prune [--dry-run]
-# Reports (and, unless --dry-run, removes) every ORPHANED provider — a
-# status.json record and/or *.env file whose id no longer resolves against the
-# CURRENT catalog + keys file (see cma_find_orphans above). This is the
+# claude-providers prune [--dry-run] [--unresolved]
+# Reports (and, unless --dry-run, removes) orphaned providers. This is the
 # explicit, operator-invoked counterpart to cmd_sync's automatic
 # demote-on-detect: sync never deletes anything, prune is the only path that
-# actually removes an orphan's alias/env/config dir — via the same cmd_remove
-# used for a manual `claude-providers remove <id>`. An orphan that has ONLY a
-# status.json entry (no .env — e.g. left over from a previous incomplete
-# removal) is handled by deleting just the status record, since cmd_remove
-# requires an .env file to exist.
+# can actually remove an orphan's alias/env/config dir — via the same
+# cmd_remove used for a manual `claude-providers remove <id>`.
+#
+# TWO DISTINCT classes are detected and handled differently (see the
+# cma_find_status_only_orphans/cma_find_unresolved_orphans doc comment above
+# for the full rationale):
+#
+#   status-only  — a status.json record with no backing *.env file. Always
+#                  pure dead weight (nothing else references it: invisible to
+#                  list/list-all/list-faulty, unreachable by `remove`).
+#                  Removed unconditionally — status-only orphans are safe to
+#                  drop even without --unresolved, and even a resolving-but-
+#                  currently-failing provider (no .env yet) simply gets its
+#                  status record recreated by the next sync if it still
+#                  resolves, so there is nothing to lose.
+#
+#   unresolved   — a provider WITH a *.env file (a live alias/config dir,
+#                  possibly holding real session/plugin state) whose id no
+#                  longer resolves against the CURRENT catalog + keys file.
+#                  The most common real-world cause is a key temporarily
+#                  missing from the keys file, not a permanent catalog
+#                  change — removing it is a real, possibly-inconvenient
+#                  action (cmd_remove backs up rather than deletes the config
+#                  dir, but the alias/env/status are gone outright). This
+#                  class is therefore only ever REPORTED by a plain `prune`;
+#                  actually removing it requires the explicit --unresolved
+#                  flag (composable with --dry-run to preview it first).
 cmd_prune() {
   ensure_catalog
   local records; records="$(resolve_records)"
   local resolved_ids
   resolved_ids="$(jq -r '[.[] | select(.status=="resolved") | .provider_id] | unique | join(" ")' <<<"$records")"
 
-  local pdir; pdir="$(cma_providers_dir)"
-  local orphans; orphans="$(cma_find_orphans "$resolved_ids")"
-  if [[ -z "$orphans" ]]; then
+  local status_only; status_only="$(cma_find_status_only_orphans)"
+  local unresolved;  unresolved="$(cma_find_unresolved_orphans "$resolved_ids")"
+
+  if [[ -z "$status_only" && -z "$unresolved" ]]; then
     cma_log "prune: no orphaned providers found"
     return 0
   fi
 
-  local oid n=0
-  while IFS= read -r oid; do
-    [[ -n "$oid" ]] || continue
-    n=$((n+1))
-    if (( DRY_RUN )); then
-      printf '  would prune: %s (orphaned — no longer resolves against the current catalog/keys)\n' "$oid"
-      continue
-    fi
-    cma_log "pruning orphaned provider '$oid'"
-    if [[ -f "$pdir/$oid.env" ]]; then
-      cmd_remove "$oid"
-    else
-      # status-only orphan: nothing else to remove, just drop the stale record.
-      cma_status_delete "$oid"
-    fi
-  done <<< "$orphans"
+  local oid n_status=0 n_unresolved_acted=0 n_unresolved_reported=0
 
+  if [[ -n "$status_only" ]]; then
+    while IFS= read -r oid; do
+      [[ -n "$oid" ]] || continue
+      n_status=$((n_status+1))
+      if (( DRY_RUN )); then
+        printf '  would prune: %-28s [status-only orphan — status.json record with no backing .env; always safe to drop]\n' "$oid"
+        continue
+      fi
+      cma_log "pruning status-only orphan '$oid' (no .env — dropping the stale status record)"
+      cma_status_delete "$oid"
+    done <<< "$status_only"
+  fi
+
+  if [[ -n "$unresolved" ]]; then
+    while IFS= read -r oid; do
+      [[ -n "$oid" ]] || continue
+      if (( PRUNE_UNRESOLVED )); then
+        n_unresolved_acted=$((n_unresolved_acted+1))
+        if (( DRY_RUN )); then
+          printf '  would prune: %-28s [unresolved orphan — has a config but no longer resolves against catalog/keys]\n' "$oid"
+          continue
+        fi
+        cma_log "pruning unresolved orphan '$oid' (no longer resolves against catalog/keys; --unresolved was passed)"
+        cmd_remove "$oid"
+      else
+        n_unresolved_reported=$((n_unresolved_reported+1))
+        printf '  found (NOT pruned): %-20s [unresolved orphan — has a config but no longer resolves against catalog/keys; its key may just be temporarily missing. Re-add the key to keep it, or re-run with --unresolved to remove its alias/env/config dir]\n' "$oid"
+      fi
+    done <<< "$unresolved"
+  fi
+
+  local n_total=$((n_status + n_unresolved_acted + n_unresolved_reported))
+  local n_unresolved_total=$((n_unresolved_acted + n_unresolved_reported))
   if (( DRY_RUN )); then
-    cma_log "prune --dry-run: $n orphan(s) found; nothing changed"
+    local suffix=""
+    (( PRUNE_UNRESOLVED )) && suffix=", all would be pruned"
+    cma_log "prune --dry-run: $n_total orphan(s) found ($n_status status-only, $n_unresolved_total unresolved$suffix); nothing changed"
   else
-    cma_log "prune: removed $n orphaned provider(s)"
+    local tail=""
+    (( n_unresolved_reported > 0 )) && tail="; $n_unresolved_reported unresolved orphan(s) left untouched — re-run with --unresolved to remove them"
+    cma_log "prune: removed $((n_status + n_unresolved_acted)) orphaned provider(s) ($n_status status-only, $n_unresolved_acted unresolved)$tail"
   fi
 }
 
@@ -979,6 +1096,7 @@ while (( $# )); do
     --no-verify) NO_VERIFY=1; shift ;;
     --offline) OFFLINE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --unresolved) PRUNE_UNRESOLVED=1; shift ;;
     --refresh-aliases) REFRESH_ALIASES=1; shift ;;
     --quiet) QUIET=1; shift ;;
     --multi) MULTI=1; shift ;;
