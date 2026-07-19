@@ -62,22 +62,45 @@ flowchart LR
   G --> H["enable always-on plugins\n(shared settings)"]
 ```
 
-## 3. Launch data flow (`cma_run_provider`)
+## 3. Verification pipeline (4 layers)
+
+```mermaid
+flowchart TB
+  A["claude-providers sync"] --> B["Layer 1: Existence\n(HTTP probe: reachable? valid key? active account?)"]
+  B -->|fail| F1["status: failed/existence"]
+  B -->|inconclusive| U1["status: unverified/existence"]
+  B -->|pass| C["Layer 2: Tool-Call\n(model recognizes tool schema?)"]
+  C -->|fail| F2["status: failed"]
+  C -->|pass| D["Layer 3: Semantic\n(sentinel echo + judge evaluation)"]
+  D -->|fail| U2["status: unverified/semantic"]
+  D -->|skip| D2["keep prior verdict\n(no downgrade)"]
+  D -->|pass| E["Layer 4: Superpowers-TUI\n(real Claude Code session)"]
+  E -->|fail| U3["status: unverified/superpowers_tui"]
+  E -->|skip| E2["keep prior verdict\n(no downgrade)"]
+  E -->|pass| V["status: verified\n(final — launchable)"]
+```
+
+## 4. Launch data flow (`cma_run_provider`)
 
 ```mermaid
 sequenceDiagram
   participant U as User shell
+  participant G as Activation gate
   participant W as cma_run_provider
   participant K as ~/api_keys.sh
-  participant C as claude / ccr
-  U->>W: dseek  (alias)
-  W->>W: source providers/<id>.env (non-secret)
-  W->>K: source keys file (secret in-memory only)
-  alt native transport
-    W->>C: claude  (ANTHROPIC_BASE_URL/AUTH_TOKEN/MODEL/SMALL_FAST_MODEL)
-  else router transport
+  participant R as ccr (router)
+  participant C as Claude Code
+  U->>G: deepseek  (alias)
+  G->>G: check status.json → verified?
+  alt not verified
+    G-->>U: refused: "provider not verified"
+  else verified
+    G->>W: proceed
+    W->>W: source providers/<id>.env (non-secret)
+    W->>K: source keys file (secret in-memory only)
     W->>W: upsert provider into ccr config (chmod 600, live key)
-    W->>C: ccr code  (translates Anthropic<->OpenAI/Gemini)
+    W->>R: ccr default-claude-code -- "$@"
+    R->>C: translates Anthropic ↔ OpenAI
+    C-->>U: Claude Code session on provider's models
   end
-  C-->>U: Claude Code session on the provider's models
 ```
