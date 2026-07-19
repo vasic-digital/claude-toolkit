@@ -8,3 +8,7 @@
 [submodule "submodules/challenges"]
 	path = submodules/challenges
 	url = git@github.com:vasic-digital/challenges.git
+[submodule "submodules/claude-code-router"]
+	path = submodules/claude-code-router
+	url = git@github.com:vasic-digital/claude-code-router.git
+	branch = main
