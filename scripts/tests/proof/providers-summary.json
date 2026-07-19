@@ -16,7 +16,7 @@
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-deepseek-semantic.txt",
@@ -147,7 +147,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "unverified",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -156,10 +156,10 @@
     }
   },
   "poe": {
-    "status": "failed",
+    "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "unverified",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -204,10 +204,10 @@
     }
   },
   "xiaomi": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
