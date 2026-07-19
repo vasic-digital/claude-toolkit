@@ -1,10 +1,18 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-19
-**Last HEAD:** `main @ v1.19.0` (✅ **v1.19.0 RELEASED** — all providers on ccr + IPv4 fix. Tag `v1.19.0` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
+**Last HEAD:** `main @ a64eec1` (Phase 3 docs complete. CONST-069 resolved. Full suite 27/27 green.)
 **Working tree:** clean
 **Active branch:** `main`
-**Next action:** Phase 2/3 provider verification work per the programme state below. 11 providers still failing (account-side: suspended accounts, expired keys).
+**Next action:** 11 providers still failing (account-side: suspended accounts, expired keys). No further code work scheduled — programme complete pending account-side fixes.
+
+## Phase 3 — COMPLETE (commits 7f2d86e, a64eec1)
+
+Provider verification docs delivered:
+- `docs/Provider_Verification_Guide.md` — 4-layer pipeline, status vocabulary, commands, common issues
+- `docs/Provider_FAQ.md` — general, verification, ccr, keys, sessions
+- `docs/diagrams/provider-aliases.md` — verification pipeline diagram + updated launch flow
+- `docs/superpowers/specs/2026-07-04-provider-verification-design.md` — CONST-052→CONST-069 collision resolved
 
 ## v1.19.0 — DELIVERED (commit fec3c4f)
 
