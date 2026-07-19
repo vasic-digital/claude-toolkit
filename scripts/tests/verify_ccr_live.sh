@@ -63,10 +63,11 @@ TMP_HOME="$TMP_ROOT/home"        # HOME for the server (temp; not real ~)
 mkdir -p "$TMP_BIN" "$TMP_HOME"
 SERVER_PID=""     # plaintext gateway (section 3)
 TLS_PID=""        # TLS/HTTP3 gateway (section 5)
+AUTH_PID=""       # inbound-auth gateway (section 6)
 
 cleanup() {
-  # Reap both background servers (plaintext + TLS) so nothing is leaked.
-  for _pid in "$SERVER_PID" "$TLS_PID"; do
+  # Reap every background server (plaintext + TLS + inbound-auth) so nothing is leaked.
+  for _pid in "$SERVER_PID" "$TLS_PID" "$AUTH_PID"; do
     if [[ -n "$_pid" ]] && kill -0 "$_pid" 2>/dev/null; then
       kill "$_pid" 2>/dev/null || true
       # give it a moment to drain, then hard-kill if still alive
@@ -415,10 +416,218 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Kill the server + final secret sweep over the committed proof file
+# 6. INBOUND AUTH: `ccr serve --api-key <key>` gates the completion routes.
+#    A SECOND live gateway is started on its own free ports WITH an inbound key
+#    (the section-3 gateway stays keyless). The upstream is still the fake
+#    deadloop provider, so an accepted request 502s — but auth is checked
+#    BEFORE the upstream, so a rejected request 401s without ever touching it.
+#    We prove: no key / wrong key -> 401 Anthropic authentication_error; the
+#    correct key via EITHER "Authorization: Bearer" OR "x-api-key" passes auth
+#    (status != 401); /health is NEVER gated (200 with no key); and the accepted
+#    key never surfaces in any captured 401 body. AUTH_PID is in the EXIT trap.
+#
+#    Capability gate: SKIPs cleanly (never hard-fails) when the bundled build
+#    predates --api-key — self-activates once the submodule exposes it.
+# ---------------------------------------------------------------------------
+it "inbound auth: --api-key gates /v1/messages (Bearer + x-api-key), never /health"
+section "6. inbound auth (--api-key)"
+if ! grep -q -- '--api-key' <<<"$CCR_HELP"; then
+  msg="SKIP: the bundled ccr build does not expose --api-key (submodule predates inbound gateway auth); auth leg skipped. Bump submodules/claude-code-router to a commit carrying the feature to activate this leg."
+  echo "$msg"; echo "$msg" >> "$PROOF"
+else
+  # A canary inbound key. The "testkey-canary-" prefix is deliberately NOT a
+  # provider-key signature, so it cannot trip the proof-dir secret scanner
+  # (test_lib.sh); it is also never echoed into the proof.
+  AUTH_KEY="testkey-canary-inbound-$(date +%s)-7c1f9a2b"
+  AUTH_PAYLOAD='{"model":"claude-3-haiku","max_tokens":16,"messages":[{"role":"user","content":"ping"}]}'
+
+  # Two more free ports for the auth gateway (independent of every other server).
+  read -r AUTH_GW_PORT AUTH_MG_PORT < <(python3 - <<'PY'
+import socket
+socks = []
+for _ in range(2):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    socks.append(s)
+print(*[s.getsockname()[1] for s in socks])
+for s in socks:
+    s.close()
+PY
+)
+  AUTH_GW="http://127.0.0.1:$AUTH_GW_PORT"
+  echo "auth_gateway: $AUTH_GW  (management :$AUTH_MG_PORT)  inbound-key: (canary — never printed here)" >> "$PROOF"
+
+  # Reuse the same secret-bearing config from section 3 (fake deadloop upstream);
+  # the difference is purely the inbound --api-key gate.
+  AUTH_SERVER_LOG="$TMP_ROOT/server-auth.log"
+  HOME="$TMP_HOME" "$CCR" serve --no-open \
+    --gateway-host 127.0.0.1 --gateway-port "$AUTH_GW_PORT" \
+    --host 127.0.0.1 --port "$AUTH_MG_PORT" \
+    --api-key "$AUTH_KEY" \
+    >"$AUTH_SERVER_LOG" 2>&1 &
+  AUTH_PID=$!
+
+  if ! kill -0 "$AUTH_PID" 2>/dev/null; then
+    _fail "auth server exited immediately" "$(cat "$AUTH_SERVER_LOG" 2>/dev/null)"
+  else
+    AUTH_UP="$(curl -s -o /dev/null -w '%{http_code}' \
+      --retry 30 --retry-connrefused --retry-delay 1 --max-time 30 \
+      "$AUTH_GW/health" 2>/dev/null || true)"
+    if [[ "$AUTH_UP" == "200" ]]; then _pass "auth gateway came up (GET /health 200, ungated)"
+    else _fail "auth gateway never answered /health within retry budget" "$(cat "$AUTH_SERVER_LOG" 2>/dev/null)"; fi
+
+    # 6.1 POST /v1/messages with NO auth -> 401 + authentication_error envelope.
+    it "POST /v1/messages with no auth header returns 401 (authentication_error)"
+    section "6.1 no auth -> 401"
+    NA_BODY="$TMP_ROOT/auth-noauth.body"
+    NA_CODE="$(curl -s -o "$NA_BODY" -w '%{http_code}' --max-time 20 \
+      -H 'content-type: application/json' -d "$AUTH_PAYLOAD" \
+      "$AUTH_GW/v1/messages" 2>/dev/null || true)"
+    { echo "no-auth: http_code=$NA_CODE"; echo "body=$(cat "$NA_BODY" 2>/dev/null)"; } >> "$PROOF"
+    assert_eq 401 "$NA_CODE" "no-auth POST /v1/messages status"
+    if grep -Fq 'authentication_error' "$NA_BODY" 2>/dev/null; then
+      _pass "401 body carries the Anthropic authentication_error envelope"
+    else _fail "401 body missing authentication_error" "got=$(cat "$NA_BODY" 2>/dev/null)"; fi
+
+    # 6.2 POST with a WRONG Bearer key -> 401.
+    it "POST /v1/messages with a wrong Bearer key returns 401"
+    section "6.2 wrong key -> 401"
+    WK_BODY="$TMP_ROOT/auth-wrong.body"
+    WK_CODE="$(curl -s -o "$WK_BODY" -w '%{http_code}' --max-time 20 \
+      -H 'content-type: application/json' -H 'Authorization: Bearer wrongkey' \
+      -d "$AUTH_PAYLOAD" "$AUTH_GW/v1/messages" 2>/dev/null || true)"
+    { echo "wrong-key: http_code=$WK_CODE"; echo "body=$(cat "$WK_BODY" 2>/dev/null)"; } >> "$PROOF"
+    assert_eq 401 "$WK_CODE" "wrong-key POST /v1/messages status"
+
+    # 6.3 POST with the CORRECT key via Authorization: Bearer -> NOT 401 (502 upstream).
+    it "POST /v1/messages with the correct Bearer key passes auth (status != 401)"
+    section "6.3 correct Bearer key -> not 401"
+    GB_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+      -H 'content-type: application/json' -H "Authorization: Bearer $AUTH_KEY" \
+      -d "$AUTH_PAYLOAD" "$AUTH_GW/v1/messages" 2>/dev/null || true)"
+    echo "bearer-accepted: http_code=$GB_CODE" >> "$PROOF"
+    if [[ -n "$GB_CODE" && "$GB_CODE" != 401 ]]; then
+      _pass "correct Bearer key passes auth (status=$GB_CODE, not 401)"
+    else _fail "correct Bearer key was rejected" "got=$GB_CODE"; fi
+
+    # 6.4 POST with the CORRECT key via x-api-key -> NOT 401 (both header schemes).
+    it "POST /v1/messages with the correct x-api-key passes auth (status != 401)"
+    section "6.4 correct x-api-key -> not 401"
+    GX_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+      -H 'content-type: application/json' -H "x-api-key: $AUTH_KEY" \
+      -d "$AUTH_PAYLOAD" "$AUTH_GW/v1/messages" 2>/dev/null || true)"
+    echo "xapikey-accepted: http_code=$GX_CODE" >> "$PROOF"
+    if [[ -n "$GX_CODE" && "$GX_CODE" != 401 ]]; then
+      _pass "correct x-api-key passes auth (status=$GX_CODE, not 401)"
+    else _fail "correct x-api-key was rejected" "got=$GX_CODE"; fi
+
+    # 6.5 GET /health with NO auth -> 200 (probes are NEVER gated).
+    it "GET /health with no auth returns 200 (never gated)"
+    section "6.5 /health never gated"
+    AH_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$AUTH_GW/health" 2>/dev/null || true)"
+    echo "health-nogate: http_code=$AH_CODE" >> "$PROOF"
+    assert_eq 200 "$AH_CODE" "GET /health with no auth status"
+
+    # 6.6 The accepted inbound key must never surface in any captured 401 body.
+    it "the accepted inbound key never leaked into any captured 401 body"
+    section "6.6 inbound-key sweep (401 bodies)"
+    auth_key_leaks=0
+    for f in "$NA_BODY" "$WK_BODY"; do
+      [[ -f "$f" ]] || continue
+      if grep -Fq -- "$AUTH_KEY" "$f"; then auth_key_leaks=$((auth_key_leaks + 1)); fi
+    done
+    # Label avoids a literal secret-prefix so this count line never trips the
+    # proof-dir secret scanner (test_lib.sh) as a false positive.
+    echo "accepted_inbound_key_count_in_401_bodies=$auth_key_leaks" >> "$PROOF"
+    assert_eq 0 "$auth_key_leaks" "accepted inbound key occurrences in captured 401 bodies"
+
+    # 6.7 Shut the auth server down cleanly (the EXIT trap is the backstop).
+    it "the inbound-auth server shuts down cleanly"
+    section "6.7 auth server shutdown"
+    if [[ -n "$AUTH_PID" ]] && kill -0 "$AUTH_PID" 2>/dev/null; then
+      kill "$AUTH_PID" 2>/dev/null || true
+      for _ in 1 2 3 4 5; do kill -0 "$AUTH_PID" 2>/dev/null || break; sleep 0.2; done
+      kill -9 "$AUTH_PID" 2>/dev/null || true
+      _pass "auth server shut down"
+      AUTH_PID=""  # already reaped; stop the EXIT trap from re-killing
+    else
+      _fail "auth server was not running at shutdown time" "$(cat "$AUTH_SERVER_LOG" 2>/dev/null)"
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 7. PROXY PASSWORD REDACTION: an outbound-proxy block's HTTP Basic password is
+#    a secret. `ccr config show` must carry the proxy url + username through
+#    (an operator needs to confirm them) but replace the password with
+#    [REDACTED] — the same guarantee provider api_keys get. And `ccr config
+#    validate` must REJECT an incomplete proxy (missing password) non-zero.
+#    Both configs live in a temp dir (never the real ~/.claude-code-router);
+#    the cleartext proxy password only ever exists in that temp file — the
+#    show output is redacted and is the only thing echoed into the proof.
+# ---------------------------------------------------------------------------
+it "proxy password redaction: config show redacts proxy.password, validate rejects an incomplete proxy"
+section "7. proxy password redaction"
+# A canary proxy password. The "proxypw-canary-" prefix is deliberately NOT a
+# provider-key signature, so it cannot trip the proof-dir secret scanner; it is
+# redacted by `config show` and is swept out of the whole proof in section 8.
+PROXY_SECRET="proxypw-canary-$(date +%s)-3e9d1a5f"
+
+# 7a. A COMPLETE, valid config with an authenticated proxy — `config show`
+#     uses the validating loader, so this must load cleanly.
+REDACT_CFG="$TMP_ROOT/proxy-redact.json"
+cat > "$REDACT_CFG" <<JSON
+{
+  "Providers": [
+    { "name": "p1", "api_base_url": "https://api.example/v1", "api_key": "$SECRET", "models": ["m1"] }
+  ],
+  "Router": { "default": "p1,m1" },
+  "proxy": { "url": "http://proxy.corp:8888", "username": "proxyuser", "password": "$PROXY_SECRET" }
+}
+JSON
+it "ccr config show redacts proxy.password to [REDACTED] (url + username shown)"
+section "7a. config show (proxy redaction)"
+PSHOW_OUT="$(HOME="$TMP_HOME" "$CCR" config show "$REDACT_CFG" 2>&1)"; PSHOW_RC=$?
+echo "exit=$PSHOW_RC" >> "$PROOF"
+echo "$PSHOW_OUT" >> "$PROOF"
+assert_eq 0 "$PSHOW_RC" "config show (proxy) exit"
+if grep -Fq '[REDACTED]' <<<"$PSHOW_OUT"; then _pass "config show prints the [REDACTED] marker"
+else _fail "config show did not redact" "got=$PSHOW_OUT"; fi
+if grep -Fq 'proxy.corp:8888' <<<"$PSHOW_OUT"; then _pass "config show carries proxy url (proxy.corp:8888) through"
+else _fail "config show dropped the proxy url" "got=$PSHOW_OUT"; fi
+if grep -Fq 'proxyuser' <<<"$PSHOW_OUT"; then _pass "config show carries proxy username (proxyuser) through"
+else _fail "config show dropped the proxy username" "got=$PSHOW_OUT"; fi
+if grep -Fq -- "$PROXY_SECRET" <<<"$PSHOW_OUT"; then
+  _fail "proxy password LEAKED into config show output"
+else _pass "proxy password absent from config show output (redacted, not leaked)"; fi
+
+# 7b. An INCOMPLETE proxy (missing password) must be REJECTED by validate.
+INVAL_CFG="$TMP_ROOT/proxy-incomplete.json"
+cat > "$INVAL_CFG" <<JSON
+{
+  "Providers": [
+    { "name": "p1", "api_base_url": "https://api.example/v1", "api_key": "$SECRET", "models": ["m1"] }
+  ],
+  "Router": { "default": "p1,m1" },
+  "proxy": { "url": "http://proxy.corp:8888", "username": "proxyuser" }
+}
+JSON
+it "ccr config validate rejects an incomplete proxy (missing password) with a non-zero exit"
+section "7b. config validate (incomplete proxy)"
+INVAL_OUT="$(HOME="$TMP_HOME" "$CCR" config validate "$INVAL_CFG" 2>&1)"; INVAL_RC=$?
+{ echo "exit=$INVAL_RC"; echo "$INVAL_OUT"; } >> "$PROOF"
+if (( INVAL_RC != 0 )); then _pass "config validate rejects the incomplete proxy (rc=$INVAL_RC)"
+else _fail "config validate unexpectedly accepted an incomplete proxy" "rc=$INVAL_RC"; fi
+case "$INVAL_OUT" in
+  *"proxy requires url, username, and password"*) _pass "validate names the incomplete-proxy problem" ;;
+  *) _fail "validate did not report the incomplete-proxy problem" "got=$INVAL_OUT" ;;
+esac
+
+# ---------------------------------------------------------------------------
+# 8. Kill the server + final secret sweep over the committed proof file
 # ---------------------------------------------------------------------------
 it "the server shuts down and no secret leaked into the committed proof"
-section "6. shutdown + secret sweep"
+section "8. shutdown + secret sweep"
 if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
   kill "$SERVER_PID" 2>/dev/null || true
   for _ in 1 2 3 4 5; do kill -0 "$SERVER_PID" 2>/dev/null || break; sleep 0.2; done
@@ -440,6 +649,17 @@ leaks="${leaks:-0}"
 # itself trip the proof-dir secret scanner (test_lib.sh) as a false positive.
 echo "leaked_key_count_in_proof=$leaks" >> "$PROOF"
 assert_eq 0 "$leaks" "secret occurrences in committed proof file"
+
+# Also sweep the proof for the section-6/7 canaries (the inbound auth key and
+# the proxy password). Both are guarded with :- so an earlier SKIP leaves them
+# unset without tripping `set -u`. They must be absent from the committed proof.
+for _canary in "${AUTH_KEY:-}" "${PROXY_SECRET:-}"; do
+  [[ -n "$_canary" ]] || continue
+  ck="$(grep -Fc -- "$_canary" "$PROOF" 2>/dev/null)" || true
+  ck="${ck:-0}"
+  echo "leaked_canary_count_in_proof=$ck" >> "$PROOF"
+  assert_eq 0 "$ck" "auth/proxy canary occurrences in committed proof file"
+done
 
 echo
 echo "Evidence written to: $PROOF"

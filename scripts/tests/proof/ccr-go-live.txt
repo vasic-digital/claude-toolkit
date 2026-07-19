@@ -1,17 +1,17 @@
 # claude-code-router (bundled Go) — LIVE verification proof
-generated:  2026-07-20T01:34:09+0500
+generated:  2026-07-20T01:50:48+0500
 host:       Linux 6.12.41-6.12-alt1 x86_64
 go:         go version go1.26.4-X:nodwarf5 linux/amd64
-build:      BIN_DIR=/tmp/.private/milos/ccr-go-live.jyiPW8/bin bash scripts/claude-ccr-build.sh
-gateway:    http://127.0.0.1:39083
-management: http://127.0.0.1:37647
+build:      BIN_DIR=/tmp/.private/milos/ccr-go-live.cTuYcE/bin bash scripts/claude-ccr-build.sh
+gateway:    http://127.0.0.1:46037
+management: http://127.0.0.1:40639
 secret:     (api_key redaction canary — never printed here)
 
 
-===== 1. build (BIN_DIR=/tmp/.private/milos/ccr-go-live.jyiPW8/bin) =====
+===== 1. build (BIN_DIR=/tmp/.private/milos/ccr-go-live.cTuYcE/bin) =====
 [36m[cma][0m building bundled claude-code-router (Go): go1.26.4-X:nodwarf5 ...
-[36m[cma][0m installed bundled Go ccr: /tmp/.private/milos/ccr-go-live.jyiPW8/bin/ccr -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/claude-code-router/bin/ccr
-[33m[cma warn][0m an EARLIER 'ccr' shadows /tmp/.private/milos/ccr-go-live.jyiPW8/bin/ccr on PATH (/home/milos/.nvm/versions/node/v24.18.0/bin/ccr). Ensure /tmp/.private/milos/ccr-go-live.jyiPW8/bin precedes it, or remove the shadowing ccr.
+[36m[cma][0m installed bundled Go ccr: /tmp/.private/milos/ccr-go-live.cTuYcE/bin/ccr -> /home/milos/Factory/projects/tools_and_research/claude_toolkit/submodules/claude-code-router/bin/ccr
+[33m[cma warn][0m an EARLIER 'ccr' shadows /tmp/.private/milos/ccr-go-live.cTuYcE/bin/ccr on PATH (/home/milos/.nvm/versions/node/v24.18.0/bin/ccr). Ensure /tmp/.private/milos/ccr-go-live.cTuYcE/bin precedes it, or remove the shadowing ccr.
 
 ===== 2. identity (symlink + --help) =====
 --- ccr --help (head) ---
@@ -58,7 +58,7 @@ ccr_gen_ai_upstream_requests_total{provider="deadloop",model="ghost-model"} 1
 
 ===== 4e. ccr config validate =====
 exit=0
-config /tmp/.private/milos/ccr-go-live.jyiPW8/home/.claude-code-router/config.json is valid: 1 provider(s), routes: default=deadloop,ghost-model
+config /tmp/.private/milos/ccr-go-live.cTuYcE/home/.claude-code-router/config.json is valid: 1 provider(s), routes: default=deadloop,ghost-model
 
 ===== 4f. ccr config show =====
 exit=0
@@ -80,14 +80,14 @@ exit=0
 
 ===== 5. TLS + HTTP/3 =====
 -----
-tls_gateway: https://127.0.0.1:43031  (management :50591)
+tls_gateway: https://127.0.0.1:57927  (management :36115)
 
 ===== 5a. GET https /health (TLS, --http2) =====
 http_code=200
 body={"providers":1,"status":"ok"}
 
 ===== 5b. Alt-Svc h3 advertisement =====
-alt-svc: h3=":43031"; ma=86400
+alt-svc: h3=":57927"; ma=86400
 
 ===== 5c. HTTP/3 probe (best-effort) =====
 http3_probe (code version)=200 3
@@ -101,5 +101,62 @@ tls_leaked_key_count_in_https_responses=0
 
 ===== 5f. TLS server shutdown =====
 
-===== 6. shutdown + secret sweep =====
+===== 6. inbound auth (--api-key) =====
+auth_gateway: http://127.0.0.1:44801  (management :54899)  inbound-key: (canary — never printed here)
+
+===== 6.1 no auth -> 401 =====
+no-auth: http_code=401
+body={"error":{"message":"invalid or missing API key","type":"authentication_error"},"type":"error"}
+
+===== 6.2 wrong key -> 401 =====
+wrong-key: http_code=401
+body={"error":{"message":"invalid or missing API key","type":"authentication_error"},"type":"error"}
+
+===== 6.3 correct Bearer key -> not 401 =====
+bearer-accepted: http_code=502
+
+===== 6.4 correct x-api-key -> not 401 =====
+xapikey-accepted: http_code=502
+
+===== 6.5 /health never gated =====
+health-nogate: http_code=200
+
+===== 6.6 inbound-key sweep (401 bodies) =====
+accepted_inbound_key_count_in_401_bodies=0
+
+===== 6.7 auth server shutdown =====
+
+===== 7. proxy password redaction =====
+
+===== 7a. config show (proxy redaction) =====
+exit=0
+{
+  "Providers": [
+    {
+      "name": "p1",
+      "api_base_url": "https://api.example/v1",
+      "api_key": "[REDACTED]",
+      "models": [
+        "m1"
+      ]
+    }
+  ],
+  "Router": {
+    "default": "p1,m1"
+  },
+  "proxy": {
+    "url": "http://proxy.corp:8888",
+    "username": "proxyuser",
+    "password": "[REDACTED]"
+  }
+}
+
+===== 7b. config validate (incomplete proxy) =====
+exit=1
+config /tmp/.private/milos/ccr-go-live.cTuYcE/proxy-incomplete.json is invalid:
+  - Proxy: proxy requires url, username, and password (use the HTTP_PROXY env for an unauthenticated proxy)
+
+===== 8. shutdown + secret sweep =====
 leaked_key_count_in_proof=0
+leaked_canary_count_in_proof=0
+leaked_canary_count_in_proof=0
