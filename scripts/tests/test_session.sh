@@ -306,8 +306,8 @@ hint_out="$(run_session_from "$hint_proj" hint claude2 2>/dev/null)"            
 hint_err="$(run_session_from "$hint_proj" hint claude2 2>&1 1>/dev/null)"; hint_rc=$?
 assert_eq 0 "$hint_rc" "hint exits 0 (no set -e abort)"
 assert_eq "" "$hint_out" "hint writes nothing to stdout (must not pollute the launch)"
-printf '%s\n' "$hint_err" | grep -q 'hint-demo';   assert_eq 0 $? "hint stderr names the kebab-case project"
-printf '%s\n' "$hint_err" | grep -q 'alias color:'; assert_eq 0 $? "hint stderr states the alias colour"
+grep -q 'hint-demo' <<<"$hint_err"; assert_eq 0 $? "hint stderr names the kebab-case project"
+grep -q 'alias color:' <<<"$hint_err"; assert_eq 0 $? "hint stderr states the alias colour"
 
 it "hint: EXECUTES with an empty label (edge case) without aborting"
 run_session_from "$hint_proj" hint >/dev/null 2>&1; assert_eq 0 $? "hint with no label exits 0"
@@ -353,9 +353,9 @@ _m_known_name="$(bash "$SESSION_SH" name "$many_proj")"
 mkdir -p "$many_sess_dir"
 touch "$many_sess_dir/$_m_known_id.jsonl"
 _m_flags="$(run_session_from "$many_proj" flags "$many_cfg")"
-printf '%s\n' "$_m_flags" | grep -q "^--resume $_m_known_id"; rc=$?
+grep -q "^--resume $_m_known_id" <<<"$_m_flags"; rc=$?
 assert_eq 0 $rc "stress: flags returns --resume with 200 files pipefail guard"
-printf '%s\n' "$_m_flags" | grep -q "$_m_known_name"; rc=$?
+grep -q "$_m_known_name" <<<"$_m_flags"; rc=$?
 assert_eq 0 $rc "stress: flags carries --name $_m_known_name"
 _m_latest="$(run_session_from "$many_proj" latest-id "$many_cfg")"
 assert_eq "$_m_known_id" "$_m_latest" "stress: latest-id returns the most recent session"

@@ -318,7 +318,7 @@ it "present_key_vars dies clearly when CMA_KEYS_FILE is a directory (v1.12.1 5a)
 # then yields a silent "0 key vars" (grep on a dir). A directory must die clearly.
 _kd="$(mktemp -d "${TMPDIR:-/tmp}/cma-kd.XXXXXX")"
 _kderr="$( bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$_kd" 2>&1 >/dev/null )"; _kdrc=$?
-printf '%s' "$_kderr" | grep -qi 'is a directory'; assert_eq 0 $? "directory keys-file -> clear 'is a directory' die"
+grep -qi 'is a directory' <<<"$_kderr"; assert_eq 0 $? "directory keys-file -> clear 'is a directory' die"
 [[ "$_kdrc" -ne 0 ]]; assert_eq 0 $? "directory keys-file -> non-zero exit (not silent 0 key vars)"
 rm -rf "$_kd"
 
@@ -327,7 +327,7 @@ it "cmd_sync_multi ALSO dies clearly on a directory keys-file (v1.12.1 5a, --mul
 # own main-process guard too (final-review IMPORTANT: cmd_sync had it, cmd_sync_multi did not).
 _kd2="$(mktemp -d "${TMPDIR:-/tmp}/cma-kd2.XXXXXX")"
 _kd2err="$( bash "$PROVIDERS_SH" sync --multi --offline --keys-file "$_kd2" 2>&1 >/dev/null )"; _kd2rc=$?
-printf '%s' "$_kd2err" | grep -qi 'is a directory'; assert_eq 0 $? "--multi directory keys-file -> clear die"
+grep -qi 'is a directory' <<<"$_kd2err"; assert_eq 0 $? "--multi directory keys-file -> clear die"
 [[ "$_kd2rc" -ne 0 ]]; assert_eq 0 $? "--multi directory keys-file -> non-zero exit (not silent 0 key vars)"
 rm -rf "$_kd2"
 
@@ -369,12 +369,14 @@ grep -qE "^CMA_PROVIDER_TRANSPORT='?router'?" "$PDIR/zai-coding-plan.env" ; asse
 it "zai-coding-plan alias written via cma_run_provider"
 grep -q '^alias zai-coding-plan="cma_run_provider zai-coding-plan"' "$ALIAS_FILE" ; assert_eq 0 $? "zai-coding-plan alias"
 
-it "xiaomi env file created with native transport + /anthropic base + pinned models"
+it "xiaomi env file created with router transport + /v1 base + pinned models"
+# v1.19.0: xiaomi moved native(/anthropic) -> router(/v1). Its OpenAI-compatible
+# endpoint is live-verified, so it routes through ccr like every other provider.
 assert_file "$PDIR/xiaomi.env" "xiaomi env"
-grep -qE "^CMA_PROVIDER_TRANSPORT='?native'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi native transport"
-grep -qE "^CMA_PROVIDER_BASE_URL='?https://api.xiaomimimo.com/anthropic'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi /anthropic base"
+grep -qE "^CMA_PROVIDER_TRANSPORT='?router'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi router transport"
+grep -qE "^CMA_PROVIDER_BASE_URL='?https://api.xiaomimimo.com/v1'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi /v1 base"
 grep -qE "^CMA_PROVIDER_MODEL='?mimo-v2.5-pro'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi strong model mimo-v2.5-pro"
-grep -qE "^CMA_PROVIDER_FAST_MODEL='?mimo-v2-flash'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi fast model mimo-v2-flash"
+grep -qE "^CMA_PROVIDER_FAST_MODEL='?mimo-v2.5'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi fast model mimo-v2.5"
 grep -qE "^CMA_PROVIDER_KEYVAR='?XIAOMI_MIMO_API_KEY'?" "$PDIR/xiaomi.env" ; assert_eq 0 $? "xiaomi keyvar pinned"
 
 it "xiaomi alias written via cma_run_provider"
@@ -544,11 +546,11 @@ it "cma_run wrapper also has sync-state pull+push"
 # blocks), and a fixed window silently drops late markers like 'push' (which now
 # sits ~30 lines in). Same robust pattern as test_claude.sh's _cma_run_body.
 _run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-printf '%s\n' "$_run_body" | grep -q 'claude-sync-state.*pull' ; assert_eq 0 $? "cma_run pull"
-printf '%s\n' "$_run_body" | grep -q 'claude-sync-state.*push' ; assert_eq 0 $? "cma_run push"
+grep -q 'claude-sync-state.*pull' <<<"$_run_body"; assert_eq 0 $? "cma_run pull"
+grep -q 'claude-sync-state.*push' <<<"$_run_body"; assert_eq 0 $? "cma_run push"
 
 it "cma_run has provider-env isolation (clears leaked ANTHROPIC_* before native launch)"
-printf '%s\n' "$_run_body" | grep -q 'unset ANTHROPIC_BASE_URL' ; assert_eq 0 $? "cma_run unsets ANTHROPIC_BASE_URL"
+grep -q 'unset ANTHROPIC_BASE_URL' <<<"$_run_body"; assert_eq 0 $? "cma_run unsets ANTHROPIC_BASE_URL"
 
 it "migration regenerating cma_run does NOT drop it (BRE empty-group \\(\\) bug regression)"
 # Reproduce the exact failure: an OLD-format alias file with a cma_run lacking
@@ -575,7 +577,10 @@ OLDFMT
 mig_run="$(grep -c '^cma_run()' "$_mig")"
 mig_prov="$(grep -c '^cma_run_provider()' "$_mig")"
 mig_alias="$(grep -c '^alias claude1=' "$_mig")"
-mig_unset="$(grep -c 'unset ANTHROPIC_BASE_URL' "$_mig")"
+# Scope to cma_run's own body: BOTH cma_run and cma_run_provider legitimately
+# carry this unset (lib.sh:420 and :607), so a whole-file count is 2, not 1.
+# This assertion is about cma_run specifically, so extract just its body.
+mig_unset="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig" | grep -c 'unset ANTHROPIC_BASE_URL')"
 assert_eq 1 "$mig_run"   "cma_run re-appended after migration (not dropped)"
 assert_eq 1 "$mig_prov"  "cma_run_provider preserved"
 assert_eq 1 "$mig_alias" "claudeN alias preserved through migration"
@@ -609,7 +614,7 @@ it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT 
 # the [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] guard — so an empty/unknown
 # limit never exports a bogus window.
 # shellcheck disable=SC2016
-printf '%s\n' "$_acw_body" | grep -B1 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
+grep -B1 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
 assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is guarded on the preceding line"
 
 it "migration regenerates an outdated cma_run_provider that lacks the auto-compact cap guard"
@@ -672,8 +677,14 @@ grep -q 'kimi-code/credentials' "$_mig3"; assert_eq 1 $? "old body lacks OAuth f
 ( ALIAS_FILE="$_mig3" cma_ensure_alias_file ) >/dev/null 2>&1
 mig3_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig3")"
 mig3_alias="$(grep -c '^alias kimi-for-coding=' "$_mig3")"
-printf '%s\n' "$mig3_body" | grep -q '_family_id'; assert_eq 0 $? "regenerated body carries family proxy discovery"
-printf '%s\n' "$mig3_body" | grep -q 'kimi-code/credentials/kimi-code.json'; assert_eq 0 $? "regenerated body carries OAuth token freshness"
+# Use a here-string, not `printf | grep -q`: grep -q exits on first match and
+# closes the pipe while printf is still writing the ~400-line body, so printf
+# dies with SIGPIPE and the PIPELINE's status is 141 — not grep's 0. That made
+# this assertion fail even though the marker was present (the sibling
+# _family_id check passed only because its match happens late enough that
+# printf finishes first). A here-string has no pipe and no SIGPIPE race.
+grep -qF '_family_id' <<<"$mig3_body"; assert_eq 0 $? "regenerated body carries family proxy discovery"
+grep -qF 'kimi-code/credentials/kimi-code.json' <<<"$mig3_body"; assert_eq 0 $? "regenerated body carries OAuth token freshness"
 assert_eq 1 "$mig3_alias" "kimi-for-coding alias preserved through migration"
 rm -f "$_mig3"
 
@@ -698,7 +709,7 @@ CMA_PROVIDER_KEYVAR='GHOST_API_KEY'
 GHOST
 list_out="$(bash "$PROVIDERS_SH" list-all 2>/dev/null)"; list_rc=$?
 assert_eq 0 "$list_rc" "list-all exits 0 (no abort on the alias-less provider)"
-printf '%s\n' "$list_out" | grep -q 'ghost'; assert_eq 0 $? "list-all still shows the alias-less provider"
+grep -q 'ghost' <<<"$list_out"; assert_eq 0 $? "list-all still shows the alias-less provider"
 
 it "claude-providers remove does NOT abort on a provider with no alias line"
 bash "$PROVIDERS_SH" remove ghost >/dev/null 2>&1; rm_rc=$?
@@ -726,10 +737,10 @@ assert_eq 0 "$_hasnull" "no provider field contains the literal string 'null'"
 it "cma_run_provider router-config write is noclobber-safe (>| not bare >)"
 _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
 # shellcheck disable=SC2016  # literal $tmp intended: we grep the EMITTED code, not expand it
-printf '%s\n' "$_prov_body" | grep -q '>| "\$tmp"'; assert_eq 0 $? "router jq write uses force-clobber >|"
+grep -q '>| "\$tmp"' <<<"$_prov_body"; assert_eq 0 $? "router jq write uses force-clobber >|"
 _bare=0
 # shellcheck disable=SC2016
-printf '%s\n' "$_prov_body" | grep -qE '> "\$tmp"' && _bare=1
+grep -qE '> "\$tmp"' <<<"$_prov_body" && _bare=1
 assert_eq 0 "$_bare" "no bare '> \$tmp' write remains in cma_run_provider"
 
 it "noclobber proof: bare > is blocked on an existing mktemp file, >| succeeds"
@@ -768,7 +779,7 @@ it "cma_status_all lists every record as tab-separated rows"
 cma_status_write st_groq failed llama-3 existence
 assert_eq "2" "$(cma_status_all | wc -l | tr -d ' ')" "two records listed"
 _all="$(cma_status_all)"
-printf '%s\n' "$_all" | grep -qF "st_groq	failed	llama-3	" ; assert_eq 0 $? "groq row present with fields"
+grep -qF "st_groq	failed	llama-3	" <<<"$_all"; assert_eq 0 $? "groq row present with fields"
 
 it "no secret/key material is ever written into the status cache"
 assert_file_not_contains "$(cma_status_cache)" "sk-" "no bearer-token prefix in cache"
@@ -788,8 +799,8 @@ it "activation gate: unverified alias refuses to launch (rc 3, actionable messag
 cma_status_write acme unverified acme-big semantic
 _g_out="$( ( source "$ALIAS_FILE"; cma_run_provider acme ) 2>&1 )"; _g_rc=$?
 assert_eq 3 "$_g_rc" "unverified alias returns 3 (gate refused)"
-printf '%s\n' "$_g_out" | grep -q 'not launching'; assert_eq 0 $? "gate prints 'not launching'"
-printf '%s\n' "$_g_out" | grep -q 'claude-providers sync'; assert_eq 0 $? "gate suggests re-verify via sync"
+grep -q 'not launching' <<<"$_g_out"; assert_eq 0 $? "gate prints 'not launching'"
+grep -q 'claude-providers sync' <<<"$_g_out"; assert_eq 0 $? "gate suggests re-verify via sync"
 
 it "activation gate: failed alias also refuses"
 cma_status_write acme failed acme-big existence
@@ -844,9 +855,9 @@ assert_eq "$_rb" "$(cat "$ALIAS_FILE")" "second refresh yields an identical alia
 
 it "--quiet suppresses the refresh log line (non-quiet emits it)"
 _noisy="$(bash "$PROVIDERS_SH" list --refresh-aliases 2>&1 >/dev/null)"
-printf '%s' "$_noisy" | grep -q refreshed; assert_eq 0 $? "non-quiet refresh logs 'refreshed'"
+grep -q refreshed <<<"$_noisy"; assert_eq 0 $? "non-quiet refresh logs 'refreshed'"
 _quiet="$(bash "$PROVIDERS_SH" list --refresh-aliases --quiet 2>&1 >/dev/null)"
-printf '%s' "$_quiet" | grep -q refreshed && _q=1 || _q=0
+grep -q refreshed <<<"$_quiet" && _q=1 || _q=0
 assert_eq 0 "$_q" "quiet refresh suppresses the log"
 
 # ---------------------------------------------------------------------------
@@ -896,8 +907,8 @@ it "claude-semantic-visibility.sh builds (cached) + forwards flags to the binary
 rm -f "$_sem_bin"
 out="$( PATH="$HOME/fakebin:$PATH" LLMSVERIFIER_DIR="$SCRIPTS_DIR/../submodules/LLMsVerifier" \
         LV_SEMANTIC_BIN="$_sem_bin" bash "$SEMDRV" --model m --sentinel Z 2>/dev/null )"
-printf '%s\n' "$out" | grep -q 'SCV-STUB' ; assert_eq 0 $? "driver execs the built binary"
-printf '%s\n' "$out" | grep -q -- '--sentinel Z' ; assert_eq 0 $? "driver forwards flags verbatim"
+grep -q 'SCV-STUB' <<<"$out"; assert_eq 0 $? "driver execs the built binary"
+grep -q -- '--sentinel Z' <<<"$out"; assert_eq 0 $? "driver forwards flags verbatim"
 assert_file "$_sem_bin" "binary was cached under .local-cache"
 
 it "claude-semantic-visibility.sh --help/-h ALWAYS works, even with no built binary (bug fix)"
@@ -908,10 +919,10 @@ it "claude-semantic-visibility.sh --help/-h ALWAYS works, even with no built bin
 # never returns to bash on failure either (it just fails the whole script).
 out="$( LV_SEMANTIC_BIN=/nonexistent/path bash "$SEMDRV" --help 2>&1 )"; rc=$?
 assert_eq 0 "$rc" "--help exits 0 with no built binary"
-printf '%s\n' "$out" | grep -qi 'usage' ; assert_eq 0 $? "--help prints a usage line with no built binary"
+grep -qi 'usage' <<<"$out"; assert_eq 0 $? "--help prints a usage line with no built binary"
 out="$( LV_SEMANTIC_BIN=/nonexistent/path bash "$SEMDRV" -h 2>&1 )"; rc=$?
 assert_eq 0 "$rc" "-h exits 0 with no built binary"
-printf '%s\n' "$out" | grep -qi 'usage' ; assert_eq 0 $? "-h prints a usage line with no built binary"
+grep -qi 'usage' <<<"$out"; assert_eq 0 $? "-h prints a usage line with no built binary"
 
 # ---------------------------------------------------------------------------
 # Section — providers-semantic.sh (layer 3 adapter). A stub driver stands in
@@ -944,7 +955,7 @@ printf 'CMA_JUDGE_BASE_URL="https://api.deepseek.com"\nCMA_JUDGE_MODEL="deepseek
 err="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-same.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
         bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
         --base-url https://api.deepseek.com 2>&1 >/dev/null )"
-printf '%s' "$err" | grep -qi 'same-family judge is NOT independent'; assert_eq 0 $? "same-endpoint judge -> independence WARNING on stderr"
+grep -qi 'same-family judge is NOT independent' <<<"$err"; assert_eq 0 $? "same-endpoint judge -> independence WARNING on stderr"
 
 it "providers-semantic does NOT warn when judge endpoint differs (independent judge)"
 _mk_stub_driver 0 true
@@ -952,7 +963,7 @@ printf 'CMA_JUDGE_BASE_URL="https://api.groq.com/openai"\nCMA_JUDGE_MODEL="llama
 err2="$( CMA_SEMANTIC_DRIVER="$HOME/fakebin/scv-stub" CMA_JUDGE_ENV="$HOME/judge-diff.env" CMA_PROBE_KEY=x CMA_JUDGE_KEY=y \
          bash "$SEMSH" --provider deepseek --model deepseek-chat --key-var DEEPSEEK_API_KEY \
          --base-url https://api.deepseek.com 2>&1 >/dev/null )"
-printf '%s' "$err2" | grep -qi 'same-family judge is NOT independent' && _w=1 || _w=0
+grep -qi 'same-family judge is NOT independent' <<<"$err2" && _w=1 || _w=0
 assert_eq 0 "$_w" "different-endpoint judge -> NO independence warning"
 
 it "providers-semantic maps Go exit 3 (transport/infra) -> 'skip', not 'unverified' (v1.12.1 I-1 no-downgrade)"
@@ -1164,7 +1175,7 @@ assert_jq "$(cma_status_cache)" '.gamma.failing_layer' "semantic" "cmd_verify se
 it "cmd_verify: unknown provider id dies with non-zero exit + message"
 out="$(bash "$PROVIDERS_SH" verify no-such-provider-xyz 2>&1)"; rc=$?
 assert_eq 1 "$rc" "cmd_verify unknown id exits 1"
-printf '%s\n' "$out" | grep -q "unknown provider" ; assert_eq 0 $? "cmd_verify unknown id emits a die message"
+grep -q "unknown provider" <<<"$out"; assert_eq 0 $? "cmd_verify unknown id emits a die message"
 
 # ---------------------------------------------------------------------------
 # Section — verify_superpowers_tui.sh SKIP behavior (Tier-A: no real claude).
@@ -1192,8 +1203,8 @@ assert_eq "$_live_scrub" "$_stui_scrub" "SCRUB var set identical to verify_claud
 it "verify_superpowers_tui SKIPs (exit 0 + reason) when there is no real claude binary"
 out="$( CLAUDE_BIN=/usr/bin/true PROOF_DIR="$STUI_PROOF" bash "$STUI" --alias deepseek --timeout 5 2>&1 )"; rc=$?
 assert_eq 0 "$rc" "SKIP is a non-failure (exit 0)"
-printf '%s\n' "$out" | grep -q 'SKIP:' ; assert_eq 0 $? "prints an honest SKIP reason"
-printf '%s\n' "$out" | grep -qiv 'PASS' ; assert_eq 0 $? "never claims PASS when skipping"
+grep -q 'SKIP:' <<<"$out"; assert_eq 0 $? "prints an honest SKIP reason"
+grep -qiv 'PASS' <<<"$out"; assert_eq 0 $? "never claims PASS when skipping"
 
 # A stub whose basename matches claude* (unlike the previous `cat`/`true`) so
 # the launch passes the "no real claude binary" precondition
@@ -1215,7 +1226,7 @@ it "verify_superpowers_tui SKIPs when the named alias is not installed (genuinel
 [[ ! -f "$PDIR/no_such_alias.env" ]]; assert_eq 0 $? "precondition: no_such_alias has no provider env file"
 out="$( CLAUDE_BIN="$HOME/fakebin/claude-stub" PROOF_DIR="$STUI_PROOF" bash "$STUI" --alias no_such_alias --timeout 5 2>&1 )"; rc=$?
 assert_eq 0 "$rc" "unknown alias -> SKIP exit 0"
-printf '%s\n' "$out" | grep -q "SKIP: alias 'no_such_alias' not installed" ; assert_eq 0 $? "SKIP reason names the alias-not-installed branch specifically (not an earlier precondition)"
+grep -q "SKIP: alias 'no_such_alias' not installed" <<<"$out"; assert_eq 0 $? "SKIP reason names the alias-not-installed branch specifically (not an earlier precondition)"
 
 # ---------------------------------------------------------------------------
 # Section — xAI existence via the generic chat probe (CORRECTED: xAI exposes
@@ -1316,7 +1327,7 @@ assert_eq 0 $? "env-isolation unset lines precede the activation gate"
 
 it "migration check detects missing env-isolation marker"
 _bare_body='cma_run_provider() { :; }'
-printf '%s\n' "$_bare_body" | grep -qF 'unset ANTHROPIC_BASE_URL' && _has=1 || _has=0
+grep -qF 'unset ANTHROPIC_BASE_URL' <<<"$_bare_body" && _has=1 || _has=0
 assert_eq 0 "$_has" "bare body without env-isolation triggers missing check"
 
 # ---------------------------------------------------------------------------
@@ -1365,3 +1376,5 @@ mkdir -p "$HOME/.claude-prov-acme4"
 cma_status_write "acme4" "unverified" "acme-tiny" "existence"
 ( CLAUDE_BIN=/usr/bin/true ACME_API_KEY=sk-test source "$ALIAS_FILE"; cma_run_provider acme4 ) >/dev/null 2>&1; _grc=$?
 assert_eq 3 "$_grc" "unverified multi-alias acme4 blocked by gate (rc 3)"
+
+summary

@@ -161,12 +161,12 @@ PHFMT
 ( ALIAS_FILE="$_mig_ph" cma_ensure_alias_file ) >/dev/null 2>&1
 # Extract the regenerated cma_run body and check the markers
 _ph_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig_ph")"
-printf '%s\n' "$_ph_body" | grep -q '_cma_hook_root'; assert_eq 0 $? "cma_run has _cma_hook_root marker (project-scoped hook support)"
+grep -q '_cma_hook_root' <<<"$_ph_body"; assert_eq 0 $? "cma_run has _cma_hook_root marker (project-scoped hook support)"
 # With no CMA_CWD_HOOK set, should check git toplevel first, then global
-printf '%s\n' "$_ph_body" | grep -q 'git rev-parse --show-toplevel'; assert_eq 0 $? "cma_run resolves git toplevel for project-local hook"
-printf '%s\n' "$_ph_body" | grep -q '\.claude-cwd-hook'; assert_eq 0 $? "cma_run checks for .claude-cwd-hook in project root"
-printf '%s\n' "$_ph_body" | grep -q 'CMA_CWD_HOOK:-'; assert_eq 0 $? "cma_run respects CMA_CWD_HOOK env var override"
-printf '%s\n' "$_ph_body" | grep -q '.local/bin/claude-cwd-hook'; assert_eq 0 $? "cma_run falls back to global claude-cwd-hook"
+grep -q 'git rev-parse --show-toplevel' <<<"$_ph_body"; assert_eq 0 $? "cma_run resolves git toplevel for project-local hook"
+grep -q '\.claude-cwd-hook' <<<"$_ph_body"; assert_eq 0 $? "cma_run checks for .claude-cwd-hook in project root"
+grep -q 'CMA_CWD_HOOK:-' <<<"$_ph_body"; assert_eq 0 $? "cma_run respects CMA_CWD_HOOK env var override"
+grep -q '.local/bin/claude-cwd-hook' <<<"$_ph_body"; assert_eq 0 $? "cma_run falls back to global claude-cwd-hook"
 rm -f "$_mig_ph"
 
 summary
