@@ -211,7 +211,24 @@ for alias_name in "${ALIASES[@]}"; do
   # credits), NOT evidence the alias is broken — same distinction
   # verify_claude_live.sh makes with its FUNDS bucket. Such aliases are
   # recorded as SKIP-QUOTA (never a PASS, never a toolkit FAIL).
-  is_quota() { printf '%s' "$1" | grep -qiE 'insufficient_?quota|used up your (points|credits)|insufficient (credits|balance|funds)|usage limit|quota (exceeded|reached)|depleted|billing|fair.?usage|usage pattern'; }
+  # Quota/billing signature. English phrases are NOT sufficient: providers
+  # localize their error text. Live-proven 2026-07-19 — ZhipuAI returns
+  #   HTTP 429 {"error":{"code":"1113","message":"余额不足或无可用资源包,请充值。"}}
+  # ("insufficient balance / no resource package — please recharge"), which
+  # matched none of the English patterns and was scored as a hard toolkit FAIL
+  # rather than SKIP-QUOTA. The same key on the account's other model returns
+  # HTTP 200, proving the key and the request shape are fine and only the
+  # billing state differs — exactly what SKIP-QUOTA exists to express.
+  # So also match language-independent signals: known provider billing codes,
+  # and the CJK recharge/insufficient-balance wording.
+  is_quota() {
+    printf '%s' "$1" | grep -qiE 'insufficient_?quota|used up your (points|credits)|insufficient (credits|balance|funds)|usage limit|quota (exceeded|reached)|depleted|billing|fair.?usage|usage pattern' && return 0
+    # ZhipuAI 1113 = "account in arrears"; 1112/1120 are sibling balance codes.
+    printf '%s' "$1" | grep -qE '"code" *: *"?(1112|1113|1120)"?' && return 0
+    # Locale-independent: 余额不足 (insufficient balance) / 充值 (recharge) /
+    # 欠费 (in arrears) / 资源包 (resource package).
+    printf '%s' "$1" | grep -qE '余额不足|请充值|欠费|无可用资源包'
+  }
   # Transient signature: provider-side capacity/timeout/overload — a
   # point-in-time infrastructure state, not an alias defect. Recorded as
   # SKIP-TRANSIENT (never a PASS, never a toolkit FAIL).
