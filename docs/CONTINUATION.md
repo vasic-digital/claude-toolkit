@@ -1,10 +1,14 @@
 # CONTINUATION — claude_toolkit
 
 **Last updated:** 2026-07-19
-**Last HEAD:** `main @ v1.18.1` (✅ **v1.18.1 RELEASED** — ccr identity guard fix + 128k test hardening. Tag `v1.18.1` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
+**Last HEAD:** `main @ v1.18.2` (✅ **v1.18.2 RELEASED** — migration marker for ccr --help identity check. Tag `v1.18.2` on all 4 mirrors; gh + glab release objects live. Submodules clean.)
 **Working tree:** clean
 **Active branch:** `main`
-**Next action:** none — v1.18.1 is a bugfix release. Continue from Phase 2/3 provider verification work per the programme state below.
+**Next action:** none — v1.18.2 is a bugfix release. Continue from Phase 2/3 provider verification work per the programme state below.
+
+## v1.18.2 — DELIVERED (commit b51228e)
+
+Follow-up to v1.18.1: the deployed alias file body was never regenerated because the migration guard at `cma_ensure_alias_file` lacked a marker for the new `ccr --help` check. Added `! grep -qF 'ccr --help'` to the guard so the provider body is rewritten on next install/sync. Full suite 27/27 green; helixagent verified.
 
 ## v1.18.1 — DELIVERED (commit 0e30dfb)
 
