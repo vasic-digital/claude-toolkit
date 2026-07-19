@@ -824,7 +824,7 @@ cma_run_provider() {
   local _proxy_pid=""
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
     if ! command -v ccr >/dev/null 2>&1; then
-      printf 'claude-providers: provider %s needs claude-code-router.\n  Install: npm install -g @musistudio/claude-code-router\n' "$id" >&2
+      printf 'claude-providers: provider %s needs claude-code-router (the `ccr` gateway).\n  Build the BUNDLED Go router (recommended): claude-ccr-build\n  Or install the Node router: npm install -g @musistudio/claude-code-router\n' "$id" >&2
       return 127
     fi
     # Identity check (live issue 2026-07-18, revised 2026-07-19): a

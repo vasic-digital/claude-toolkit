@@ -79,6 +79,14 @@ for f in "$LIB_DIR"/claude-*.sh; do
   fi
 done
 
+# 2b. Build the BUNDLED Go claude-code-router (submodule) and install it as
+# `ccr`, so the provider aliases route through OUR vendored router rather than a
+# separately-installed Node one. Best-effort: with no Go toolchain the script
+# explains how to proceed and the install still completes.
+if ! bash "$LIB_DIR/claude-ccr-build.sh"; then
+  cma_warn "bundled claude-code-router (Go) not built — provider aliases need a 'ccr' on PATH (run 'claude-ccr-build' after installing Go, or install the Node router)"
+fi
+
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc
 # and .zshrc once; existing shells need a manual reload.
 # shellcheck disable=SC2016  # $HOME/$PATH are intentionally unexpanded literals written into rc files
