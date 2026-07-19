@@ -65,16 +65,41 @@ maybe_start_proxy() {
   local proxy_script=""
   # Same discovery as the launch wrapper: <id>_proxy.py, <digit-stripped
   # base>_proxy.py, then <dash-family>_proxy.py (kimi_proxy for all kimi-*).
-  for cand in "$HOME/.local/share/claude-multi-account/proxy/${id}_proxy.py" \
-              "$HOME/.local/share/claude-multi-account/proxy/${base_id}_proxy.py" \
-              "$HOME/.local/share/claude-multi-account/proxy/${family_id}_proxy.py"; do
+  # The base dir MUST match where install.sh actually puts the proxies —
+  # $SHARED_DIR/proxy (install.sh: PROXY_DST="$SHARED_DIR/proxy"), which is
+  # also what cma_run_provider resolves at launch. This previously hardcoded
+  # ~/.local/share/claude-multi-account/proxy, a path that has never existed:
+  # discovery always failed, the sweep silently fell back to the provider's
+  # RAW endpoint, and poe then rejected the deliberately parameters-less tool
+  # ("Field required") — reported as `poe: FAIL tools-params` even though the
+  # real launch path was fine. Testing a path the product never uses.
+  local _proxy_base="${SHARED_DIR:-$HOME/.claude-shared}/proxy"
+  for cand in "$_proxy_base/${id}_proxy.py" \
+              "$_proxy_base/${base_id}_proxy.py" \
+              "$_proxy_base/${family_id}_proxy.py"; do
     if [[ -f "$cand" ]]; then proxy_script="$cand"; break; fi
   done
   if [[ -n "$proxy_script" && -z "$PROXY_PID" ]]; then
+    # Pick a genuinely free port: a squatter on the default (ccr's own gateway
+    # holds 3457 on some hosts) would otherwise make us proxy-to-nothing.
+    local _pp_try=0
+    while lsof -i ":$PROXY_PORT" >/dev/null 2>&1 && (( _pp_try < 20 )); do
+      PROXY_PORT=$((PROXY_PORT + 1)); _pp_try=$((_pp_try + 1))
+    done
     python3 "$proxy_script" --port "$PROXY_PORT" &
     PROXY_PID=$!
-    sleep 2
-    echo "Started proxy for $id on port $PROXY_PORT (pid=$PROXY_PID)" >&2
+    # Wait for OUR pid to own the port, not merely for the port to be busy.
+    local _w=0
+    while ! lsof -a -p "$PROXY_PID" -i ":$PROXY_PORT" >/dev/null 2>&1 && (( _w < 25 )); do
+      kill -0 "$PROXY_PID" 2>/dev/null || break
+      sleep 0.2; _w=$((_w + 1))
+    done
+    if lsof -a -p "$PROXY_PID" -i ":$PROXY_PORT" >/dev/null 2>&1; then
+      echo "Started proxy for $id on port $PROXY_PORT (pid=$PROXY_PID)" >&2
+    else
+      echo "WARNING: proxy for $id failed to start on port $PROXY_PORT — testing the direct endpoint (shims INACTIVE)" >&2
+      PROXY_PID=""; proxy_script=""
+    fi
   fi
 }
 

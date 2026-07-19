@@ -549,7 +549,8 @@ EOF
        ! grep -qF 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"' <<<"$_prov_body" || \
        ! grep -qF '_cma_ccr_self' <<<"$_prov_body" || \
        ! grep -qF 'ccr default-claude-code -- "$@"' <<<"$_prov_body" || \
-       ! grep -qF 'ccr --help' <<<"$_prov_body"; then
+       ! grep -qF 'ccr --help' <<<"$_prov_body" || \
+       ! grep -qF '_pp_try' <<<"$_prov_body"; then
       local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
       # Drop only the function block; preserve everything before and after it.
       awk '
@@ -558,7 +559,7 @@ EOF
         !skip                   { print }
       ' "$ALIAS_FILE" >| "$tmp_prov"
       command mv -f "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help)"
+      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard)"
     fi
   fi
   if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
@@ -888,14 +889,38 @@ cma_run_provider() {
       _proxy_script="$_cma_proxy_dir/${_family_id}_proxy.py"
     fi
     if [[ -n "$_proxy_script" ]]; then
-      local _proxy_port=3457
+      # Port-squatter guard (live-proven 2026-07-19: `poe: FAIL tools-params`).
+      # The old code hardcoded 3457 and then waited on `lsof -i :3457`, i.e. it
+      # only asked "is SOMETHING listening?" — which any squatter satisfies. On
+      # this host ccr itself had held 3457 for 21h, so python3 could never bind,
+      # the wait returned instantly, and `base` was pointed at ccr. Every
+      # request then bypassed the proxy's schema fixes and Poe rejected the
+      # tool definitions ("Field required: parameters") — the exact thing
+      # poe_proxy.py exists to prevent, silently disabled.
+      # Fix: find a genuinely free port, then confirm OUR pid owns it.
+      local _proxy_port=3457 _pp_try=0
+      while lsof -i ":$_proxy_port" >/dev/null 2>&1 && (( _pp_try < 20 )); do
+        _proxy_port=$((_proxy_port + 1)); _pp_try=$((_pp_try + 1))
+      done
       python3 "$_proxy_script" --port "$_proxy_port" &
       _proxy_pid=$!
       local _waited=0
-      while ! lsof -i :$_proxy_port >/dev/null 2>&1 && (( _waited < 25 )); do
+      # Wait for OUR process to be listening — not merely for the port to be busy.
+      while ! lsof -a -p "$_proxy_pid" -i ":$_proxy_port" >/dev/null 2>&1 && (( _waited < 25 )); do
+        kill -0 "$_proxy_pid" 2>/dev/null || break   # proxy died: stop waiting
         sleep 0.2
         _waited=$((_waited + 1))
       done
+      if ! lsof -a -p "$_proxy_pid" -i ":$_proxy_port" >/dev/null 2>&1; then
+        # Never point at a foreign listener. Fall back to the provider's direct
+        # endpoint and say so loudly, rather than silently losing the shims.
+        command -v cma_log >/dev/null 2>&1 && \
+          cma_log "WARNING: proxy for $CMA_PROVIDER_ID did not start on port $_proxy_port — using the direct endpoint (schema shims INACTIVE)" || true
+        _proxy_pid=""
+        _proxy_script=""
+      fi
+    fi
+    if [[ -n "$_proxy_script" ]]; then
       base="http://127.0.0.1:${_proxy_port}/v1/chat/completions"
       # cma_log is a lib.sh helper; the self-contained alias file has no such
       # function, so guard the call to avoid a 'cma_log: command not found' on
