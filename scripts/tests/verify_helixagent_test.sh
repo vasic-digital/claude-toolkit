@@ -46,7 +46,7 @@ mkdir -p "$PDIR"
 # The detector now loads facade pins from a git-tracked providers/helixagent.json
 # ($LIB_DIR/providers/helixagent.json) when present (Variant B). $LIB_DIR is the
 # REAL repo scripts dir (NOT this sandboxed $HOME), so the repo pins-file would
-# leak its ccr-facade values (base ccr:3456, strong/fast HelixAgent/HelixLLM,
+# leak its repo-pin values (base 127.0.0.1:18434, strong/fast HelixAgent/HelixLLM,
 # ctx 24576) into CASES A/B/C which assert the BUILT-IN defaults. Point the
 # pins-file path at an ABSENT sandbox file so the default-relying cases exercise
 # the built-in defaults + env exactly as before. The pins-file OPT-IN path is

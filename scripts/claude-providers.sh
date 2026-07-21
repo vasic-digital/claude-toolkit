@@ -195,7 +195,7 @@ _catalog_valid() { python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1
 detect_helixagent_record() {
   # Git-tracked facade pins (Variant B — §11.4.28 consumer-owned data): load the
   # HelixAgent/HelixLLM facade pins from providers/helixagent.json so the alias
-  # is registered from TRACKED config (base_url -> ccr :3456, strong/fast ->
+  # is registered from TRACKED config (base_url -> the HelixLLM server 127.0.0.1:18434, strong/fast ->
   # HelixAgent/HelixLLM, key_var -> HELIXAGENT_GATEWAY_KEY, real ctx 24576) rather
   # than shell-rc-only env. Precedence: process-env > pins-file > built-in
   # defaults — a field is taken from the file ONLY when its env var is unset.
