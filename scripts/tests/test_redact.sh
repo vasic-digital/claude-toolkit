@@ -73,30 +73,30 @@ declare -a NAMES=() TOKENS=()
 add() { NAMES+=("$1"); TOKENS+=("$2"); }
 
 #   prefix + separator + token body
-add "sk-dash"        "sk-Wq7ZmT4xLpR2vNhK9dBcYs3JgF6aUeQ1"
-add "sk-underscore"  "sk_live_Bt5nQxW8sZrJ2mVpL7dHcKyF4gTaUe9RbNwMxQzPjSvHkDt3"
-add "csk-cerebras"   "csk-9mZq2xTvR7wLpKdN4hBcYs6JgF3aUeQ1tVnMxWzP"
-add "gsk-groq"       "gsk_4TbNwMxQzPjSvHkDt3RfLcYeAo7GuIp2ZqXsVn"
-add "cpk-chutes"     "cpk_7hRvB3nQ2xTwLpKdN4mZcYs6JgF9aUeQ1t.VnMxWzPjSvHkDt5R"
-add "hf-huggingface" "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"
-add "fw-fireworks"   "fw_3nQ2xTwLpKdN4mZcYs6Jg"
-add "nk-nia"         "nk_8ZqXsVnMxWzPjSvHkDt3RfLcYeAo7GuIp"
-add "up-upstage"     "up_5RfLcYeAo7GuIp2ZqXsVnMxWzPjSvHk"
-add "r8-replicate"   "r8_2ZqXsVnMxWzPjSvHkDt3RfLcYeAo7GuIp4Bt"
-add "vck-vercel"     "vck_6JgF9aUeQ1tVnMxWzPjSvHkDt3RfLcYeAo7GuIp2ZqXsVnMxWzPj"
-add "ak-modal-id"    "ak-4mZcYs6JgF9aUeQ1tVnMx"
-add "as-modal-secret" "as-7GuIp2ZqXsVnMxWzPjSvHk"
-add "nvapi-nvidia"   "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"
-add "zpka-publicai"  "zpka_9aUeQ1tVnMxWzPjSvHkDt3RfLcYeAo7Gu_Ip2Zq"
-add "tvly-tavily"    "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-4mZcYs6Jg"
-add "glpat-gitlab"   "glpat-KyF4gTaUe9RbNwMxQzPjSvHkDt3RfLcYeAo7GuIp2ZqXs-Vn.Mx"
-add "github-pat"     "github_pat_11ABCDEFG0QxWsZrJmVpLdHcKyFgTaUeRbNwMxQzPjSvHkDt3RfLcYeAo7GuIp2ZqXsVnMxWzPjSvHkDt"
-add "venice-admin"   "VENICE_ADMIN_KEY_7GuIp2ZqXsVnMxWzPjSvHkDt3RfLcYeAo7Gu"
-add "inference-"     "inference-Q1tVnMxWzPjSvHkDt3RfLcYeAo7GuIp2Zq"
-add "perm-junie"     "perm-Bt5nQxW8sZrJ2mVpL7dHcKyF4gTaUe9RbNwMxQzPjSvHkDt3.RfLcYeAo7GuIp2ZqXsVnMxWzPjSvHkDt3Rf"
-add "jwt"            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzeW50aGV0aWMtZml4dHVyZSJ9.Qx7WsZrJmVpLdHcKyFgTaUeRb"
+add "sk-dash"        "sk-FAKE0000000000000000000000000000"
+add "sk-underscore"  "sk_live_FAKE00000000000000000000000000000000000000000000"
+add "csk-cerebras"   "csk-FAKE000000000000000000000000000000000000"
+add "gsk-groq"       "gsk_FAKE0000000000000000000000000000000000"
+add "cpk-chutes"     "cpk_FAKE00000000000000000000000000000000000000000000000"
+add "hf-huggingface" "hf_FAKE000000000000000000000000000000"
+add "fw-fireworks"   "fw_FAKE00000000000000000"
+add "nk-nia"         "nk_FAKE00000000000000000000000000000"
+add "up-upstage"     "up_FAKE000000000000000000000000000"
+add "r8-replicate"   "r8_FAKE00000000000000000000000000000000"
+add "vck-vercel"     "vck_FAKE000000000000000000000000000000000000000000000000"
+add "ak-modal-id"    "ak-FAKE00000000000000000"
+add "as-modal-secret" "as-FAKE000000000000000000"
+add "nvapi-nvidia"   "nvapi-FAKE00000000000000000000000000000000000000000000000000000000"
+add "zpka-publicai"  "zpka_FAKE00000000000000000000000000000000000"
+add "tvly-tavily"    "tvly-FAKE000000000000000000000000000000000000000"
+add "glpat-gitlab"   "glpat-FAKE00000000000000000000000000000000000000000000000"
+add "github-pat"     "github_pat_FAKE00000000000000000000000000000000000000000000000000000000000000000000000000000"
+add "venice-admin"   "VENICE_ADMIN_KEY_FAKE00000000000000000000000000000000"
+add "inference-"     "inference-FAKE000000000000000000000000000000"
+add "perm-junie"     "perm-FAKE00000000000000000000000000000000000000000000000000000000000000000000000000000000"
+add "jwt"            "eyFAKE000000000000000000000000000000.eyFAKE000000000000000000000000000000.FAKE000000000000000000000"
 #   unknown-family net (a lowercase prefix this repo has never seen)
-add "unknown-family" "zzq_4TbNwMxQzPjSvHkDt3RfLcYeAo7GuIp2ZqXsVn"
+add "unknown-family" "zzq_FAKE0000000000000000000000000000000000"
 
 : > "$FIX"
 for i in "${!NAMES[@]}"; do
@@ -107,7 +107,7 @@ done
 # they appear as a VALUE. These stand in for the 32/39/40/41-char bare-alnum and
 # UUID-shaped families, which are shape-indistinguishable from a git SHA or a
 # session id and so are deliberately NOT matched on shape alone.
-BARE="Kd4mZcYs6JgF9aUeQ1tVnMxWzPjSvHk2"
+BARE="FAKE0000000000000000000000000000"
 {
   printf 'CTX bearer Authorization: Bearer %s\n' "$BARE"
   printf 'CTX json    "apiKey": "%s"\n' "$BARE"
