@@ -178,4 +178,83 @@ it "(f) no BSD-broken 'date -r \$path +%s' mtime idiom survives in lib.sh (helpe
 badmtime="$(grep -cE 'date -r "\$[A-Za-z0-9_]+" \+%s' "$SCRIPTS_DIR/lib.sh" 2>/dev/null || true)"
 assert_eq 0 "${badmtime:-0}" "lib.sh carries no 'date -r \$path +%s' mtime read (helper + hook both use stat)"
 
+# ── (g) §11.4.167 residual fixes: single committer + block-managed append/remove
+# Paired-mutation tests — each PASSES on the fixed code and FAILS if the guard it
+# pins is reverted (teeth verified out-of-band by re-running with the mutation).
+
+# T1 — the committer parks a content-dropping candidate; live rc untouched.
+# TEETH: strip the `_cma_rc_rewrite_ok` gate from cma_rc_safe_rewrite (§2.1 step
+# 2) and this test FAILS — the 2 unintended-dropped lines get published.
+it "(g) cma_rc_safe_rewrite parks a content-dropping candidate; rc untouched"
+rc="$SANDBOX_HOME/g1.bashrc"; printf 'export HELIXLLM_API_KEY=x\na\nb\n' > "$rc"
+before="$(cat "$rc")"
+cand="$(mktemp "${TMPDIR:-/tmp}/cma-cand.XXXXXX")"; printf 'a\n' > "$cand"   # drops 2, removed=0
+cma_rc_safe_rewrite "$rc" "$cand" 0; rejrc=$?
+assert_eq 1 "$rejrc" "committer refuses a candidate that lost 2 unintended lines"
+assert_eq "$before" "$(cat "$rc")" "live rc left byte-identical"
+assert_eq 1 "$(count_glob "$rc".rejected.*)" "candidate parked as .rejected.*"
+
+# T2 — the REAL migrate loop, driven from install.sh, preserves a newline-less
+# final export AND publishes through the committer. Load the genuine function so
+# a revert of install.sh:117 (its `|| [[ -n "$line" ]]` guard) regresses this.
+# TEETH: revert install.sh:117 and this test FAILS — the migrate drops the
+# newline-less export, the committer's gate rejects the short candidate, the rc
+# is left un-migrated, so `.cma-orig` and `# migrated to` never appear.
+eval "$(awk '/^migrate_inline_aliases\(\)/{f=1} f{print} f&&/^}/{exit}' "$SCRIPTS_DIR/install.sh")"
+it "(g) migrate preserves a newline-less final export and publishes via the committer"
+rc="$SANDBOX_HOME/gmig.bashrc"
+printf 'alias claude9="CLAUDE_CONFIG_DIR=%s/.claude-acct9 claude"\nexport HELIXAGENT_KEY=zzz' \
+  "$SANDBOX_HOME" > "$rc"                                   # NOTE: no trailing newline
+migrate_inline_aliases "$rc" >/dev/null 2>&1
+grep -qxF 'export HELIXAGENT_KEY=zzz' "$rc"; assert_eq 0 $? "newline-less final export survives migrate"
+assert_file "$rc.cma-orig" "pristine .cma-orig taken by the committer (migrate published)"
+assert_file_contains "$rc" "# migrated to" "alias line migrated in place (publish happened)"
+
+# T3 — no backup ⇒ no modify, via the committer. The rc file is made UNREADABLE
+# while its parent dir stays WRITABLE, so the backup `cp` fails (cannot read the
+# rc) but a bare `mv` COULD still replace the dir entry — this DECOUPLES the
+# backup step from the mv (an unwritable *dir* would break both and mask the
+# test). TEETH: delete the `cma_backup_rc_file` refusal from cma_rc_safe_rewrite
+# (§2.1 step 3) and this test FAILS — the mv then publishes and the rc is
+# modified with no recovery point, the exact §11.4.167 hazard.
+it "(g) cma_rc_safe_rewrite refuses to publish when the pristine backup cannot be taken"
+sub="$SANDBOX_HOME/g3protect"; mkdir -p "$sub"; rc="$sub/g3.bashrc"
+printf 'export HELIXCODE_TOKEN=keepme\n' > "$rc"; before="$(cat "$rc")"
+cand="$(mktemp "${TMPDIR:-/tmp}/cma-cand.XXXXXX")"; printf 'export HELIXCODE_TOKEN=keepme\nnew\n' > "$cand"
+chmod 0000 "$rc"      # rc UNREADABLE ⇒ .cma-orig cp fails; dir stays writable ⇒ mv could publish
+if cat "$rc" >/dev/null 2>&1; then
+  chmod 0644 "$rc"; rm -f "$cand"
+  _pass "skipped: file mode not enforced (root?) — refuse path not exercisable"
+else
+  cma_rc_safe_rewrite "$rc" "$cand" 0; norc=$?
+  chmod 0644 "$rc"
+  assert_eq 1 "$norc" "committer returns 1 when backup impossible"
+  assert_eq "$before" "$(cat "$rc")" "rc unchanged when it cannot be backed up (mv never ran)"
+  assert_eq 0 "$(count_glob "$rc".cma-orig)" "no half-written .cma-orig"
+fi
+
+# T4 — BEGIN/END block appended idempotently and removed WHOLE (no orphan
+# header), incl. an END-less block removed to EOF — so the 93-orphan class the
+# incident produced cannot recur.
+it "(g) cma_rc_append_managed is idempotent; cma_rc_remove_block drops BEGIN..END whole"
+rc="$SANDBOX_HOME/g4.bashrc"; printf 'export KEEP=1\n' > "$rc"
+# shellcheck disable=SC2016  # literal $HOME/$PATH inside the managed block payload
+cma_rc_append_managed "$rc" path 'export PATH="$HOME/.local/bin:$PATH"'
+# shellcheck disable=SC2016
+cma_rc_append_managed "$rc" path 'export PATH="$HOME/.local/bin:$PATH"'   # 2nd call = no-op
+assert_eq 1 "$(grep -cxF -- "$CMA_RC_PATH_BEGIN" "$rc")" "append is idempotent (one BEGIN marker)"
+# shellcheck disable=SC2016
+grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$rc"; assert_eq 0 $? "payload line present inside block"
+cma_rc_remove_block "$rc" path
+assert_eq 0 "$(grep -cE 'cma-rc:path (BEGIN|END)' "$rc" || true)" "block removed whole — no orphan header"
+grep -qxF 'export KEEP=1' "$rc"; assert_eq 0 $? "surrounding user content preserved"
+# Paired negative: an END-less block (truncated by an outside tool) still removes
+# to EOF — zero orphan BEGIN survives.
+rc2="$SANDBOX_HOME/g4b.bashrc"; printf 'export KEEP2=1\n' > "$rc2"
+# shellcheck disable=SC2016
+cma_rc_append_managed "$rc2" path 'export PATH="$HOME/.local/bin:$PATH"'
+grep -vxF -- "$CMA_RC_PATH_END" "$rc2" > "$rc2.t" && mv "$rc2.t" "$rc2"   # drop the END line
+cma_rc_remove_block "$rc2" path
+assert_eq 0 "$(grep -cE 'cma-rc:path BEGIN' "$rc2" || true)" "END-less block removed to EOF — no orphan BEGIN"
+
 summary

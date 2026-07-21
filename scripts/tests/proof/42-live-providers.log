@@ -15,7 +15,7 @@
     [32m[PASS][0m no provider dir detected as account (1)
 
   • semantic (layer 3) for 'chutes' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for chutes
+SKIP: layer-3 preconditions absent for chutes
 
   • superpowers-TUI (layer 4) for 'chutes' — PASS/SKIP
     [32m[PASS][0m layer-4 superpowers-TUI PASS for chutes
@@ -39,10 +39,10 @@ KNOWN-NON-WORKING: layer-3 unverified for 'github-models' (provider status=faile
 KNOWN-NON-WORKING: layer-4 FAIL for 'github-models' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-github-models-superpowers.txt
 
   • semantic (layer 3) for 'helixagent' — PASS/SKIP, never a faked pass
-SKIP: layer-3 preconditions absent for helixagent
+    [32m[PASS][0m layer-3 semantic PASS for helixagent
 
   • superpowers-TUI (layer 4) for 'helixagent' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 FAIL for 'helixagent' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-helixagent-superpowers.txt
+KNOWN-NON-WORKING: layer-4 context-inadequate for 'helixagent' (backend context 3072 tokens < Claude Code request 67972 tokens — provider-side: pin a larger-context model for this provider, or relaunch a local backing server with a larger context window). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-helixagent-superpowers.txt
 
   • semantic (layer 3) for 'huggingface' — PASS/SKIP, never a faked pass
 KNOWN-NON-WORKING: layer-3 unverified for 'huggingface' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-huggingface-semantic.txt
@@ -54,13 +54,13 @@ KNOWN-NON-WORKING: layer-4 FAIL for 'huggingface' (provider status=failed — ac
     [32m[PASS][0m layer-3 semantic PASS for inference
 
   • superpowers-TUI (layer 4) for 'inference' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for inference
+KNOWN-NON-WORKING: layer-4 account-side for 'inference' (HTTP 402 — the provider account cannot be billed/served: insufficient balance, rejected key, or suspended access. Top up or re-key the account. Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-inference-superpowers.txt)
 
   • semantic (layer 3) for 'kilo' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for kilo
 
   • superpowers-TUI (layer 4) for 'kilo' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for kilo
+KNOWN-NON-WORKING: layer-4 FAIL for 'kilo' (provider status=unverified — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-kilo-superpowers.txt
 
   • semantic (layer 3) for 'kimi-for-coding' — PASS/SKIP, never a faked pass
 KNOWN-NON-WORKING: layer-3 unverified for 'kimi-for-coding' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-kimi-for-coding-semantic.txt
@@ -78,7 +78,7 @@ KNOWN-NON-WORKING: layer-4 FAIL for 'novita-ai' (provider status=failed — acco
 SKIP: layer-3 preconditions absent for nvidia
 
   • superpowers-TUI (layer 4) for 'nvidia' — PASS/SKIP
-KNOWN-NON-WORKING: layer-4 FAIL for 'nvidia' (provider status=unverified — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia-superpowers.txt
+    [32m[PASS][0m layer-4 superpowers-TUI PASS for nvidia
 
   • semantic (layer 3) for 'opencode' — PASS/SKIP, never a faked pass
     [32m[PASS][0m layer-3 semantic PASS for opencode
@@ -93,16 +93,16 @@ KNOWN-NON-WORKING: layer-4 FAIL for 'nvidia' (provider status=unverified — acc
     [32m[PASS][0m layer-4 superpowers-TUI PASS for openrouter
 
   • semantic (layer 3) for 'poe' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for poe
+KNOWN-NON-WORKING: layer-3 unverified for 'poe' (provider status=unverified — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-poe-semantic.txt
 
   • superpowers-TUI (layer 4) for 'poe' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for poe
+KNOWN-NON-WORKING: layer-4 FAIL for 'poe' (provider status=unverified — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-poe-superpowers.txt
 
   • semantic (layer 3) for 'siliconflow' — PASS/SKIP, never a faked pass
-    [32m[PASS][0m layer-3 semantic PASS for siliconflow
+KNOWN-NON-WORKING: layer-3 unverified for 'siliconflow' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-siliconflow-semantic.txt
 
   • superpowers-TUI (layer 4) for 'siliconflow' — PASS/SKIP
-    [32m[PASS][0m layer-4 superpowers-TUI PASS for siliconflow
+KNOWN-NON-WORKING: layer-4 FAIL for 'siliconflow' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-siliconflow-superpowers.txt
 
   • semantic (layer 3) for 'tencent-tokenhub' — PASS/SKIP, never a faked pass
 KNOWN-NON-WORKING: layer-3 unverified for 'tencent-tokenhub' (provider status=failed — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-tencent-tokenhub-semantic.txt
@@ -141,7 +141,7 @@ SKIP: layer-3 preconditions absent for zhipuai
 KNOWN-NON-WORKING: layer-4 FAIL for 'zhipuai' (provider status=orphaned — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-zhipuai-superpowers.txt
 
   • proof sweep: no layer-4 evidence file from THIS run carries a '# FAIL:' marker
-    [32m[PASS][0m no '# FAIL:' marker in 9 layer-4 evidence file(s) from this run
+    [32m[PASS][0m no '# FAIL:' marker in 8 layer-4 evidence file(s) from this run
 
   • route-attribution sweep: NO layer-4 evidence file from this run is non-attributable (status-independent)
     [32m[PASS][0m all 21 layer-4 evidence file(s) from this run are route-attributable
@@ -150,4 +150,4 @@ KNOWN-NON-WORKING: layer-4 FAIL for 'zhipuai' (provider status=orphaned — acco
     [32m[PASS][0m layer-4 classifier honesty: neutral prompt via 'chutes' correctly did NOT match the engagement marker
 evidence: /home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/50-providers-live.txt
 
-[32m✓ 26 passed, 0 failed[0m
+[32m✓ 21 passed, 0 failed[0m

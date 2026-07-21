@@ -8,7 +8,7 @@ driver json: {
     "pass": false,
     "score": null,
     "skipped": false,
-    "reason": "round-2 model call failed: non-200 status 503: {\"error\":{\"message\":\"ResourceExhausted: Worker local total request limit reached (33/32)\",\"type\":\"Service Unavailable\",\"code\":503}}"
+    "reason": "round-2 model call failed: non-200 status 503: {\"error\":{\"message\":\"ResourceExhausted: Worker local total request limit reached (32/32)\",\"type\":\"Service Unavailable\",\"code\":503}}"
   },
   "overall_pass": false
 }

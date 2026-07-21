@@ -2,16 +2,18 @@
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ github-models: model=deepseek/deepseek-r1-0528
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ helixagent: model=HelixAgent/HelixLLM
-    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ huggingface: model=Qwen/Qwen3-Coder-480B-A35B-Instruct
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
+◌ kilo: model=nvidia/nemotron-3-super-120b-a12b:free
+    FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
 ◌ kimi-for-coding: model=kimi-for-coding
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ novita-ai: model=deepseek/deepseek-v3.2
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
-◌ nvidia: model=nvidia/nemotron-3-ultra-550b-a55b
+◌ poe: model=claude-sonnet-4.6
     FAIL: gated_check - SKIP-GATED (status=unverified — filtered by the verification gate, not tested)
+◌ siliconflow: model=zai-org/GLM-5.2
+    FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ tencent-tokenhub: model=hy3-preview
     FAIL: gated_check - SKIP-GATED (status=failed — filtered by the verification gate, not tested)
 ◌ upstage: model=solar-pro3
@@ -24,11 +26,11 @@
     FAIL: gated_check - SKIP-GATED (status=orphaned — filtered by the verification gate, not tested)
 {
   "total": 21,
-  "passed": 9,
+  "passed": 8,
   "failed": 0,
   "quota_skipped": 0,
   "transient_skipped": 0,
-  "gated_skipped": 12,
+  "gated_skipped": 13,
   "results": [
     {
       "alias": "chutes",
@@ -40,14 +42,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. \n\nI do not have direct access to your local file system, private repositories, or any existing c",
+          "content": "NO. I do not have access to your local files or private repositories. I can only see the text and co",
           "error": "",
-          "latency_ms": 21115
+          "latency_ms": 23054
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. \n\nI do not have direct access to your local file system, private repositories, or any existing codebase. I can only see the code or context that you paste directly into this chat or upload as file"
+          "content_preview": "NO. I do not have access to your local files or private repositories. I can only see the text and code that you explicitly paste or upload into this chat."
         },
         {
           "name": "error_pattern_check",
@@ -66,14 +68,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I don't have access to your files, repositories, or any external systems. I can only see the inf",
+          "content": "NO\n\nI don't have access to your codebase. I can only see the text you provide in this conversation.",
           "error": "",
-          "latency_ms": 776
+          "latency_ms": 751
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I don't have access to your files, repositories, or any external systems. I can only see the information you directly share in this conversation."
+          "content_preview": "NO\n\nI don't have access to your codebase. I can only see the text you provide in this conversation."
         },
         {
           "name": "error_pattern_check",
@@ -116,19 +118,29 @@
     },
     {
       "alias": "helixagent",
-      "model": "HelixAgent/HelixLLM",
-      "fast_model": "HelixAgent/HelixLLM",
+      "model": "/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+      "fast_model": "/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
       "transport": "router",
-      "base_url": "http://127.0.0.1:3456/v1",
+      "base_url": "http://127.0.0.1:18434/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO\n\nI don't have access to your codebase or any external systems. I can only see and respond to the ",
+          "error": "",
+          "latency_ms": 220
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO\n\nI don't have access to your codebase or any external systems. I can only see and respond to the messages in our current conversation. If you'd like me to review code, you'd need to paste it direct"
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "huggingface",
@@ -156,14 +168,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. \n\nI do not have access to your codebase. I cannot see or interact with your files, local environ",
+          "content": "NO. I do not have direct access to your files, repositories, or local environment. I can only see th",
           "error": "",
-          "latency_ms": 4071
+          "latency_ms": 4159
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. \n\nI do not have access to your codebase. I cannot see or interact with your files, local environment, or private repositories unless you explicitly paste the code directly into our chat."
+          "content_preview": "NO. I do not have direct access to your files, repositories, or local environment. I can only see the code and context that you explicitly copy and paste into our conversation."
         },
         {
           "name": "error_pattern_check",
@@ -180,23 +192,13 @@
       "base_url": "https://api.kilo.ai/api/gateway",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO  \nI don\u2019t have access to your codebase unless you share it with me directly. I can only work with",
-          "error": "",
-          "latency_ms": 1130
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO  \nI don\u2019t have access to your codebase unless you share it with me directly. I can only work with the information you provide in our conversation."
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "kimi-for-coding",
@@ -238,13 +240,23 @@
       "base_url": "https://integrate.api.nvidia.com/v1",
       "tests": [
         {
-          "name": "gated_check",
-          "pass": false,
-          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
+          "name": "direct_request",
+          "pass": true,
+          "content": "NO - I cannot see your codebase unless you share it with me directly (by pasting code, uploading fil",
+          "error": "",
+          "latency_ms": 1459
+        },
+        {
+          "name": "content_quality",
+          "pass": true,
+          "content_preview": "NO - I cannot see your codebase unless you share it with me directly (by pasting code, uploading files, or providing a repository link)."
+        },
+        {
+          "name": "error_pattern_check",
+          "pass": true
         }
       ],
-      "overall_pass": false,
-      "gated_skip": true
+      "overall_pass": true
     },
     {
       "alias": "opencode",
@@ -256,14 +268,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I do not have",
+          "content": "**NO.**\n\nI don't have access to your codebase or any files. I can only see what you explicitly share",
           "error": "",
-          "latency_ms": 7284
+          "latency_ms": 4240
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "Thinking. 1.  **Analyze the Request:**\n    *   Question: \"Do you see our codebase?\"\n    *   Required format: \"Reply with YES or NO and explain briefly.\"\n\n2.  **Contextualize the Model:**\n    *   I am "
+          "content_preview": "**NO.**\n\nI don't have access to your codebase or any files. I can only see what you explicitly share with me in our conversation\u2014such as pasted code, text, or images. If you'd like help with your code"
         },
         {
           "name": "error_pattern_check",
@@ -282,21 +294,17 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO\nI don\u2019t have visibility into your codebase unless you share specific snippets or details with me.",
+          "content": "NO \u2013 I don\u2019t have any visibility into your files or repositories, share relevant information. I can'",
           "error": "",
-          "latency_ms": 719
+          "latency_ms": 859
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO\nI don\u2019t have visibility into your codebase unless you share specific snippets or details with me."
+          "content_preview": "NO \u2013 I don\u2019t have any visibility into your files or repositories, share relevant information. I can't provided code; I can only discuss code that you share with me explicitly."
         },
         {
           "name": "error_pattern_check",
-          "pass": true
-        },
-        {
-          "name": "tool_calling",
           "pass": true
         }
       ],
@@ -310,23 +318,13 @@
       "base_url": "https://api.poe.com/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "**NO.**\n\nI don't have access to any codebase, repository, or external files. I can only see what is ",
-          "error": "",
-          "latency_ms": 5395
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "**NO.**\n\nI don't have access to any codebase, repository, or external files. I can only see what is directly shared in this conversation. I have no ability to:\n\n- Connect to GitHub, GitLab, or any ver"
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=unverified \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "siliconflow",
@@ -336,23 +334,13 @@
       "base_url": "https://api.siliconflow.com/v1",
       "tests": [
         {
-          "name": "direct_request",
-          "pass": true,
-          "content": "NO. \n\nI do not have access to your local files, private repositories, or any external codebase. I ca",
-          "error": "",
-          "latency_ms": 7060
-        },
-        {
-          "name": "content_quality",
-          "pass": true,
-          "content_preview": "NO. \n\nI do not have access to your local files, private repositories, or any external codebase. I can only see the text and code that you directly paste into our conversation. If you would like me to "
-        },
-        {
-          "name": "error_pattern_check",
-          "pass": true
+          "name": "gated_check",
+          "pass": false,
+          "error": "SKIP-GATED (status=failed \u2014 filtered by the verification gate, not tested)"
         }
       ],
-      "overall_pass": true
+      "overall_pass": false,
+      "gated_skip": true
     },
     {
       "alias": "tencent-tokenhub",
@@ -396,14 +384,14 @@
         {
           "name": "direct_request",
           "pass": true,
-          "content": "NO. I don't have access to any codebase or files unless you explicitly share them with me in the con",
+          "content": "**NO.** I don't have access to your codebase. I can only see what you share with me directly in this",
           "error": "",
-          "latency_ms": 4221
+          "latency_ms": 5150
         },
         {
           "name": "content_quality",
           "pass": true,
-          "content_preview": "NO. I don't have access to any codebase or files unless you explicitly share them with me in the conversation. I only see what you type in our chat. If you'd like help with your code, feel free to pas"
+          "content_preview": "**NO.** I don't have access to your codebase. I can only see what you share with me directly in this conversation\u2014there's no automatic visibility into your files, repositories, or development environm"
         },
         {
           "name": "error_pattern_check",

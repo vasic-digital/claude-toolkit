@@ -1,11 +1,11 @@
 # Toolkit proof of work
 
-- generated: `2026-07-21T05:24:54+0500`
+- generated: `2026-07-22T01:23:37+0500`
 - host: `Linux 6.12.41-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
 ```
-Test files: 42   passed: 42   failed: 0   (skipped-prereq: 0) ALL GREEN 
+Test files: 41   passed: 41   failed: 0   (skipped-prereq: 0) ALL GREEN 
 ```
 exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 
@@ -27,19 +27,19 @@ result: `SKIP: opencode not installed on this host — live verification skipped
 
 ## Live provider-alias verification (real installed state)
 ```
-✓ 26 passed, 0 failed
+✓ 21 passed, 0 failed
 ```
 exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
 ## Live alias verification (real provider + Claude aliases)
 ```
-PASS: 9 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21
+PASS: 8 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 13 TOTAL: 21
 ```
 exit code: `0`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
 
 ## Live alias end-to-end verification (provider endpoints)
 ```
-  "total": 21,   "passed": 9,   "failed": 0, 
+  "total": 21,   "passed": 8,   "failed": 0, 
 ```
 exit code: `0`  ·  full log: [44-alias-e2e.log](44-alias-e2e.log)
 

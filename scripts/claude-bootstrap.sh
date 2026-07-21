@@ -164,8 +164,10 @@ PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
 for rc in "${CMA_RC_FILES[@]}"; do
   [[ -f "$rc" ]] || continue
   if ! grep -F -q "$PATH_LINE" "$rc"; then
-    printf '\n# Claude multi-account: ensure ~/.local/bin is on PATH\n%s\n' "$PATH_LINE" >> "$rc"
-    cma_log "added PATH line to $rc"
+    # Backup-first, idempotent BEGIN/END block — bootstrap previously appended
+    # with NO backup (§11.4.167(D) violation); this closes it via the same
+    # committer machinery install.sh uses.
+    cma_rc_append_managed "$rc" path "$PATH_LINE" || true
   fi
 done
 cma_ensure_alias_file

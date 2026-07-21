@@ -203,7 +203,10 @@ body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FI
 # takes SIGPIPE (rc 141) -> false FAIL though the match IS present.
 grep -q 'kimi-code/credentials/kimi-code.json' <<<"$body"; assert_eq 0 $? "live cred file consulted"
 grep -q 'kimi -p "hi"' <<<"$body"; assert_eq 0 $? "CLI refresh path present"
-grep -q '_family_id' <<<"$body"; assert_eq 0 $? "family proxy discovery present"
+# Proxy discovery migrated to the Go cma-proxy (2026-07-22): the wrapper asks
+# `cma-proxy --has-transform <id>` and cma-proxy resolves the kimi-* family key
+# itself, so the old `_family_id` shell var is gone — assert the new mechanism.
+grep -q 'has-transform' <<<"$body"; assert_eq 0 $? "cma-proxy discovery present"
 
 # ===========================================================================
 # Section 3b — cmd_verify injects the OAuth token (no detector in that path)
@@ -231,69 +234,13 @@ assert_eq "verified" "$vout" "cmd_verify kimi-k3 reaches verified with the injec
 assert_eq "verified" "$(cma_status_read kimi-k3)" "status persisted as verified"
 
 # ===========================================================================
-# Section 4 — kimi_proxy: moonshot-flavored schema normalization
+# Section 4 — kimi request transform (moonshot-flavored schema normalization)
 # ===========================================================================
-KPROXY="$SCRIPTS_DIR/proxy/kimi_proxy.py"
-# Each test inlines its python via a QUOTED heredoc — the bodies carry literal
-# $defs/$ref strings that must NOT be expanded by bash.
-
-it "kimi_proxy: foreign \$ref (#/definitions/X) rewritten + definitions hoisted to \$defs"
-out="$(python3 - "$KPROXY" <<'PY'
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("kp", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-s={"type":"object","properties":{"orderBy":{"$ref":"#/definitions/orderBy"}},"definitions":{"orderBy":{"type":"string","enum":["asc","desc"]}}}
-r=m.normalize_schema(s)
-print(r["properties"]["orderBy"]["$ref"]=="#/$defs/orderBy" and "definitions" not in r and r["$defs"]=={"orderBy":{"type":"string","enum":["asc","desc"]}})
-PY
-)"
-assert_eq "True" "$out" "moonshot flavor: refs start with #/\$defs/"
-
-it "kimi_proxy: valid #/\$defs/ refs are kept as-is"
-out="$(python3 - "$KPROXY" <<'PY'
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("kp", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-s={"type":"object","properties":{"x":{"$ref":"#/$defs/T"}},"$defs":{"T":{"type":"string"}}}
-r=m.normalize_schema(s)
-print(r["properties"]["x"]["$ref"]=="#/$defs/T" and r["$defs"]=={"T":{"type":"string"}})
-PY
-)"
-assert_eq "True" "$out" "already-valid refs untouched"
-
-it "kimi_proxy: bare-name ref rewritten when the name is defined"
-out="$(python3 - "$KPROXY" <<'PY'
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("kp", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-s={"type":"object","properties":{"x":{"$ref":"orderBy"}},"definitions":{"orderBy":{"type":"string"}}}
-r=m.normalize_schema(s)
-print(r["properties"]["x"]["$ref"]=="#/$defs/orderBy")
-PY
-)"
-assert_eq "True" "$out" "bare-name ref mapped by last segment"
-
-it "kimi_proxy: missing/null parameters become a valid empty object schema"
-out="$(python3 - "$KPROXY" <<'PY'
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("kp", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-print(m.normalize_schema(None)=={"type":"object","properties":{}})
-PY
-)"
-assert_eq "True" "$out" "null parameters -> {type:object,properties:{}}"
-
-it "kimi_proxy: fix_request fixes tools AND strips cache_control"
-out="$(python3 - "$KPROXY" <<'PY'
-import importlib.util, sys
-spec = importlib.util.spec_from_file_location("kp", sys.argv[1])
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-b={"messages":[{"role":"user","content":"hi","cache_control":{"type":"ephemeral"}}],"tools":[{"type":"function","function":{"name":"t","description":"d","parameters":{"type":"object","properties":{"x":{"$ref":"#/definitions/T"}},"definitions":{"T":{"type":"string"}}}}}]}
-r=m.fix_request(b)
-t=r["tools"][0]["function"]["parameters"]
-print(r["messages"][0].get("cache_control") is None and t["properties"]["x"]["$ref"]=="#/$defs/T" and "definitions" not in t)
-PY
-)"
-assert_eq "True" "$out" "tools normalized + cache_control stripped end to end"
+# Migrated to Go (2026-07-22): the kimi request transform now lives in
+# scripts/proxy/kimi.go and is covered by scripts/proxy/kimi_test.go
+# ($defs/definitions hoist, foreign-$ref rewrite, type/properties guarantee,
+# cache_control strip). Run via `go test ./...` in scripts/proxy, exercised by
+# scripts/tests/test_cma_proxy.sh in the suite. This section (which imported the
+# retired kimi_proxy.py) is intentionally removed.
 
 summary

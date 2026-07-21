@@ -94,13 +94,8 @@ PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
 for rc in "${CMA_RC_FILES[@]}"; do
   [[ -f "$rc" ]] || continue
   if ! grep -F -q "$PATH_LINE" "$rc"; then
-    # Back up BEFORE the append; refuse the write if the rc cannot be protected.
-    if cma_backup_rc_file "$rc"; then
-      printf '\n# Claude multi-account: ensure ~/.local/bin is on PATH\n%s\n' "$PATH_LINE" >> "$rc"
-      cma_log "added PATH line to $rc"
-    else
-      cma_warn "skipped adding PATH line to $rc (could not back it up)"
-    fi
+    # Backup-first, idempotent BEGIN/END block (refuses if it cannot back up).
+    cma_rc_append_managed "$rc" path "$PATH_LINE" || true
   fi
 done
 
@@ -114,7 +109,9 @@ migrate_inline_aliases() {
   [[ -f "$rc" ]] || return 0
   local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
   local changed=0
-  while IFS= read -r line; do
+  # `|| [[ -n "$line" ]]` so a final line with NO trailing newline is still
+  # processed rather than silently dropped (mirrors lib.sh's rc read loops).
+  while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" =~ ^alias[[:space:]]+(claude[0-9a-zA-Z_-]+)=.*CLAUDE_CONFIG_DIR=([^[:space:]\"]+) ]]; then
       local a="${BASH_REMATCH[1]}" d="${BASH_REMATCH[2]}"
       d="${d//\"/}"
@@ -128,15 +125,16 @@ migrate_inline_aliases() {
     fi
   done < "$rc"
   if (( changed )); then
-    # Refuse the rewrite unless the rc can be protected by a pristine backup.
-    if ! cma_backup_rc_file "$rc"; then
-      rm -f "$tmp"
-      cma_warn "skipped migrating inline aliases in $rc (could not back it up)"
-      return 0
+    # migrate removes NOTHING (it only comment-prefixes lines in place), so the
+    # intended removal count is 0 — cma_rc_safe_rewrite's content-loss gate then
+    # REFUSES any candidate that lost a line (e.g. a newline-less final line the
+    # old read loop could drop) and parks it instead of publishing. The committer
+    # also takes the pristine .cma-orig backup, superseding the bespoke .preunify.
+    if cma_rc_safe_rewrite "$rc" "$tmp" 0; then
+      cma_log "migrated inline claude* aliases in $rc -> $ALIAS_FILE"
+    else
+      cma_warn "skipped migrating inline aliases in $rc (rejected or unbackupable)"
     fi
-    cp -p "$rc" "${rc}.preunify.$(date +%Y%m%d%H%M%S)"
-    mv "$tmp" "$rc"
-    cma_log "migrated inline claude* aliases in $rc -> $ALIAS_FILE"
   else
     rm -f "$tmp"
   fi
@@ -145,13 +143,13 @@ for rc in "${CMA_RC_FILES[@]}"; do
   migrate_inline_aliases "$rc"
 done
 
-# 4b. Copy proxy scripts for provider compatibility (e.g. Poe tool format fix).
-PROXY_SRC="$LIB_DIR/proxy"
-PROXY_DST="$SHARED_DIR/proxy"
-if [[ -d "$PROXY_SRC" ]]; then
-  mkdir -p "$PROXY_DST"
-  cp "$PROXY_SRC"/*.py "$PROXY_DST/" 2>/dev/null && chmod +x "$PROXY_DST"/*.py 2>/dev/null
-  cma_log "copied proxy scripts to $PROXY_DST"
+# 4b. Build + install the Go compatibility proxy (cma-proxy) for provider
+# compatibility (helixagent Hermes tool-call recovery + poe/kimi/sarvam
+# request-schema fixes). Replaces the former per-provider python proxies.
+# Best-effort: with no Go toolchain the aliases fall back to their direct
+# endpoint and the compat shims are inactive (claude-proxy-build explains).
+if ! bash "$LIB_DIR/claude-proxy-build.sh"; then
+  cma_warn "compatibility proxy (cma-proxy, Go) not built — helixagent/poe/kimi/sarvam aliases run without their compat shims (run 'claude-proxy-build' after installing Go)"
 fi
 
 # 4c. Provider session-sync hook + an install-time sync (soft — the host may

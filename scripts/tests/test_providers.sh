@@ -1225,7 +1225,7 @@ cma_run_provider() {
 alias kimi-for-coding="cma_run_provider kimi-for-coding"
 OLD
 bash -n "$_mig3"; assert_eq 0 $? "old-format alias file parses (bash -n)"
-grep -q '_family_id' "$_mig3"; assert_eq 1 $? "old body lacks family proxy marker (pre-migration)"
+grep -q 'has-transform' "$_mig3"; assert_eq 1 $? "old body lacks proxy-discovery marker (pre-migration)"
 grep -q 'kimi-code/credentials' "$_mig3"; assert_eq 1 $? "old body lacks OAuth freshness marker (pre-migration)"
 ( ALIAS_FILE="$_mig3" cma_ensure_alias_file ) >/dev/null 2>&1
 mig3_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$_mig3")"
@@ -1234,9 +1234,11 @@ mig3_alias="$(grep -c '^alias kimi-for-coding=' "$_mig3")"
 # closes the pipe while printf is still writing the ~400-line body, so printf
 # dies with SIGPIPE and the PIPELINE's status is 141 — not grep's 0. That made
 # this assertion fail even though the marker was present (the sibling
-# _family_id check passed only because its match happens late enough that
+# has-transform check passed only because its match happens late enough that
 # printf finishes first). A here-string has no pipe and no SIGPIPE race.
-grep -qF '_family_id' <<<"$mig3_body"; assert_eq 0 $? "regenerated body carries family proxy discovery"
+# (Proxy discovery migrated to the Go cma-proxy 2026-07-22: `_family_id` shell
+# discovery -> `cma-proxy --has-transform <id>`, which resolves the family key.)
+grep -qF 'has-transform' <<<"$mig3_body"; assert_eq 0 $? "regenerated body carries cma-proxy discovery"
 grep -qF 'kimi-code/credentials/kimi-code.json' <<<"$mig3_body"; assert_eq 0 $? "regenerated body carries OAuth token freshness"
 assert_eq 1 "$mig3_alias" "kimi-for-coding alias preserved through migration"
 rm -f "$_mig3"
@@ -1828,6 +1830,60 @@ XAI_API_KEY=sk-test out="$( XAI_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-ver
     --provider xai --model grok-4 --key-var XAI_API_KEY \
     --base-url "http://127.0.0.1:${port}/v1" 2>/dev/null )"
 assert_eq "verified" "$out" "xAI chat+tools probes pass -> verified (no special-case)"
+
+it "providers-verify names a context-overflow 400 as context-inadequate (existence layer), distinct from auth/billing"
+# A backend so small the ~512-token sentinel probe itself overflows returns a 400
+# whose body says the request exceeds the available context size. The verdict is
+# `failed` either way (the alias cannot serve Claude Code as launched, and the
+# live gate leaves it uncounted via status); what this pins is the DISTINCT,
+# honest REASON — pointing the operator at the backend's context size rather than
+# at funds or a missing model. Two 400s: probe 1 is retried once by
+# retry_if_flappy, so both attempts must land on the same context-overflow body.
+python3 - "$HOME/ctx.port" <<'PY' &
+import http.server, socketserver, sys, json
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        self.rfile.read(n)
+        self.send_response(400); self.send_header("Content-Type","application/json"); self.end_headers()
+        self.wfile.write(json.dumps({"error":{"message":"request (67288 tokens) exceeds the available context size (3072 tokens), try increasing it"}}).encode())
+    def log_message(self,*a): pass
+with socketserver.TCPServer(("127.0.0.1",0),H) as s:
+    open(sys.argv[1],"w").write(str(s.server_address[1]))
+    s.handle_request(); s.handle_request()  # probe 1 + its one retry
+PY
+for _ in $(seq 1 50); do [[ -s "$HOME/ctx.port" ]] && break; sleep 0.05; done
+ctxport="$(cat "$HOME/ctx.port" 2>/dev/null)"
+ctx_out="$( TINY_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-verify.sh" \
+    --provider tiny --model tiny-model --key-var TINY_API_KEY \
+    --base-url "http://127.0.0.1:${ctxport}/v1" 2>"$HOME/ctx.err" )"
+assert_eq "failed" "$ctx_out" "a context-overflow 400 is still a failed verdict (the alias cannot serve Claude Code)"
+grep -q 'context-inadequate' "$HOME/ctx.err"
+assert_eq 0 $? "the reason distinctly names context-inadequate (not auth/billing/model-missing)"
+grep -q 'relaunch the backing server with a larger context' "$HOME/ctx.err"
+assert_eq 0 $? "and it points the operator at the backend size — the actual fix"
+# Discrimination control: a plain auth 401 must NOT be misnamed context-inadequate.
+python3 - "$HOME/auth.port" <<'PY' &
+import http.server, socketserver, sys, json
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        self.rfile.read(n)
+        self.send_response(401); self.send_header("Content-Type","application/json"); self.end_headers()
+        self.wfile.write(json.dumps({"error":{"message":"invalid api key"}}).encode())
+    def log_message(self,*a): pass
+with socketserver.TCPServer(("127.0.0.1",0),H) as s:
+    open(sys.argv[1],"w").write(str(s.server_address[1]))
+    s.handle_request()  # 401 is deterministic, never retried
+PY
+for _ in $(seq 1 50); do [[ -s "$HOME/auth.port" ]] && break; sleep 0.05; done
+authport="$(cat "$HOME/auth.port" 2>/dev/null)"
+auth_out="$( TINY_API_KEY=sk-test bash "$SCRIPTS_DIR/providers-verify.sh" \
+    --provider tiny --model tiny-model --key-var TINY_API_KEY \
+    --base-url "http://127.0.0.1:${authport}/v1" 2>"$HOME/auth.err" )"
+assert_eq "failed" "$auth_out" "a 401 is still failed"
+grep -q 'context-inadequate' "$HOME/auth.err"
+assert_eq 1 $? "a 401 is NOT misnamed context-inadequate (the distinct reason does not over-broaden)"
 
 # NOTE: no `summary` here. There must be exactly ONE summary call, as the very
 # last statement in the file — it is what converts TESTS_FAILED into the exit

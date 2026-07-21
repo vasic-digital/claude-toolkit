@@ -1263,4 +1263,180 @@ M2_SENT_LINE="$(grep -m1 -E '^[[:space:]]*CMA_STUI_NO_WRAPPER=' "$STUI")"
 grep -qE '\$\$|\$\(date|\$\{?RANDOM' <<<"$M2_SENT_LINE"
 assert_eq 0 $? "the sentinel derivation interpolates per-run entropy (\$\$ / date / RANDOM), not a constant string"
 
+# ===========================================================================
+# (v) CONTEXT-INADEQUATE: a verified provider whose backend context window is
+#     smaller than Claude Code's minimum request is KNOWN-NON-WORKING, not a
+#     suite failure — a THIRD class beside account-dead and route-integrity
+# ===========================================================================
+# THE HOLE THIS CLOSES. helixagent passes layers 1-2 (small ~512-token probes)
+# and reaches status=verified, so gate_for_status GATES it. But its real backend
+# (a local llama.cpp launched with a 3072-token context) returns a hard
+#   400 request (67288 tokens) exceeds the available context size (3072 tokens)
+# on the large, tool/skill-heavy layer-4 turn. Before the context-inadequate
+# branch that landed in the gated `_fail` and pinned the whole live-providers leg
+# red — a provider-side backend-size condition (relaunch the server bigger)
+# counted as fresh toolkit breakage, exactly the signal-destroying outcome
+# gate_for_status prevents for account-dead. It is its own KNOWN-NON-WORKING
+# class: honest (a distinct '# FAIL: context-inadequate' marker, never a pass),
+# evidence-based (the two token counts are read from the live 400, never a
+# declared/pinned context), and NOT counted — while a genuine layer-4 PASS, an
+# account-dead 403, and a non-context 400/500 are all left exactly as they were.
+it "context-inadequate: a VERIFIED provider's context-overflow 400 is KNOWN-NON-WORKING, not a suite failure"
+CI_EV="$PROOF/providers-routertest-ctxinadequate.txt"
+# Shaped like the real helixagent evidence: a MATCHING route (so the attribution
+# gate PASSES and cannot be what fails here), then Claude Code's own 400.
+{
+  echo '# ROUTE-INTENDED: routertest/router-model-1 (transport=router)'
+  echo '# ROUTE-INTENDED-BACKGROUND: routertest/router-model-1'
+  echo '{"type":"result","is_error":true,"api_error_status":400,"result":"API Error: 400 request (67288 tokens) exceeds the available context size (3072 tokens), try increasing it"}'
+  echo '# ROUTE-RESOLVED: routertest/router-model-1'
+  echo '# ROUTE-RESOLVED-BACKGROUND: routertest/router-model-1'
+  echo '# FAIL: api-error'
+} > "$CI_EV"
+out="$(run_classifier "$CI_EV" 1 verified "FAIL: api-error")"
+grep -q 'KNOWN-NON-WORKING: layer-4 context-inadequate' <<<"$out"
+assert_eq 0 $? "a context-overflow on a status=verified provider is reported KNOWN-NON-WORKING (context-inadequate)"
+grep -q 'SUITE-FAILURE' <<<"$out"
+assert_eq 1 $? "and it is NOT counted as a suite failure (backend-size is provider-side, like account-dead)"
+# Evidence-based, never the pin: the two numbers come out of the live 400.
+grep -q 'backend context 3072 tokens < Claude Code request 67288 tokens' <<<"$out"
+assert_eq 0 $? "the operator message names the REAL backend window (3072) and request (67288), read from the 400 — not the pin"
+# The distinct, honest marker is appended to the evidence, on its face.
+assert_file_contains "$CI_EV" '# FAIL: context-inadequate (backend 3072 tokens < request 67288)' "a distinct context-inadequate marker is written to the evidence (never a faked pass)"
+
+# --- (v-openrouter) the OpenAI/OpenRouter 'maximum context length' phrasing, with
+#     the window/request numbers in REVERSED order, is ALSO context-inadequate and
+#     its numbers land in the RIGHT roles (not swapped). Exact live openrouter
+#     shape: nemotron 262144 window < 292211 request. This is what pinned the
+#     live-providers leg red until the classifier regex learned this phrasing.
+it "context-inadequate: the OpenAI/OpenRouter 'maximum context length' phrasing (reversed order) is classified + extracted without swapping the numbers"
+OR_EV="$PROOF/providers-routertest-ctxinadequate-openrouter.txt"
+{
+  echo '# ROUTE-INTENDED: routertest/router-model-1 (transport=router)'
+  echo '# ROUTE-RESOLVED: routertest/router-model-1'
+  echo '{"type":"result","is_error":true,"api_error_status":400,"result":"API Error: 400 maximum context length is 262144 tokens. However, you requested about 292211 tokens (158579 of tool input). Please reduce the length."}'
+  echo '# FAIL: api-error'
+} > "$OR_EV"
+out="$(run_classifier "$OR_EV" 1 verified "FAIL: api-error")"
+grep -q 'KNOWN-NON-WORKING: layer-4 context-inadequate' <<<"$out"
+assert_eq 0 $? "the OpenRouter 'maximum context length' overflow is KNOWN-NON-WORKING (context-inadequate)"
+grep -q 'SUITE-FAILURE' <<<"$out"
+assert_eq 1 $? "and it is NOT counted as a suite failure"
+# KEY: window (262144, the FIRST number in this phrasing) and request (292211, the
+# SECOND) land in the RIGHT roles — the reversed order is handled, NOT swapped.
+grep -q 'backend context 262144 tokens < Claude Code request 292211 tokens' <<<"$out"
+assert_eq 0 $? "the reversed-order phrasing extracts window=262144 and request=292211 correctly (not swapped)"
+assert_file_contains "$OR_EV" '# FAIL: context-inadequate (backend 262144 tokens < request 292211)' "the marker names window<request in the right order for the OpenRouter phrasing"
+
+# --- CONTROL 1: a NON-context 500 on the SAME verified provider STILL counts ---
+# The narrowing must not leak: only the context-overflow shape is the new class.
+it "control: a NON-context error on a verified provider still fails the suite (no over-broadening)"
+NC_EV="$PROOF/providers-routertest-noncontext500.txt"
+{ echo '{"is_error":true,"api_error_status":500,"result":"API Error: 500 internal server error"}'
+  echo '# FAIL: api-error'; } > "$NC_EV"
+out="$(run_classifier "$NC_EV" 1 verified "FAIL: api-error")"
+grep -q 'SUITE-FAILURE' <<<"$out"
+assert_eq 0 $? "a non-context 500 on a verified provider is STILL a counted failure"
+grep -q 'context-inadequate' <<<"$out"
+assert_eq 1 $? "and it is NOT misclassified as context-inadequate"
+
+# --- CONTROL 2: an account-dead 403 stays its OWN class (account-side) ---------
+it "control: an account-dead 403 stays account-side, never context-inadequate"
+AD_EV="$PROOF/providers-routertest-accountdead.txt"
+{ echo '{"is_error":true,"api_error_status":403,"result":"Failed to authenticate. API Error: 403 Sorry, your account balance is insufficient"}'
+  echo '# FAIL: api-error'; } > "$AD_EV"
+out="$(run_classifier "$AD_EV" 0 failed "FAIL: api-error")"
+grep -q 'account-side' <<<"$out"
+assert_eq 0 $? "a 403 on a status=failed provider is still reported as account-side known-non-working"
+grep -q 'context-inadequate' <<<"$out"
+assert_eq 1 $? "a 403 carries no context-overflow text, so it is NEVER context-inadequate"
+
+# --- CONTROL 3: route attribution outranks context-inadequate -----------------
+# A turn served by the WRONG backend is non-attributable whatever else it says;
+# the integrity gate must win even when the (foreign) transcript also overflowed.
+it "control: a route-mismatch outranks a co-present context-overflow (integrity first)"
+RC_EV="$PROOF/providers-routertest-ctx-vs-route.txt"
+{ echo 'API Error: 400 request (67288 tokens) exceeds the available context size (3072 tokens)'
+  echo '# FAIL: route-mismatch (intended=routertest/router-model-1 resolved=chutes/zai-org/GLM-5.2-TEE)'; } > "$RC_EV"
+out="$(run_classifier "$RC_EV" 1 verified "FAIL: route-mismatch")"
+grep -q 'SUITE-FAILURE: layer-4 route attribution' <<<"$out"
+assert_eq 0 $? "route attribution is decided FIRST — the mismatch fails the suite"
+grep -q 'context-inadequate' <<<"$out"
+assert_eq 1 $? "the co-present overflow text does NOT downgrade a route-integrity failure to known-non-working"
+
+# --- the gated RUN_TUI_EV disk sweep leaves the appended marker alone ----------
+# The per-provider classifier decides counting, but a SECOND, independent disk
+# sweep re-reads the last marker of every gated provider's evidence. A verified
+# provider IS in that gated set, so the appended '# FAIL: context-inadequate'
+# must be excluded there too, or the leg fails from the sweep instead.
+it "the gated RUN_TUI_EV sweep does NOT flag a context-inadequate marker (but still flags a real api-error)"
+# shellcheck disable=SC2034  # RUN_TUI_EV is read by the sweep body eval'd below
+marked=(); RUN_TUI_EV=("$CI_EV"); eval "$SWEEP_CODE"
+assert_eq 0 "${#marked[@]}" "the sweep leaves the context-inadequate evidence alone (known-non-working, reported on its own line)"
+# discrimination control: the generic api-error evidence IS still swept.
+# shellcheck disable=SC2034  # RUN_TUI_EV is read by the sweep body eval'd below
+marked=(); RUN_TUI_EV=("$NC_EV"); eval "$SWEEP_CODE"
+assert_eq 1 "${#marked[@]}" "the same sweep still flags a generic api-error marker — it discriminates, it is not uniformly quiet"
+
+# --- and the status-independent route sweep never claims it either ------------
+it "the status-independent route sweep does not flag context-inadequate (it carries no route-* marker)"
+# shellcheck disable=SC2034  # ALL_TUI_EV is read by the sweep body eval'd below
+route_marked=(); ALL_TUI_EV=("$CI_EV"); eval "$ROUTE_SWEEP_CODE"
+assert_eq 0 "${#route_marked[@]}" "context-inadequate is not a route failure, so the route sweep leaves it alone"
+
+# ===========================================================================
+# (v2) PAIRED MUTATION (§1.1): delete the context-inadequate branch and the
+#      very same overflow evidence flips to a COUNTED suite failure  [TEETH]
+# ===========================================================================
+# Everything above passes only as long as the branch is present. Prove it is the
+# BRANCH that carries the behaviour: excise it from a COPY of the extracted
+# classifier (never the shared checkout) and re-run identical evidence. With the
+# branch gone the overflow falls through to `elif (( gated ))` and IS counted —
+# so a later refactor that silently drops the branch turns (v) red instead of
+# quietly re-bluffing helixagent back to a counted-verified failure.
+it "paired mutation: WITHOUT the context-inadequate branch, the overflow is a COUNTED failure (teeth), and WITH it it is not"
+MUT_EV="$PROOF/providers-routertest-ctx-mutation.txt"
+{ echo '{"is_error":true,"api_error_status":400,"result":"API Error: 400 request (67288 tokens) exceeds the available context size (3072 tokens)"}'
+  echo '# FAIL: api-error'; } > "$MUT_EV"
+# Excise the branch: drop every line from the context-inadequate `elif` (the only
+# `elif grep -qiE` in the block) up to — but not including — the `elif (( gated ))`
+# that follows it. Bracket classes, not backslash-escaped parens, per the BSD-awk
+# portability rule (no 3-arg match; 2-arg regex only).
+# Guard (future-proofing): the excision anchors on the SOLE `elif grep -qiE`
+# branch. If a later edit adds a second such branch before the gated fallback the
+# awk range would silently swallow BOTH — losing the mutation's teeth without
+# failing — so assert the anchor is unambiguous, failing LOUDLY here to force the
+# awk range to be re-scoped rather than silently over-excising.
+assert_eq 1 "$(grep -cE '^[[:space:]]*elif grep -qiE' <<<"$CLASSIFY_SRC")" "exactly one 'elif grep -qiE' branch exists — the mutation excision anchor is unambiguous"
+MUT_CLASSIFY="$(awk '
+  /^[[:space:]]*elif grep -qiE/ {skip=1}
+  skip && /^[[:space:]]*elif [(][(] gated [)][)]; then/ {skip=0}
+  !skip {print}
+' <<<"$CLASSIFY_SRC")"
+# Anti-vacuity: the mutation must have actually removed the branch and changed
+# the source, or the pair proves nothing.
+assert_eq 0 "$( grep -q 'context-inadequate' <<<"$MUT_CLASSIFY" && echo 1 || echo 0 )" "the mutated classifier no longer contains the context-inadequate branch"
+assert_eq 0 "$( [[ "$MUT_CLASSIFY" != "$CLASSIFY_SRC" ]] && echo 0 || echo 1 )" "the mutation changed the classifier (not a no-op)"
+grep -q 'elif (( gated ))' <<<"$MUT_CLASSIFY"
+assert_eq 0 $? "the gated fallback the overflow now falls through to is still present in the mutant"
+# MUTANT direction: with the branch removed, the overflow on a verified provider
+# IS counted.
+mut_out="$( ( tui_ev="$MUT_EV"; gated=1; status=verified; id="routertest"; tui_out="FAIL: api-error"
+             _fail() { printf 'SUITE-FAILURE: %s\n' "$1"; }
+             eval "$MUT_CLASSIFY" ) 2>&1 )"
+grep -q 'SUITE-FAILURE' <<<"$mut_out"
+assert_eq 0 $? "MUTANT: with the branch removed, the overflow on a verified provider IS counted (the branch has teeth)"
+grep -q 'KNOWN-NON-WORKING' <<<"$mut_out"
+assert_eq 1 $? "MUTANT: it is no longer written off as known-non-working"
+# RESTORED direction: the REAL, unmutated classifier ($CLASSIFY_SRC, extracted
+# from the shared file and never edited) leaves the SAME evidence uncounted.
+rm -f "$MUT_EV"
+{ echo '{"is_error":true,"api_error_status":400,"result":"API Error: 400 request (67288 tokens) exceeds the available context size (3072 tokens)"}'
+  echo '# FAIL: api-error'; } > "$MUT_EV"
+real_out="$(run_classifier "$MUT_EV" 1 verified "FAIL: api-error")"
+grep -q 'SUITE-FAILURE' <<<"$real_out"
+assert_eq 1 $? "RESTORED: the real classifier leaves the overflow uncounted — both directions of the pair proven"
+grep -q 'KNOWN-NON-WORKING: layer-4 context-inadequate' <<<"$real_out"
+assert_eq 0 $? "RESTORED: and reports it as context-inadequate known-non-working"
+
 summary

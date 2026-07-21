@@ -6,6 +6,6 @@
   "strong_model": "HelixAgent/HelixLLM",
   "fast_model": "HelixAgent/HelixLLM",
   "key_var": "HELIXAGENT_GATEWAY_KEY",
-  "context_limit": 24576,
+  "context_limit": 229376,
   "max_output": 8192
 }

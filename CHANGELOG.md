@@ -2,6 +2,291 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.25.0 — 2026-07-22 — the compatibility proxy goes Go (cma-proxy) + HelixAgent fully working (routed + capacity-sized + tool-engaging) + provider-verification honesty + rc-safety
+
+Minor release. Two headline changes make it a minor:
+
+1. **A new user-facing component**: the toolkit's provider-compatibility proxy is
+   now a single Go binary, **`cma-proxy`** (`scripts/proxy/`, module `cmaproxy`),
+   consolidating the three former per-provider python proxies (poe/kimi/sarvam)
+   plus a net-new helixagent tool-call transform. Python is fully removed from
+   the proxy layer.
+2. **HelixAgent goes from a broken facade to a working local provider** —
+   genuinely routed (the :18434 repoint), capacity-sized (the 229376 pin), and
+   **tool-engaging** (the Go proxy's Hermes tool-call recovery). A live, route-
+   attributed `verify helixagent --deep` turn in claude mode PASSED end-to-end.
+
+Alongside those it carries provider-verification honesty (a context-inadequate
+classification so a too-small backend is not miscounted as toolkit breakage), a
+shell-rc safety fix (§11.4.167 — the toolkit can no longer erode a user's
+`.bashrc`), and repo/CI hygiene. The GPU mode-switch that reallocates the shared
+HelixLLM backend between HelixCode and Claude Code still ships in the companion
+`helix_code` repo, not this toolkit. **Version chosen: v1.25.0** (a new shipped
+component plus a previously-dead provider made to work is additive, backward-
+compatible functionality — see the closing note).
+
+### Proxy framework — python proxies replaced by one Go binary (`cma-proxy`)
+- **The three former python proxies (`poe_proxy.py`, `kimi_proxy.py`,
+  `sarvam_proxy.py`) are gone, folded into ONE Go binary `cma-proxy`**
+  (`scripts/proxy/`, module `cmaproxy`) — which ALSO carries a net-new
+  `helixagent` transform. (There was never a `helixagent_proxy.py` in the repo:
+  helixagent's prior break was routing/`base_url` (the :3456→:18434 repoint), not
+  tool-format; its Hermes recovery is brand-new, written directly in Go.)
+  Motivated by an operator directive that the toolkit carry no python; a
+  streaming HTTP proxy is not bash-appropriate, so Go — which also matches the
+  already-Go bundled ccr.
+- **Structure** (each provider is a self-contained file that registers itself in
+  an `init()`, so a new provider needs no edit to `main.go`):
+  - `hermes.go` — helixagent Hermes/Qwen tool-call recovery (response-side;
+    `registerResponse("helixagent")`).
+  - `poe.go` / `kimi.go` / `sarvam.go` — request-schema fixes (`registerRequest`):
+    Poe tool-param injection + `$ref`/`$defs` resolve + ~216 tool-count cap +
+    `cache_control` strip; Kimi moonshot-flavored `#/$defs/` schema normalization;
+    Sarvam content-block flatten + `max_tokens` tier clamp.
+  - `registry.go` — `init()`-time registration plus family resolution
+    (`providerKey`: exact id, then id-up-to-first-digit `poe2 → poe`, then
+    id-up-to-first-`-` `kimi-for-coding → kimi`).
+  - `main.go` — HTTP server: request-transform-then-forward → response-transform
+    (only on a 200, only for a response-transform provider) → otherwise verbatim
+    passthrough; a clean **502-JSON** body on any upstream/connection error (never
+    an empty reply); and the `--has-transform <id>` discovery gate (exit 0/1).
+- **Correctness win over the python it replaces**: the Hermes parser is now
+  **delimiter-robust** — blocks split on the OPENING tags (`<function=`,
+  `<parameter=`), a parameter value ends at the *last* `</parameter>` in its
+  segment, and a balance guard bails to passthrough on unbalanced opening tags —
+  so a tool-arg VALUE that itself contains `</function>` or `</parameter>` (e.g.
+  Write-ing a file *about* tool-calling) is preserved verbatim instead of being
+  silently truncated/dropped, which is exactly what the python parser did. Found
+  in review (2026-07-22) and pinned by a Go regression test.
+- **Wiring**: `claude-proxy-build.sh` builds + installs `cma-proxy` (mirroring
+  `claude-ccr-build.sh`: `go build` → copy into `$SHARED_DIR/proxy` → symlink onto
+  PATH, with a `--has-transform` self-check); `install.sh` §4b now runs that build
+  (was: copy `scripts/proxy/*.py` into the shared store); and `cma_run_provider`
+  gates on `cma-proxy --has-transform <id>` then launches
+  `cma-proxy --provider <id> --port <port>` with the upstream (`CMA_PROVIDER_BASE_URL`)
+  exported inline to the child. `install.sh` already treats the proxy build as
+  best-effort (Go-gated, like ccr): with no `go`, install still completes and the
+  proxied aliases fall back to their direct endpoint with the compat shims
+  INACTIVE.
+- **Tests**: co-located Go tests (`poe_test.go` 11, `kimi_test.go` 12,
+  `sarvam_test.go` 8, plus `hermes_test.go`'s recovery/passthrough/`</function>`-
+  in-value regression cases) driven by the new `scripts/tests/test_cma_proxy.sh`
+  (`go build` + `go vet` + `go test` + `gofmt` + the `--has-transform` family
+  gate). The python-only proxy tests were removed (`test_poe_proxy.sh`,
+  `test_sarvam_proxy.sh`) and `test_kimi.sh`'s proxy section migrated.
+- **Honest scope**: this migrates ONLY the proxy layer. The remaining python —
+  six tooling scripts (`providers_resolve.py`, `model_verify.py`,
+  `opencode_sync.py`, `providers_generate.py`, `toon_encode.py`,
+  `alias_e2e_test.py`) plus two test-lib helpers (`tests/lib/classify_live.py`,
+  `tests/lib/pty_drive.py`) — is a planned follow-up, **not** in this release.
+
+### Fixed
+- **HelixAgent was a non-attributable facade — now genuinely routes to the real
+  HelixLLM server, and a mode-switch makes its big-context turn actually
+  serveable.** `scripts/providers/helixagent.json` pinned `base_url` to the ccr
+  gateway itself (`127.0.0.1:3456`) — self-defeating, since a router provider
+  cannot route through the gateway it *is*: `cma_run_provider`'s self-reference
+  guard refuses it and v1.24.0's route-attribution gate correctly marks it
+  `failed` (before those gates it was badged `verified` on turns actually served
+  by whichever provider ran last — the exact bluff v1.24.0 exposed), so after the
+  v1.24.0 sync it dropped out of `claude-providers list`. Repointed at the real
+  backing server `127.0.0.1:18434` (the OpenAI-style endpoint the operator's local
+  HelixLLM / Qwen3-Coder-30B actually serves): confirmed live (a real chat call
+  returns 200 with the existing key), Gate 0 passes (base ≠ gateway), and
+  `claude-providers verify helixagent` returns `verified` at the probe layer.
+  The remaining obstacle was capacity, not routing: one 32 GB GPU cannot
+  simultaneously serve HelixCode's eight concurrent 3072-token slots and Claude
+  Code's large single-slot request. That is resolved by a **mode-switch**
+  (`helix_code/scripts/helixllm-mode.sh`) that flips the shared HelixLLM
+  container between two mutually-exclusive modes on the one GPU, one at a time:
+  **coder** (`-c 24576 --parallel 8` — eight 3072-token slots, serving HelixCode)
+  and **claude** (`-c 229376 --parallel 1` — one large slot, serving the toolkit
+  `helixagent` alias / Claude Code). The helixagent pin's `context_limit` is
+  corrected to **229376** (was 180224 in the prior draft, itself a correction of
+  the old per-slot value): 180224 fit Claude Code's first ~67K request, but once
+  tools actually fire (see the proxy bullet below) the multi-turn agent loop
+  accumulates to ~182,128 tokens, which overflowed a 180224 slot with the exact
+  `400 … exceeds the available context size (180224 tokens)` on ~2 of 3 runs.
+  229376 gives headroom — the auto-compact window still operates at its 200000
+  design cap with ~21K slack — and it fits VRAM, measured live in claude mode at
+  30,244 MiB used / 1,854 free / 32,607 total (the KV estimate
+  VRAM ≈ 18128 + 0.053·ctx MiB validated across 24576→19434, 180224→27676,
+  229376→30244). A live, route-attributed `verify helixagent --deep` turn in
+  claude mode proves the two routing/capacity things the pin exists to fix: the
+  alias genuinely reaches HelixLLM (ccr's resolved route matches intent for BOTH
+  the foreground and the background request, with a restart receipt bracketing the
+  launch — not another backend), and Claude Code's real system+tool request
+  (66,693 input tokens) fits the 229376 slot with zero context overflow — the old
+  per-slot `400 exceeds context` that demoted it is gone. Because HelixCode is the
+  common case, the **default release state is coder mode**, so helixagent ships
+  demoted to `unverified` (shown in `list-faulty`, refused by the launch gate)
+  until the operator switches HelixLLM to claude mode (`helixllm-mode.sh claude`)
+  — this is provider-side capacity to be reallocated, not toolkit breakage, and
+  the suite classifies the coder-mode deep-turn overflow as a distinct
+  context-inadequate class (see Reliability), never an account or routing failure.
+  An audit confirmed helixagent was the ONLY provider with this facade
+  misconfiguration and that a plain `sync` cannot re-break the repoint (the pin is
+  the single source; the gates fail closed).
+  (`f72a756`; two stale "base_url → :3456" comments corrected in `9bb6f1f`, all
+  other `:3456`/facade references left as correct history of the incident that
+  motivated the guard.)
+- **The tool-call format gap is fixed by the new Go proxy (`cma-proxy`,
+  `scripts/proxy/hermes.go`), so Claude Code's tools actually fire in the
+  HelixAgent path.** Root-caused live: the container already runs llama.cpp with
+  `--jinja`, and a direct request to :18434 returns proper structured `tool_calls`.
+  But Claude Code's system prompt induces the model to write a conversational
+  preamble BEFORE the call, in Qwen's native Hermes/XML form
+  (`<function=NAME><parameter=P>V</parameter></function></tool_call>`);
+  llama.cpp's parser only extracts a call that *leads* the generation, so once
+  prose precedes it the whole thing is returned as `content` text
+  (`finish_reason:"stop"`, `tool_calls:null`) and Claude Code never engages.
+  `cma-proxy` sits inline (ccr → proxy → :18434) — the launch wrapper starts it
+  when `--has-transform helixagent` matches — buffers the response, and ONLY when
+  it finds a complete Hermes block llama.cpp did not already parse rewrites it into
+  structured `tool_calls` (streaming and non-streaming), keeps the preamble as
+  `content`, coerces each parameter by the request's own tool schema (a string
+  stays a string; integer/number/boolean/object/array parsed), and passes
+  everything else through byte-for-byte untouched so the common path is never
+  altered. Proven hermetically with no network or GPU: `hermes_test.go` (streaming
+  + non-streaming recovery, passthrough safety, and the `</function>`/`</parameter>`-
+  in-value regression) plus `test_cma_proxy.sh`'s build/vet/gofmt/go-test gate all
+  pass, and a live unit request through the proxy turns the exact leaking
+  generation into a clean `Read({"file_path":"README.md"})`. End-to-end, the strict
+  layer-4 engagement gate now records a **verified** result: a live, route-
+  attributed `verify helixagent --deep` turn — launched through the real wrapper,
+  which started the Go `cma-proxy` — PASSED, the model returned the exact
+  skill-content challenge answer ("Skills evolve. Read current version."), the
+  route resolved to helixagent for both the foreground and the background request,
+  input grew to 143,776 tokens and fit the 229376 slot, and status flipped to
+  `verified`. Reliability at 229376 is **2 of 3** (the third miss was a slow-turn
+  timeout of the local 30B, not an overflow — the 180224 overflow is gone). Because
+  coder is the default operational state, helixagent still ships demoted to
+  `unverified` until the operator switches HelixLLM to claude mode.
+  `claude-proxy-build.sh` builds `cma-proxy` and `install.sh` §4b runs it, so the
+  proxy ships on the normal release path.
+
+### Reliability
+- **run-proof honestly classifies a context-inadequate backend instead of
+  counting it as fresh toolkit breakage.** A verified router provider whose
+  backing model returns a context-overflow `400` on the large, tool/skill-heavy
+  layer-4 turn is now its own KNOWN-NON-WORKING class — beside account-dead and
+  route-integrity — reported `# FAIL: context-inadequate (backend M tokens <
+  request N)` and NOT counted as a suite failure: it is provider-side (relaunch a
+  local backend larger, or pin a larger-context model for a hosted one) exactly
+  as an unfunded key is (top it up). **Two** live overflow phrasings are
+  recognized — the llama.cpp shape (local backends, e.g. a HelixLLM in coder mode,
+  whose per-slot context is small) and the OpenAI/OpenRouter shape (hosted models,
+  e.g. an OpenRouter model whose window is under Claude Code's request) — with
+  phrasing-aware extraction, since the two put the request/window numbers in
+  *reversed* order and the marker must never swap them. This is a state of a
+  backend, not a permanent property of any provider — a mode-switch or a larger
+  pin removes it. The counts are read from
+  the live 400, never a pinned/declared context, and the verdict is re-derived
+  from the live layer-4 error on every run (not a persisted status a re-sync
+  could overwrite), so it is durable and cannot false-positive a provider that
+  genuinely answers layer-4. Paired-mutation proven both directions; the
+  existence layer names the same distinct reason. (Follow-up: tune the
+  output-reservation guard so a hosted model whose window is only modestly above
+  Claude Code's tool-heavy input can *work* rather than be excused.)
+- **run-proof no longer counts an account-side `402`/`403` as toolkit breakage —
+  the billing analogue of the context-inadequate class.** A provider funded when
+  the ~512-token layers-1/2 probe verified it, but whose balance depletes (or key
+  is revoked / access suspended) before the large layer-4 turn, returns a `402`
+  ("Insufficient balance") or `403` on a *correctly-routed* turn — a fresh red on
+  every proof run for a condition the toolkit cannot fix. A `402`/`403` can only
+  come from the provider's billing/authz, never from how a request was formed (a
+  malformed request is a `400`, which still counts), so it is now its own
+  KNOWN-NON-WORKING class — `# FAIL: account-side (HTTP 402|403 …)`, reported on
+  its face (top up or re-key the account) and swept-exempt like context-inadequate.
+  It is ordered *below* the route-integrity gate (a mis-routed turn still counts)
+  and matches only `402`/`403` — `401` (a toolkit-attributable bad auth header),
+  `429`, `500`, and timeouts still fail the suite. Evidence-based (the live status,
+  never a persisted one), and it cannot false-positive a paying account. Found live
+  on this release's own proof: `inference/glm-5.2` returned "402 Insufficient
+  balance" on a route-attributed turn. (Guards it: `test_providers_gate.sh` — 402
+  detected, a 400 overflow NOT swallowed, sweep-exempt.)
+
+### Safety — shell-rc writes (§11.4.167)
+- **The toolkit can no longer erode a user's `.bashrc`/`.zshrc`.** A pre-v1.24.0
+  prune→ensure race (fired on every non-interactive shell via `BASH_ENV`) could
+  strip an rc file's body — orphaned managed-headers accumulating while the user's
+  own `export`s were lost with no backup (this is what erased a set of local env
+  vars during v1.24.0 development). v1.24.0 fixed the main prune path; this release
+  closes the **two residual rc-write paths** that still bypassed it: the
+  `install.sh` migrate rewrite (now gated + backup-first, and a silent last-line
+  drop fixed) and the `claude-bootstrap.sh` append (now backup-first). Every rc
+  write now funnels through one committer (`cma_rc_safe_rewrite`) mirroring the
+  alias committer — a no-op guard, a sanity gate that parks a content-losing
+  candidate as `.rejected.<ts>`, a mandatory pristine `.cma-orig` backup-or-refuse,
+  and an INT/TERM-masked publish — so no rc write can proceed without a recovery
+  point. Verified by four paired-mutation tests (rc-safety 35/0) that each fail
+  when a guard is removed. (Follow-up: mint the committer's temp adjacent to the rc
+  so the publish is a true same-filesystem rename.)
+
+### Repo & CI hygiene
+- **GitHub push-protection no longer trips on the redaction test's fixtures.**
+  `scripts/tests/test_redact.sh`'s 23 synthetic provider-token fixtures were
+  high-entropy random strings, so GitHub flagged two as real credentials and
+  blocked the v1.24.0 push. Every synthetic token is now an obviously-fake
+  `FAKE`+zero-padding body — each token's exact length, prefix, and separator
+  preserved so redaction behaviour and the mutation topology are byte-for-byte
+  unchanged (46/0, both mutations retain teeth) — and the `sk-underscore` fixture
+  uses `sk_` not `sk_live_` (GitHub's Stripe detector matches the `sk_live_`
+  prefix on pattern alone, entropy-immune). No pattern-flaggable token remains.
+  (`80b07ff`, `084a77d`)
+- **Stray build binaries untracked; LLMsVerifier `GEMINI.md` added.** Two ~24 MB
+  Go build outputs (`fixed-challenge`, `model-verification`) tracked in the
+  LLMsVerifier `llm-verifier/` subdirectory — re-added by an Auto-commit after a
+  prior BFG purge,
+  referenced by no script — are `git rm --cached` + gitignored (CONST-053); the
+  stray root `ccr` build binary is gitignored in the router submodule; and
+  LLMsVerifier's missing `GEMINI.md` (§11.4.157 lockstep gap) was added as a
+  faithful Gemini-CLI mirror of its `QWEN.md` (same 135-anchor set through
+  §11.4.167). (`3b21f79`)
+- **CHANGELOG accuracy.** The v1.24.0 "Verified" section cited `test_providers.sh`
+  294/0; the shipped proof log shows 405/0 (tests were added since the
+  credit-aware work). Corrected to match the on-disk evidence. (`8e8fb96`)
+
+### Submodules
+- `LLMsVerifier` `af8d703b` → `bb729f2b` (binary untrack + `GEMINI.md`)
+- `claude-code-router` `6d787fd` → `904effb` (gitignore stray `ccr` binary)
+
+### Verified
+- **Hermetic sandbox suite: 41 files, 41 passed, 0 failed** (`run-all.sh`, ALL
+  GREEN) — including the new `test_cma_proxy.sh` (Go proxy: `go build` + `go vet`
+  + `go test` across hermes/poe/kimi/sarvam + the `--has-transform` family gate)
+  and `test_providers_gate.sh` (the context-inadequate + new account-side
+  classifiers, 17/0). The migration's three fallout failures — `test_providers`'s
+  stale `_family_id` marker, `test_sandbox_hygiene`'s vacuity flag on the gofmt
+  assertion, and the §11.4.157 governance-doc lockstep — were each root-caused
+  and fixed.
+- **Go proxy unit tests: `go test ./...` in `scripts/proxy` → `ok`** (hermes 14,
+  poe 11, kimi 12, sarvam 8); `go vet` clean; `gofmt` clean.
+- **HelixAgent live end-to-end, claude mode (229376): layer-4 PASS via the Go
+  `cma-proxy`.** A route-attributed `verify helixagent --deep`, launched through
+  the real wrapper (which started `cma-proxy` on :3457 → :18434), returned the
+  exact skill-content challenge answer, resolved to helixagent for both the
+  foreground and background request, with Claude Code's 143,776-token request
+  fitting the 229376 slot and no overflow — status → verified. VRAM measured live
+  at 30,244 MiB used / 1,854 free of 32,607.
+- **Full `run-proof.sh` — ALL GREEN, exit 0** (coder default): hermetic 41/41;
+  live provider-alias verification 21/0; live alias TUI 8 PASS / 0 FAIL /
+  13 SKIP-GATED (TOTAL 21); alias end-to-end 8/8; constitution 7/0. In coder
+  default, helixagent is correctly reported KNOWN-NON-WORKING context-inadequate
+  (backend 3072 < request 67 966), and the new account-side classifier
+  reclassified `inference/glm-5.2`'s live `402 Insufficient balance` — plus every
+  unfunded/rejected provider — as KNOWN-NON-WORKING, so no account-side condition
+  pins the suite red and no toolkit regression is masked. Evidence in
+  `scripts/tests/proof/` (`PROOF.md` + per-leg logs).
+
+---
+Version note: **v1.25.0 (minor)** — this release adds a new user-facing component
+(the Go `cma-proxy`, replacing the python proxy layer) and, with its Hermes
+recovery, closes the last gap keeping `helixagent` from working, taking that
+provider from a non-attributable broken facade to a routed, capacity-sized,
+tool-engaging local provider. Semver reserves a minor for backward-compatible
+added functionality; that is exactly this. It ships.
+
 ## v1.24.0 — 2026-07-21 — credit-aware model selection; and the v1.23.0 launch regression + the false "ALL GREEN" claim that hid it
 
 Two things ship together here. The **new capability** is credit-aware model

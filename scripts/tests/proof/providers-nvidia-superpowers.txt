@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: nvidia/nvidia/nemotron-3-ultra-550b-a55b (transport=router)
 # ROUTE-INTENDED-BACKGROUND: nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
-claude-providers: alias nvidia is unverified — not launching.
-  Re-verify: claude-providers sync   (re-runs verification for nvidia)
-  Override (operator): run the alias with --force
-# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
-# FAIL: launch-refused-unverified (rc=3 intended=nvidia/nvidia/nemotron-3-ultra-550b-a55b; NO turn ran — route attribution is not applicable)
+{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":23595,"duration_api_ms":18879,"ttft_ms":10183,"ttft_stream_ms":3212,"time_to_request_ms":928,"num_turns":4,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"ba291605-0b81-4b46-b71a-326f47277771","total_cost_usd":1.05852,"usage":{"input_tokens":210059,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":329,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":210059,"outputTokens":329,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":1.05852,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"dccdf59e-ce18-44e0-9003-8d8dff32486a"}
+# ROUTE-RESOLVED: nvidia/nvidia/nemotron-3-ultra-550b-a55b
+# ROUTE-RESOLVED-BACKGROUND: nvidia/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 1529639
+# PASS

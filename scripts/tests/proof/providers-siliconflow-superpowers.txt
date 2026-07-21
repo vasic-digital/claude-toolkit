@@ -1,7 +1,7 @@
 # ROUTE-INTENDED: siliconflow/zai-org/GLM-5.2 (transport=router)
 # ROUTE-INTENDED-BACKGROUND: siliconflow/openai/gpt-oss-20b
-{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":16977,"duration_api_ms":9308,"ttft_ms":16212,"ttft_stream_ms":16137,"time_to_request_ms":7008,"num_turns":1,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"ab4a2292-dc8b-42d9-aac7-09b9af9c7c0c","total_cost_usd":0.32963000000000003,"usage":{"input_tokens":65236,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":138,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":65236,"outputTokens":138,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.32963000000000003,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"41643eda-cec1-48d1-8117-f15fe1d3f685"}
-# ROUTE-RESOLVED: siliconflow/zai-org/GLM-5.2
-# ROUTE-RESOLVED-BACKGROUND: siliconflow/openai/gpt-oss-20b
-# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 793434
-# PASS
+claude-providers: alias siliconflow is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for siliconflow)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=siliconflow/zai-org/GLM-5.2; NO turn ran — route attribution is not applicable)

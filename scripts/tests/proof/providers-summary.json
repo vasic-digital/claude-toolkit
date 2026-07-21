@@ -3,7 +3,7 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "verified"
     },
     "evidence": {
@@ -48,10 +48,10 @@
     }
   },
   "helixagent": {
-    "status": "failed",
+    "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
+      "semantic": "verified",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -76,7 +76,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-inference-semantic.txt",
@@ -84,11 +84,11 @@
     }
   },
   "kilo": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "verified"
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-kilo-semantic.txt",
@@ -120,11 +120,11 @@
     }
   },
   "nvidia": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
       "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-nvidia-semantic.txt",
@@ -156,11 +156,11 @@
     }
   },
   "poe": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "verified"
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-poe-semantic.txt",
@@ -168,11 +168,11 @@
     }
   },
   "siliconflow": {
-    "status": "verified",
+    "status": "failed",
     "layers": {
       "existence": true,
-      "semantic": "verified",
-      "superpowers_tui": "verified"
+      "semantic": "unverified",
+      "superpowers_tui": "unverified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-siliconflow-semantic.txt",

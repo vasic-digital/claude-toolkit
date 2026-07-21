@@ -93,4 +93,48 @@ else
   _fail "a gated failure path is missing" "expected >=2 gated branches, found $gated_fails"
 fi
 
+# --- Account-side (billing/access) KNOWN-NON-WORKING class (2026-07-22) --------
+# A 402/403 on a route-attributable layer-4 turn is provider-account-side (the
+# toolkit cannot cause a 402/403), so it must be reclassified KNOWN-NON-WORKING
+# and swept-exempt — mirroring context-inadequate — else a provider funded at
+# the small layers-1/2 probe but depleted before the large layer-4 turn pins the
+# suite red forever. These pin: the class exists, detects the real 402 shape, is
+# swept-exempt, and does NOT swallow a non-billing failure.
+FIXT="$(mktemp -d "${TMPDIR:-/tmp}/cma-gate.XXXXXX")"
+trap 'rm -rf "$FIXT"' EXIT
+
+it "the leg carries the account-side (402/403) classifier + KNOWN-NON-WORKING report"
+if grep -q '# FAIL: account-side' "$LEG" && grep -q 'account-side for' "$LEG"; then
+  _pass "the leg reclassifies a 402/403 layer-4 failure as account-side (not counted)"
+else
+  _fail "account-side classifier missing" "a verified provider whose balance depletes would be counted as fresh toolkit breakage"
+fi
+
+# Extract the detector regex FROM the leg (not a hard-coded copy), so a mutation
+# of the leg's line — e.g. 40[23] -> 40[0-9], which would silently excuse a real
+# toolkit-caused 400 — breaks these tests instead of leaving them green (review
+# F1, 2026-07-22).
+as_re="$(grep -E "elif grep -qE .*api_error_status" "$LEG" | sed -E "s/.*grep -qE '([^']*)' \"\\\$tui_ev\".*/\1/")"
+it "the account-side detector regex is extractable from the leg (guards a silent refactor)"
+[[ -n "$as_re" && "$as_re" == *api_error_status* ]]
+assert_eq 0 $? "extracted the leg's own account-side detector regex ($as_re)"
+
+it "the leg's OWN detector matches a real 402 'Insufficient balance' turn"
+printf '%s\n# FAIL: api-error\n' '{"is_error":true,"api_error_status":402,"result":"API Error: 402 Insufficient balance for request."}' > "$FIXT/ev402.txt"
+grep -qE "$as_re" "$FIXT/ev402.txt"
+assert_eq 0 $? "402 evidence is detected as account-side"
+
+it "the leg's OWN detector does NOT swallow a 400 context-overflow (nor a 401)"
+printf 'request (67966 tokens) exceeds the available context size (3072 tokens)\n# FAIL: api-error\n' > "$FIXT/ev400.txt"
+grep -qE "$as_re" "$FIXT/ev400.txt"
+assert_eq 1 $? "a 400 overflow does NOT match (stays context-inadequate / counted)"
+printf '%s\n# FAIL: api-error\n' '{"is_error":true,"api_error_status":401,"result":"API Error: 401 Unauthorized"}' > "$FIXT/ev401.txt"
+grep -qE "$as_re" "$FIXT/ev401.txt"
+assert_eq 1 $? "a 401 (toolkit-attributable bad auth) does NOT match (still counts)"
+
+it "the proof sweep exempts '# FAIL: account-side' (like context-inadequate)"
+sweep_src="$(sed -n '/^marked=()/,/^done/p' "$LEG")"
+grep -qF "# FAIL: account-side'*) : ;;" <<<"$sweep_src"
+assert_eq 0 $? "the sweep does not count a # FAIL: account-side marker"
+
 summary

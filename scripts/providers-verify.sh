@@ -205,6 +205,22 @@ if (( ! OFFLINE )) && command -v curl >/dev/null 2>&1 && command -v jq >/dev/nul
             emit failed "chat probe 200 but VERIFY_OK sentinel missing at $url on both attempts (bluff or non-functional model)"; exit 1 ;;
         esac ;;
       400|401|402|403|404|412)
+        # A 400 whose body says the request overflowed the model's OWN context
+        # window is a DISTINCT, provider-side backend-size condition — not an
+        # auth/billing/model-missing rejection. The operator's fix is to relaunch
+        # the backing server with a larger context (as account-dead's fix is to
+        # add funds), so name it honestly and point them at the right lever rather
+        # than sending them to top up a balance or hunt a missing model. The
+        # verdict is UNCHANGED — still `failed`/exit 1, and the live gate leaves it
+        # uncounted via status either way — so this only affects the reason text;
+        # the numbers come from the backend's OWN 400, never a declared/pinned
+        # context. (Only reachable if a backend is so small the ~512-token probe
+        # itself overflows; the large layer-4 request is classified separately in
+        # verify_providers_live.sh.)
+        if [[ "$code" == 400 ]] && grep -qiE 'exceeds the available context size|maximum context length|context (window|length) .*(exceed|too )' "$resp" 2>/dev/null; then
+          ov="$(grep -oiE 'request \([0-9]+ tokens\) exceeds the available context size \([0-9]+ tokens\)' "$resp" | head -n1)"
+          emit failed "context-inadequate: the model's context window is smaller than even the verification probe at $url (backend 400: ${ov:-context overflow}) — relaunch the backing server with a larger context"; exit 1
+        fi
         emit failed "chat probe HTTP $code at $url (auth/billing/model-missing/account-suspended is definitive)"; exit 1 ;;
       *)
         emit unverified "chat probe inconclusive (HTTP $code at $url)"; exit 2 ;;

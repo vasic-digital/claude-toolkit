@@ -351,6 +351,97 @@ for f in "$PDIR"/*.env; do
       if grep -qE '^# FAIL: (route-|launch-refused-route-integrity|launch-refused-unclassified|launch-impossible-no-wrapper)' "$tui_ev" 2>/dev/null; then
         _fail "layer-4 route attribution (verification integrity)" \
           "live launch through '$id' produced NON-ATTRIBUTABLE evidence: $(grep -m1 -E '^# FAIL: (route-|launch-refused-route-integrity|launch-refused-unclassified|launch-impossible-no-wrapper)' "$tui_ev"). This is a verification-integrity failure, not an account-side one, so it counts at provider status=$status; evidence: $tui_ev"
+      elif grep -qiE 'request \([0-9]+ tokens\) exceeds the available context size \([0-9]+ tokens\)|maximum context length is [0-9]+ tokens\. however, you requested about [0-9]+ tokens' "$tui_ev" 2>/dev/null; then
+        # CONTEXT-INADEQUATE — a THIRD kind of failure, and its own class.
+        # Matches TWO known context-overflow phrasings (evidence-backed, both seen
+        # live): the llama.cpp shape (local backends, e.g. helixagent's 3072-ctx
+        # server) AND the OpenAI/OpenRouter shape (hosted models, e.g. openrouter's
+        # nemotron whose 262144 window is under Claude Code's ~292k tool-heavy
+        # request). Both are provider-side context overflows on a route-attributable
+        # turn; neither is a toolkit routing bug. The number order DIFFERS between
+        # the two phrasings — see the per-phrasing extraction below.
+        #
+        # The turn WAS served by the right backend (the route-attribution gate
+        # above already passed, or this is a native alias), the key WAS accepted,
+        # and the account is NOT the problem — yet the backend returned a hard 400
+        # because its own context window is smaller than Claude Code's
+        # tool/skill-heavy request. That is provider-side in the same family as
+        # account-dead: for a LOCAL backend the operator relaunches it larger (as
+        # an unfunded key must be topped up); for a HOSTED model the operator pins
+        # a larger-context model. (One toolkit lever can sometimes help the hosted
+        # case — the output-reservation guard over-reserving against a big tool
+        # input; tuning that input floor is a tracked follow-up — but as launched
+        # the alias does not answer.)
+        #
+        # Why gate_for_status does NOT already cover it. `status` is set by the
+        # layers-1/2 probes, which send a ~512-token sentinel/tool request — far
+        # under any real context — so a backend launched too small still reaches
+        # status=verified there and is (correctly) gated. The overflow is only
+        # observable on the large layer-4 request, so WITHOUT this branch a
+        # genuinely-verified alias whose backend is merely under-provisioned is
+        # counted as fresh breakage on every run, pinning the suite red for a
+        # condition the toolkit cannot fix — the same signal-destroying outcome
+        # gate_for_status exists to prevent for account-dead providers.
+        #
+        # EVIDENCE-BASED, never the pin. The two numbers come from the backend's
+        # own 400 (request N tokens vs. available M tokens), read out of the live
+        # transcript — NOT from any declared/pinned context (the pin may say 24576
+        # while the server is really 3072). So the class fires only when a real
+        # request really overflowed a real window, which is why it cannot
+        # false-positive a provider that genuinely answers layer-4: a PASS never
+        # reaches this FAIL branch, a 401/402/403 carries no such text and stays
+        # account-side, and a non-context 400/500/timeout carries no such text and
+        # still counts under the gated fallback below.
+        #
+        # DURABLE by construction. There is no status to persist and so none for a
+        # plain re-sync to overwrite: the verdict is re-derived from the live
+        # layer-4 error on every proof run, so a re-sync that re-verifies the small
+        # layers-1/2 probes cannot silently flip this back to a counted-verified
+        # failure. (What it does NOT do on its own: change what `claude-providers
+        # list` shows or what the launch gate permits — those read status.json and
+        # still see 'verified'. The real fix is the operator relaunching the
+        # backend bigger; a pin/context change is a separate, flagged decision.)
+        # TWO phrasings with the request/window numbers in REVERSED order —
+        # extract per-phrasing so the marker never swaps them:
+        #   llama.cpp:  "request (REQ tokens) exceeds the available context size
+        #     (WIN tokens)"                             -> REQ first, WIN second.
+        #   OpenAI/OpenRouter: "maximum context length is WIN tokens. However, you
+        #     requested about REQ tokens"               -> WIN first, REQ second.
+        _ci_msg="$(grep -oiE 'request \([0-9]+ tokens\) exceeds the available context size \([0-9]+ tokens\)' "$tui_ev" | head -n1)"
+        if [[ -n "$_ci_msg" ]]; then
+          _ci_req="$(printf '%s' "$_ci_msg" | grep -oE '[0-9]+' | head -n1)"
+          _ci_win="$(printf '%s' "$_ci_msg" | grep -oE '[0-9]+' | tail -n1)"
+        else
+          _ci_msg="$(grep -oiE 'maximum context length is [0-9]+ tokens\. however, you requested about [0-9]+ tokens' "$tui_ev" | head -n1)"
+          _ci_win="$(printf '%s' "$_ci_msg" | grep -oE '[0-9]+' | head -n1)"
+          _ci_req="$(printf '%s' "$_ci_msg" | grep -oE '[0-9]+' | tail -n1)"
+        fi
+        printf '# FAIL: context-inadequate (backend %s tokens < request %s)\n' "${_ci_win:-unknown}" "${_ci_req:-unknown}" >> "$tui_ev"
+        echo "KNOWN-NON-WORKING: layer-4 context-inadequate for '$id' (backend context ${_ci_win:-unknown} tokens < Claude Code request ${_ci_req:-unknown} tokens — provider-side: pin a larger-context model for this provider, or relaunch a local backing server with a larger context window). Not counted as a suite failure; evidence: $tui_ev"
+      elif grep -qE '"api_error_status": *40[23][,}]|API Error: 40[23] ' "$tui_ev" 2>/dev/null; then
+        # ACCOUNT-SIDE (billing/access) — a FOURTH KNOWN-NON-WORKING class, the
+        # billing analogue of context-inadequate. A 402 (Payment Required /
+        # "Insufficient balance") or 403 (key rejected / account suspended / no
+        # model access) on a route-attributable turn is DEFINITIVELY provider-
+        # account-side: the toolkit cannot cause a 402/403 — those come from the
+        # provider's billing/authz, never from how a request was formed (a
+        # malformed request is a 400, which stays counted below). Without this
+        # branch a provider that was funded at layers-1/2 sync time but whose
+        # balance depletes before the large layer-4 turn is counted as fresh
+        # toolkit breakage on EVERY proof run — the exact signal-destroying
+        # outcome gate_for_status and the context-inadequate class exist to
+        # prevent. It fires REGARDLESS of the cached 'verified' status, because
+        # that status was set by the ~512-token layers-1/2 probe BEFORE the
+        # balance ran out (the small probe passes on the last cents). Evidence-
+        # based (the live 402/403), durable (re-derived from the live layer-4
+        # error every run — no status for a re-sync to overwrite), and it cannot
+        # false-positive a paying account: a PASS never reaches this FAIL branch,
+        # and a non-billing 400/500/timeout carries no 402/403 and still counts.
+        # Observed live (inference/glm-5.2): "402 Insufficient balance for
+        # request" on a correctly-routed turn.
+        _as_code="$(grep -oE '"api_error_status": *40[23]|API Error: 40[23]' "$tui_ev" | grep -oE '40[23]' | head -n1)"
+        printf '# FAIL: account-side (HTTP %s — provider billing/access, not toolkit)\n' "${_as_code:-402/403}" >> "$tui_ev"
+        echo "KNOWN-NON-WORKING: layer-4 account-side for '$id' (HTTP ${_as_code:-402/403} — the provider account cannot be billed/served: insufficient balance, rejected key, or suspended access. Top up or re-key the account. Not counted as a suite failure; evidence: $tui_ev)"
       elif (( gated )); then
         _fail "layer-4 superpowers-TUI" "live launch through '$id' FAILED (${tui_out}); evidence: $tui_ev"
       else
@@ -384,6 +475,21 @@ for ev in ${RUN_TUI_EV+"${RUN_TUI_EV[@]}"}; do
   [[ -f "$ev" ]] || continue
   last="$(grep -E '^# (PASS|FAIL:|SKIP)' "$ev" 2>/dev/null | tail -n 1)"
   case "$last" in
+    # context-inadequate is a provider-side backend-size limit (the backend's
+    # own context window is smaller than Claude Code's minimum request), reported
+    # KNOWN-NON-WORKING on its own line by the per-provider classifier above —
+    # exactly like an account-dead FAIL. It is not a suite failure and is not
+    # swept here, even though the alias reached status=verified on the small
+    # layers-1/2 probes (the overflow is only observable on the large layer-4
+    # request). The marker is retained in the evidence, on its face, so the
+    # operator can see WHY: the backing server must be relaunched larger.
+    '# FAIL: context-inadequate'*) : ;;
+    # account-side is the billing analogue: a 402/403 (insufficient balance /
+    # rejected key / suspended access) on a route-attributable turn is provider-
+    # account-side, never toolkit — reported KNOWN-NON-WORKING by the per-provider
+    # classifier above and retained on its face so the operator sees WHY (top up
+    # or re-key the account). Not this run's suite failure.
+    '# FAIL: account-side'*) : ;;
     '# FAIL:'*) marked+=("$(basename "$ev") -> $last") ;;
   esac
 done

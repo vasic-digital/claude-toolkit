@@ -364,6 +364,100 @@ _cma_rc_rewrite_ok() {
   return 0
 }
 
+# ── Managed rc-block sentinels + the single rc-rewrite committer ──────────────
+# A managed rc block is delimited by a BEGIN/END sentinel PAIR (unlike the legacy
+# single `CMA_ALIAS_RC_HEADER` comment, which had NO END marker — that is exactly
+# what ORPHANED when its source line was pruned, piling up ~93 headers). One
+# stable marker id per block ("path", …); begin/end are derived from the marker
+# through one builder so the writer and the reader can never disagree.
+_cma_rc_begin() { printf '# cma-rc:%s BEGIN — managed by claude-multi-account; do not edit inside' "$1"; }
+_cma_rc_end()   { printf '# cma-rc:%s END' "$1"; }
+# Named sentinels for the markers in use (tests + code share one source of truth).
+CMA_RC_PATH_BEGIN="$(_cma_rc_begin path)"
+CMA_RC_PATH_END="$(_cma_rc_end path)"
+
+# cma_rc_safe_rewrite <rc> <candidate_tmp> <intended_removed_lines>
+# THE single committer for any WHOLE-FILE rc rewrite — the rc analogue of
+# cma_alias_commit. Every path that would `mv` a rebuilt file over a live rc
+# funnels through here. Order is load-bearing and mirrors the proven prune path:
+#   1. no-op guard      — a byte-identical candidate ⇒ discard, touch nothing;
+#   2. sanity gate       — _cma_rc_rewrite_ok (empty/parse/content-loss). A reject
+#                          is PARKED as <rc>.rejected.<ts>; the live rc is untouched;
+#   3. backup-or-refuse  — cma_backup_rc_file; no pristine backup ⇒ DO NOT modify
+#                          (§11.4.167(D));
+#   4. publish           — one command mv, INT/TERM masked across the rename.
+# Consumes <candidate_tmp> (moved or removed) on every return path.
+# Returns 0 published (or no-op), 1 rejected/refused.
+cma_rc_safe_rewrite() {
+  local rc="$1" cand="$2" removed="${3:-0}" prev_int prev_term rc2=0
+  [[ -f "$cand" ]] || return 1
+
+  # 1. No-op guard (before any backup): a settled host writes nothing.
+  if [[ -f "$rc" ]] && cmp -s -- "$cand" "$rc"; then rm -f "$cand"; return 0; fi
+
+  # 2. Sanity gate — refuse a content-losing / unparseable candidate; park it.
+  if ! _cma_rc_rewrite_ok "$rc" "$cand" "$removed"; then
+    command mv -f "$cand" "$rc.rejected.$(date +%s)" 2>/dev/null || rm -f "$cand"
+    cma_warn "$rc left untouched; rewrite candidate kept as $rc.rejected.*"
+    return 1
+  fi
+
+  # 3. Backup-or-refuse — no pristine backup ⇒ no modify.
+  if ! cma_backup_rc_file "$rc"; then rm -f "$cand"; return 1; fi
+
+  # 4. Publish — one rename, INT/TERM masked (mirrors cma_alias_commit F4).
+  prev_int="$(trap -p INT || true)"
+  prev_term="$(trap -p TERM || true)"
+  trap '' INT TERM
+  if command mv -f "$cand" "$rc"; then rc2=0; else rm -f "$cand"; rc2=1; fi
+  trap - INT TERM
+  if [[ -n "$prev_int" ]]; then eval "$prev_int"; fi
+  if [[ -n "$prev_term" ]]; then eval "$prev_term"; fi
+  return "$rc2"
+}
+
+# cma_rc_append_managed <rc> <marker> <payload-line...>
+# Append a BEGIN/END-delimited managed block to <rc>, backup-first and idempotent:
+#   * no-op if a live block for <marker> is already present;
+#   * refuses to modify if the pristine backup cannot be taken (§11.4.167(D));
+#   * an absent rc is first-touched (cma_backup_rc_file returns 0 for absent, and
+#     there is nothing to lose).
+cma_rc_append_managed() {
+  local rc="$1" marker="$2"; shift 2
+  local begin end
+  begin="$(_cma_rc_begin "$marker")"
+  end="$(_cma_rc_end "$marker")"
+  if [[ -f "$rc" ]] && grep -qxF -- "$begin" "$rc"; then return 0; fi   # idempotent
+  if ! cma_backup_rc_file "$rc"; then
+    cma_warn "skipped managed '$marker' block in $rc (could not back it up)"
+    return 1
+  fi
+  { printf '\n%s\n' "$begin"; printf '%s\n' "$@"; printf '%s\n' "$end"; } >> "$rc"
+  cma_log "added managed '$marker' block to $rc"
+}
+
+# cma_rc_remove_block <rc> <marker>
+# Remove the managed <marker> block (BEGIN..END) as a UNIT; no-op if absent. An
+# unterminated BEGIN (file truncated inside the block by an outside tool) removes
+# from BEGIN to EOF — never leaving a half block / orphan header. The rewrite is
+# published through cma_rc_safe_rewrite (gate + backup + mv).
+cma_rc_remove_block() {
+  local rc="$1" marker="$2" begin end tmp removed
+  [[ -f "$rc" ]] || return 0
+  begin="$(_cma_rc_begin "$marker")"
+  end="$(_cma_rc_end "$marker")"
+  grep -qxF -- "$begin" "$rc" || return 0
+  tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")" || return 1
+  awk -v b="$begin" -v e="$end" '
+    $0==b {skip=1; c++; next}
+    skip && $0==e {skip=0; c++; next}
+    skip {c++; next}
+    {print}
+    END {print c+0 > "/dev/stderr"}' "$rc" 2>"$tmp.n" >"$tmp" || true
+  removed="$(cat "$tmp.n" 2>/dev/null || echo 0)"; rm -f "$tmp.n"
+  cma_rc_safe_rewrite "$rc" "$tmp" "${removed:-0}"
+}
+
 # Remove rc-file lines that source an aliases.sh whose target no longer exists
 # (a stale path from a moved install, or a transient ALIAS_FILE used in testing).
 # Without this, a deleted alias file leaves a dangling line that errors
@@ -412,14 +506,11 @@ cma_prune_stale_alias_sources() {
 
   if (( removed == 0 )); then rm -f "$tmp"; return 0; fi
 
-  if ! _cma_rc_rewrite_ok "$rc" "$tmp" "$removed"; then
-    command mv -f "$tmp" "$rc.rejected.$(date +%s)" 2>/dev/null || rm -f "$tmp"
-    cma_warn "$rc left untouched; pruned candidate kept as $rc.rejected.*"
-    return 1
-  fi
-  if ! cma_backup_rc_file "$rc"; then rm -f "$tmp"; return 1; fi
-  command mv -f "$tmp" "$rc"
-  cma_log "pruned stale/orphaned managed alias block(s) from $rc"
+  # Publish through the single rc-rewrite committer (gate → backup-or-refuse →
+  # INT/TERM-masked mv, with a .rejected.<ts> park on a bad candidate). The
+  # candidate-building block/orphan logic above is unchanged.
+  cma_rc_safe_rewrite "$rc" "$tmp" "$removed" \
+    && cma_log "pruned stale/orphaned managed alias block(s) from $rc"
 }
 
 # True if $rc already sources a file resolving to $2 (across `.`/`source` and
@@ -1289,43 +1380,35 @@ cma_run_provider() {
       */chat/completions|*/v1beta/models/|*/v1beta/models) ;;
       *) base="${base%/}/chat/completions" ;;
     esac
-    # Start compatibility proxy if the provider needs one (e.g. Poe requires
-    # `parameters` in tool definitions; Claude Code sometimes omits it).
-    # Check for provider-specific proxy or base proxy (poe2 -> poe_proxy).
-    # Proxies live in the INSTALLED share dir (install.sh copies scripts/proxy/*.py
-    # to $SHARED_DIR/proxy). This wrapper is self-contained in the alias file and
-    # has NO $LIB_DIR (that is a repo-only var), so resolve against SHARED_DIR with
-    # the same default lib.sh uses. Using $LIB_DIR here silently disabled EVERY
-    # proxy (e.g. Poe 400 "Invalid 'tools': Field required" when Claude Code emits
-    # a tool with no `parameters` — the poe_proxy injects it).
+    # Start the Go compatibility proxy (cma-proxy) when it transforms this
+    # provider: helixagent Hermes tool-call recovery, or poe/kimi/sarvam request-
+    # schema fixes (e.g. Poe requires `parameters` in tool definitions; Claude
+    # Code sometimes omits it). cma-proxy resolves the family key itself
+    # (poe2->poe, kimi-*->kimi), so the wrapper just asks `--has-transform`. It
+    # lives in the INSTALLED share dir; this wrapper is self-contained in the
+    # alias file and has NO $LIB_DIR (repo-only), so resolve against SHARED_DIR
+    # with lib.sh's default. (Replaces the former per-provider python proxies.)
     local _cma_proxy_dir="${SHARED_DIR:-$HOME/.claude-shared}/proxy"
-    local _base_id="${CMA_PROVIDER_ID%%[0-9]*}"
-    local _family_id="${CMA_PROVIDER_ID%%-*}"
+    local _proxy_bin="$_cma_proxy_dir/cma-proxy"
     local _proxy_script=""
-    if [[ -x "$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py" ]]; then
-      _proxy_script="$_cma_proxy_dir/${CMA_PROVIDER_ID}_proxy.py"
-    elif [[ -x "$_cma_proxy_dir/${_base_id}_proxy.py" ]]; then
-      _proxy_script="$_cma_proxy_dir/${_base_id}_proxy.py"
-    elif [[ -x "$_cma_proxy_dir/${_family_id}_proxy.py" ]]; then
-      # Family fallback: all kimi-* aliases share kimi_proxy.py (the
-      # moonshot-flavored schema normalizer), like all poe* share poe_proxy.py.
-      _proxy_script="$_cma_proxy_dir/${_family_id}_proxy.py"
+    if [[ -x "$_proxy_bin" ]] && "$_proxy_bin" --has-transform "$CMA_PROVIDER_ID" >/dev/null 2>&1; then
+      _proxy_script="$_proxy_bin"
     fi
     if [[ -n "$_proxy_script" ]]; then
       # Port-squatter guard (live-proven 2026-07-19: `poe: FAIL tools-params`).
-      # The old code hardcoded 3457 and then waited on `lsof -i :3457`, i.e. it
-      # only asked "is SOMETHING listening?" — which any squatter satisfies. On
-      # this host ccr itself had held 3457 for 21h, so python3 could never bind,
-      # the wait returned instantly, and `base` was pointed at ccr. Every
-      # request then bypassed the proxy's schema fixes and Poe rejected the
-      # tool definitions ("Field required: parameters") — the exact thing
-      # poe_proxy.py exists to prevent, silently disabled.
-      # Fix: find a genuinely free port, then confirm OUR pid owns it.
+      # Find a genuinely free port, then confirm OUR pid owns it — never point
+      # `base` at a squatter (ccr once held 3457 for 21h, silently disabling the
+      # proxy so every request bypassed its shims).
       local _proxy_port=3457 _pp_try=0
       while lsof -i ":$_proxy_port" >/dev/null 2>&1 && (( _pp_try < 20 )); do
         _proxy_port=$((_proxy_port + 1)); _pp_try=$((_pp_try + 1))
       done
-      python3 "$_proxy_script" --port "$_proxy_port" &
+      # Export the upstream to the proxy child: the env file is sourced WITHOUT
+      # `set -a`, so CMA_PROVIDER_BASE_URL is not otherwise inherited, and
+      # cma-proxy needs it to reach the real backend (a bare --port launch would
+      # fall back to its built-in default).
+      CMA_PROVIDER_BASE_URL="$CMA_PROVIDER_BASE_URL" \
+        "$_proxy_bin" --provider "$CMA_PROVIDER_ID" --port "$_proxy_port" &
       _proxy_pid=$!
       local _waited=0
       # Wait for OUR process to be listening — not merely for the port to be busy.
@@ -1338,7 +1421,7 @@ cma_run_provider() {
         # Never point at a foreign listener. Fall back to the provider's direct
         # endpoint and say so loudly, rather than silently losing the shims.
         command -v cma_log >/dev/null 2>&1 && \
-          cma_log "WARNING: proxy for $CMA_PROVIDER_ID did not start on port $_proxy_port — using the direct endpoint (schema shims INACTIVE)" || true
+          cma_log "WARNING: cma-proxy for $CMA_PROVIDER_ID did not start on port $_proxy_port — using the direct endpoint (compat shims INACTIVE)" || true
         _proxy_pid=""
         _proxy_script=""
       fi
@@ -1348,7 +1431,7 @@ cma_run_provider() {
       # cma_log is a lib.sh helper; the self-contained alias file has no such
       # function, so guard the call to avoid a 'cma_log: command not found' on
       # every proxied launch.
-      command -v cma_log >/dev/null 2>&1 && cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)" || true
+      command -v cma_log >/dev/null 2>&1 && cma_log "started cma-proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)" || true
     fi
     # Route write + apply. EVERY failure here is FATAL, because the failure mode
     # is silent-and-wrong: the launch below serves whatever route the gateway
