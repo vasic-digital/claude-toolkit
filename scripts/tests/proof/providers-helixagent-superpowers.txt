@@ -1,2 +1,7 @@
-Profile "default-claude-code" was not found or is disabled.
-# FAIL: no-engagement
+# ROUTE-INTENDED: helixagent/HelixAgent/HelixLLM (transport=router)
+# ROUTE-INTENDED-BACKGROUND: helixagent/HelixAgent/HelixLLM
+claude-providers: alias helixagent is failed — not launching.
+  Re-verify: claude-providers sync   (re-runs verification for helixagent)
+  Override (operator): run the alias with --force
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=helixagent/HelixAgent/HelixLLM; NO turn ran — route attribution is not applicable)

@@ -87,7 +87,17 @@ cma_link_shared_items "$CONFIG_DIR"
 cma_log "linked ${#CMA_SHARED_ITEMS[@]} shared items into $CONFIG_DIR"
 
 # Add the alias. lib.sh handles dedupe, rc-file sourcing, etc.
-cma_write_alias "$ALIAS_NAME" "$CONFIG_DIR"
+#
+# The status is CHECKED. cma_write_alias used to report success even when the
+# write was skipped on lock contention, which left the account on disk with no
+# alias while this script printed "[done]" — and the obvious retry then died at
+# the "config dir already exists" guard above, with no supported way forward.
+# Say what actually happened and name the one command that finishes the job.
+if ! cma_write_alias "$ALIAS_NAME" "$CONFIG_DIR"; then
+  cma_warn "the alias for '$ALIAS_NAME' was NOT written to $ALIAS_FILE"
+  cma_warn "$CONFIG_DIR exists and its shared items are linked — only the alias is missing."
+  cma_die  "Finish with:  claude-unify   (re-registers an alias for every detected account)"
+fi
 cma_log "registered alias: $ALIAS_NAME -> $CONFIG_DIR"
 
 cat <<EOF

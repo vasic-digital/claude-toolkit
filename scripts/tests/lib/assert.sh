@@ -106,6 +106,60 @@ assert_lines() {
   else _fail "$msg" "want=$expected got=$actual lines in $path"; fi
 }
 
+# assert_fn_from — assert that a shell FUNCTION was defined by an EXPECTED file.
+#
+#   assert_fn_from FN EXPECTED_FILE [MSG]
+#       Check FN as it is defined in the CALLER's shell.
+#   assert_fn_from --source FILE FN [MSG]
+#       Source FILE in a throwaway subshell first, then check FN's provenance
+#       there. For call sites whose `source` lives inside a `( … )` subshell:
+#       only the sourcing is subshelled, so the pass/fail still lands in the
+#       caller's counters and reaches `summary`.
+#
+# WHY THIS EXISTS — the guard that failed under the conditions of its own bug.
+# The login profile exports BASH_ENV=~/.bashrc, so EVERY non-interactive bash —
+# including run-all.sh's `bash "$f"` per test — sources the PRODUCTION alias file
+# before the test's first line. cma_run and cma_run_provider are therefore
+# ALREADY defined, from the host, in every test shell. A test that sources its
+# sandbox $ALIAS_FILE and then calls the wrapper looks correct, but the tests
+# run with `set +e`: if that source silently fails, execution falls straight
+# through to the fully-working HOST function and the test passes — while
+# grading live host code instead of the code under test. Tests written to prove
+# cma_ensure_alias_file emits a correct body then report green for exactly the
+# regression they exist to catch.
+#
+# `shopt -s extdebug` makes `declare -F NAME` print "name lineno file", which is
+# the only way to see WHERE a function came from. Naming both the expected and
+# the actual file in the failure message is deliberate: "wrong provenance" is
+# useless without "…it came from the host alias file instead".
+assert_fn_from() {
+  local file="" fn expected msg src had_extdebug
+  if [[ "${1:-}" == "--source" ]]; then
+    file="$2"; fn="$3"; expected="$2"; msg="${4:-function provenance}"
+  else
+    fn="$1"; expected="$2"; msg="${3:-function provenance}"
+  fi
+
+  if [[ -n "$file" ]]; then
+    # set +u: an alias file may reference unset vars while being sourced.
+    src="$( set +u; source "$file" >/dev/null 2>&1
+            shopt -s extdebug; declare -F "$fn" 2>/dev/null | awk '{print $3}' )"
+  else
+    had_extdebug="$(shopt -p extdebug)"
+    shopt -s extdebug
+    src="$(declare -F "$fn" 2>/dev/null | awk '{print $3}')"
+    eval "$had_extdebug"
+  fi
+
+  if [[ -z "$src" ]]; then
+    _fail "$msg" "$fn is not defined at all (expected it from $expected)"
+  elif [[ "$src" == "$expected" ]]; then
+    _pass "$msg: $fn came from $expected"
+  else
+    _fail "$msg" "$fn was defined by $src, NOT by the expected $expected"
+  fi
+}
+
 assert_exit() {
   local expected="$1"; shift
   local out; out="$("$@" 2>&1)"; local rc=$?

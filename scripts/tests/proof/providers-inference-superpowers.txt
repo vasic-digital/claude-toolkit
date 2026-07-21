@@ -1,2 +1,7 @@
-Profile "default-claude-code" was not found or is disabled.
-# FAIL: no-engagement
+# ROUTE-INTENDED: inference/glm-5.2 (transport=router)
+# ROUTE-INTENDED-BACKGROUND: inference/gpt-4.1-nano
+{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":11299,"duration_api_ms":9668,"ttft_ms":10258,"ttft_stream_ms":10199,"time_to_request_ms":600,"num_turns":1,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"0f045489-a350-48d8-b77a-3195fa9a04d0","total_cost_usd":0.35206,"usage":{"input_tokens":66797,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":723,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":66797,"outputTokens":723,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.35206,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"236d976d-961e-49ef-bc37-fea5baa4bf23"}
+# ROUTE-RESOLVED: inference/glm-5.2
+# ROUTE-RESOLVED-BACKGROUND: inference/gpt-4.1-nano
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 788087
+# PASS

@@ -45,6 +45,17 @@ cat > "$FIX/scripts/providers-semantic.sh" <<'EOF'
 FIX="$LIB_DIR/providers/fixture/code-visibility.md"
 RUBRIC="$LIB_DIR/providers/rubric/code-visibility-rubric.json"
 EOF
+# §11.4.113's anti-vacuous corpus guard requires a populated tree (>=20 .sh/.py
+# files under scripts/ + upstreams/) before an empty force-push hit list is read
+# as "no force-push" — a mistyped/empty root must not vacuously pass. Model a
+# populated repo with harmless helper scripts (deliberately NO force-push
+# patterns, so the actual force-push grep keeps its teeth and still returns
+# empty here). Without this the well-formed fixture has a single script and
+# trips the guard it is meant to satisfy.
+for n in $(seq 1 22); do
+  printf '#!/usr/bin/env bash\necho "fixture helper %s — plain git push only"\n' "$n" \
+    > "$FIX/scripts/helper_$n.sh"
+done
 # No .env, no .github, no .gitlab-ci.yml, no submodule checkout — those
 # checks SKIP or vacuously pass on the fixture.
 

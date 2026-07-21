@@ -30,6 +30,14 @@ make_sandbox
 source "$SCRIPTS_DIR/lib.sh"
 set +e
 
+# Log files live INSIDE the sandbox, never at a fixed /tmp path. A hardcoded
+# /tmp/cma-test-*.log is shared between concurrent suite runs, so two runs on
+# the same host race on the same inode — one run's grep can read the other
+# run's output. $SANDBOX_HOME is a per-run mktemp dir, so this is collision
+# free by construction (and cleanup_sandbox removes it on EXIT).
+LOG_DIR="$SANDBOX_HOME/test-logs"
+mkdir -p "$LOG_DIR"
+
 # Build two accounts that mirror the real-world failure pattern: acct2 has
 # a fully-populated .claude.json with a project entry that should become
 # visible to acct1 (which starts with an empty .claude.json).
@@ -91,12 +99,12 @@ printf 'project memory written from acct2\n' \
 
 # === Run unify ===
 # shellcheck disable=SC2119  # test intentionally calls run_unify with no args
-run_unify > /tmp/cma-test-unify.log 2>&1
+run_unify > "$LOG_DIR/unify.log" 2>&1
 unify_rc=$?
 
 it "unify succeeds with the new .claude.json merge logic"
 assert_eq 0 "$unify_rc" "unify rc=0"
-grep -q "ok: \.claude\.json" /tmp/cma-test-unify.log
+grep -q "ok: \.claude\.json" "$LOG_DIR/unify.log"
 assert_eq 0 $? "unify logged the .claude.json merge step"
 
 # === Proof 1: acct1 now sees Android_15 in its .claude.json projects map ===
@@ -178,7 +186,7 @@ EOF
 # acct1 starts with 0 projects; verify that fact before the sync.
 before_count="$(jq '.projects | length' "$HOME/.claude-acct1/.claude.json")"
 assert_eq "0" "$before_count" "acct1 starts with 0 projects pre-sync"
-"$SCRIPTS_DIR/claude-sync-state.sh" pull "$HOME/.claude-acct1" > /tmp/cma-test-sync.log 2>&1
+"$SCRIPTS_DIR/claude-sync-state.sh" pull "$HOME/.claude-acct1" > "$LOG_DIR/sync.log" 2>&1
 sync_rc=$?
 assert_eq 0 "$sync_rc" "claude-sync-state pull rc=0"
 after_count="$(jq '.projects | length' "$HOME/.claude-acct1/.claude.json")"
@@ -201,7 +209,7 @@ assert_eq 0 "$cond" "acct3 seeded with the union of projects ($acct3_projects)"
 it "corrupt .claude.json in one account is skipped without poisoning the merge"
 printf '{this is not valid json' > "$HOME/.claude-acct3/.claude.json"
 # Should warn but not crash, and acct1/acct2 should remain intact.
-"$SCRIPTS_DIR/claude-sync-state.sh" all > /tmp/cma-test-corrupt.log 2>&1
+"$SCRIPTS_DIR/claude-sync-state.sh" all > "$LOG_DIR/corrupt.log" 2>&1
 rc=$?
 assert_eq 0 $rc "sync still exits 0 despite one corrupt file"
 # acct1 should still have its merged projects:

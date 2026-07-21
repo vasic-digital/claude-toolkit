@@ -235,6 +235,539 @@ it "opencode override forces deepseek-v4-flash-free as fast (beats trinity auto-
 assert_eq "deepseek-v4-flash-free" "$(rfield "$OUT" ZEN_API_KEY fast_model)" "fast=deepseek-v4-flash-free"
 cond=1; [[ "$(rfield "$OUT" ZEN_API_KEY fast_model)" != "trinity-large-preview-free" ]] && cond=0; assert_eq 0 "$cond" "trinity not fast"
 
+# ---------------------------------------------------------------------------
+# Section 2b — a strong_model pin must RE-DERIVE context_limit/max_output.
+#
+# Regression (found on the nvidia alias): select_models() computes the limits
+# from the model IT auto-picks. overrides.json then replaced strong_model but
+# left those limits untouched, so the generated .env advertised one model's
+# window for a different model's traffic. Live case: nvidia pinned the 30B nano
+# (256000/65536) yet kept z-ai/glm-5.2's 1000000/131072 -> the launch wrapper
+# exported CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000, ~2x the model's real 65536.
+# 9 of 13 pinned providers were emitting mismatched limits.
+#
+# Also covers the sibling bug in the same block: overrides.json documents
+# context_limit / max_output fields (kimi-for-coding sets "context_limit":
+# 262144) but the field loop never copied them, so they were silently ignored.
+# ---------------------------------------------------------------------------
+LFIX="$HOME/limfixture"
+mkdir -p "$LFIX"
+
+# auto-selection would pick "lc-newest" (reasoning + newest release_date) whose
+# window is 1000000/131072; the override pins "lc-pinned" at 256000/65536.
+cat > "$LFIX/catalog.json" <<'JSON'
+{
+  "limitcorp": {
+    "env": ["LIMITCORP_API_KEY"],
+    "api": "https://api.limitcorp.com/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "lc-newest": {"id":"lc-newest","reasoning":true,"tool_call":true,"release_date":"2026-06-13","limit":{"context":1000000,"output":131072},"cost":{"input":0,"output":0}},
+      "lc-pinned": {"id":"lc-pinned","reasoning":true,"tool_call":true,"release_date":"2026-04-28","limit":{"context":256000,"output":65536},"cost":{"input":0,"output":0}}
+    }
+  },
+  "opaquecorp": {
+    "env": ["OPAQUECORP_API_KEY"],
+    "api": "https://api.opaquecorp.com/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "oc-catalogued": {"id":"oc-catalogued","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":900000,"output":99000},"cost":{"input":0,"output":0}}
+    }
+  },
+  "statedcorp": {
+    "env": ["STATEDCORP_API_KEY"],
+    "api": "https://api.statedcorp.com/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "sc-auto": {"id":"sc-auto","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":700000,"output":70000},"cost":{"input":0,"output":0}}
+    }
+  },
+  "tinycorp": {
+    "env": ["TINYCORP_API_KEY"],
+    "api": "https://api.tinycorp.com/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "tc-widest": {"id":"tc-widest","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":60000,"output":4096},"cost":{"input":0,"output":0}},
+      "tc-narrow": {"id":"tc-narrow","reasoning":false,"tool_call":true,"release_date":"2026-01-01","limit":{"context":4000,"output":2048},"cost":{"input":0,"output":0}}
+    }
+  },
+  "microcorp": {
+    "env": ["MICROCORP_API_KEY"],
+    "api": "https://api.microcorp.com/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "mc-only": {"id":"mc-only","reasoning":true,"tool_call":true,"release_date":"2026-05-01","limit":{"context":8000,"output":8000},"cost":{"input":0,"output":0}}
+    }
+  },
+  "voidcorp": {
+    "env": ["VOIDCORP_API_KEY"],
+    "api": "https://api.voidcorp.com/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "vc-only": {"id":"vc-only","reasoning":true,"tool_call":true,"release_date":"2026-05-01","cost":{"input":0,"output":0}}
+    }
+  }
+}
+JSON
+
+cat > "$LFIX/overrides.json" <<'JSON'
+{
+  "limitcorp":  { "strong_model": "lc-pinned" },
+  "opaquecorp": { "strong_model": "oc-provider-only-model" },
+  "statedcorp": { "strong_model": "sc-auto", "context_limit": 262144, "max_output": 8192 },
+  "tinycorp":   { "strong_model": "tc-provider-only-model" }
+}
+JSON
+
+LKEYS="LIMITCORP_API_KEY,OPAQUECORP_API_KEY,STATEDCORP_API_KEY,TINYCORP_API_KEY,MICROCORP_API_KEY,VOIDCORP_API_KEY"
+LOUT="$HOME/resolved-limits.json"
+python3 "$RESOLVE" --models-dev "$LFIX/catalog.json" \
+  --overrides "$LFIX/overrides.json" \
+  --keys "$LKEYS" > "$LOUT"
+
+it "strong_model pin re-derives the limits from the PINNED model"
+assert_eq "lc-pinned" "$(rfield "$LOUT" LIMITCORP_API_KEY strong_model)" "pin applied"
+assert_eq "256000" "$(rfield "$LOUT" LIMITCORP_API_KEY context_limit)" "context from pinned model"
+assert_eq "65536"  "$(rfield "$LOUT" LIMITCORP_API_KEY max_output)"    "max_output from pinned model"
+
+it "the auto-picked model's limits do NOT leak through a strong_model pin"
+cond=1; [[ "$(rfield "$LOUT" LIMITCORP_API_KEY context_limit)" != "1000000" ]] && cond=0
+assert_eq 0 "$cond" "context is not lc-newest's 1000000"
+cond=1; [[ "$(rfield "$LOUT" LIMITCORP_API_KEY max_output)" != "131072" ]] && cond=0
+assert_eq 0 "$cond" "max_output is not lc-newest's 131072"
+
+it "a pinned model the catalog does not know still gets a GUARD, not silence"
+# Was: "leaves limits UNKNOWN, not stale" -- asserting None/None. That assertion
+# encoded the last fail-open hole rather than a safe behaviour. Empty limits make
+# the launch wrapper export NEITHER guard, and Claude Code's own no-cap default
+# is 128000 output tokens against a window nobody measured -- the same failure
+# the large-context fix closed, reached from the other end. Live case: inference
+# pins glm-5.2, absent from its catalog, and shipped verified + launchable with
+# CMA_PROVIDER_CONTEXT_LIMIT='' CMA_PROVIDER_MAX_OUTPUT=''.
+# "Not stale" is still right -- opaquecorp must NOT inherit oc-catalogued's
+# 900000/99000. The third option beats both: a conservative derived pair.
+assert_eq "oc-provider-only-model" "$(rfield "$LOUT" OPAQUECORP_API_KEY strong_model)" "pin applied"
+cond=1; [[ "$(rfield "$LOUT" OPAQUECORP_API_KEY context_limit)" != "None" ]] && cond=0
+assert_eq 0 "$cond" "unknown pin still emits a context (no unguarded launch)"
+cond=1; [[ "$(rfield "$LOUT" OPAQUECORP_API_KEY max_output)" != "None" ]] && cond=0
+assert_eq 0 "$cond" "unknown pin still emits an output cap (no unguarded launch)"
+
+it "the unknown-model fallback is bounded by the provider's OWN published window"
+# opaquecorp publishes exactly one model at 900000, above the 128000
+# conservative default -> the default wins (understating is the safe direction).
+assert_eq "128000" "$(rfield "$LOUT" OPAQUECORP_API_KEY context_limit)" "min(default, published)"
+assert_eq "8192"   "$(rfield "$LOUT" OPAQUECORP_API_KEY max_output)"    "output carved from it"
+
+it "the unknown pin does NOT inherit the catalogued model's limits"
+cond=1; [[ "$(rfield "$LOUT" OPAQUECORP_API_KEY context_limit)" != "900000" ]] && cond=0
+assert_eq 0 "$cond" "context is not oc-catalogued's 900000"
+cond=1; [[ "$(rfield "$LOUT" OPAQUECORP_API_KEY max_output)" != "99000" ]] && cond=0
+assert_eq 0 "$cond" "max_output is not oc-catalogued's 99000"
+
+it "explicit context_limit/max_output overrides are honored (were silently ignored)"
+assert_eq "262144" "$(rfield "$LOUT" STATEDCORP_API_KEY context_limit)" "stated context wins"
+assert_eq "8192"   "$(rfield "$LOUT" STATEDCORP_API_KEY max_output)"    "stated max_output wins"
+
+# ---------------------------------------------------------------------------
+# Section 2c — the resolver must NEVER emit an unguarded or self-contradictory
+# limit pair. Two fail-open shapes, both live:
+#
+#   1. BOTH limits empty. `inference` shipped `verified` and launchable with
+#      CMA_PROVIDER_CONTEXT_LIMIT='' CMA_PROVIDER_MAX_OUTPUT='' because its
+#      pinned glm-5.2 is absent from its catalog. Empty exports NO guard, and
+#      Claude Code's no-cap default is 128000 output tokens against an unknown
+#      window -- the same 400 the large-context fix closed. `poe` (pins
+#      claude-sonnet-4.6; the catalog id is anthropic/claude-sonnet-4.6) was the
+#      same hole, latent behind a stale .env.
+#   2. output >= context. The 8192 output floor was applied unconditionally, so
+#      any window below it came out inverted -- 189 live models.dev rows
+#      (mistral/open-mistral-7b at 8000/8000, evroc's 448-token rows). An output
+#      cap at or above the whole window is the overstatement that 400s.
+# ---------------------------------------------------------------------------
+it "no resolved provider is launchable with an unguarded (empty) limit pair"
+# Same C3 hazard as the two sweeps, milder form: this python carries no
+# `2>/dev/null`, so a crash is at least visible — but the assertion is still
+# `assert_eq ""`, and a crash still yields empty stdout and still scores as a
+# PASS. The count of records actually examined is asserted for the same reason.
+_unguarded="$(python3 -c '
+import json,sys
+recs=json.load(open(sys.argv[1]))
+bad=[r["provider_id"] for r in recs
+     if r["status"]=="resolved" and (r["context_limit"] is None or r["max_output"] is None)]
+n=sum(1 for r in recs if r["status"]=="resolved")
+print("resolved=%d unguarded=%s" % (n, ",".join(bad)))' "$LOUT")"
+assert_eq "resolved=6 unguarded=" "$_unguarded" "resolved providers with a missing guard: '$_unguarded'"
+
+it "every emitted pair satisfies output < context"
+_inverted="$(python3 -c '
+import json,sys
+recs=json.load(open(sys.argv[1]))
+bad=["%s(%s>=%s)"%(r["provider_id"],r["max_output"],r["context_limit"]) for r in recs
+     if r["context_limit"] is not None and r["max_output"] is not None
+     and r["max_output"] >= r["context_limit"]]
+n=sum(1 for r in recs if r["context_limit"] is not None and r["max_output"] is not None)
+print("pairs=%d inverted=%s" % (n, ",".join(bad)))' "$LOUT")"
+assert_eq "pairs=6 inverted=" "$_inverted" "pairs violating output<context: '$_inverted'"
+
+it "the fallback is capped by the provider's own ceiling when that is narrower"
+# tinycorp pins an uncatalogued model and publishes nothing wider than 60000,
+# so the 128000 default must NOT be assumed -- guessing above what the provider
+# itself serves is the direction that kills the alias.
+assert_eq "60000" "$(rfield "$LOUT" TINYCORP_API_KEY context_limit)" "provider ceiling binds"
+assert_eq "8192"  "$(rfield "$LOUT" TINYCORP_API_KEY max_output)"    "cap fits inside it"
+
+it "a wide-topped provider's fallback is bounded by its OWN 10th percentile"
+# I3: the fallback used to be min(128000, the provider's LARGEST window), a
+# ceiling that binds for 2 of 167 live providers (1.2%) -- openrouter's is
+# 10,000,000, kilo's and poe's 2,000,000. So pinning an uncatalogued 32k model
+# on openrouter emitted 128000, the wrapper exported a ~119808 input window,
+# and Claude Code packed ~120k into a 32k endpoint: a 400 on the first request,
+# in exactly the direction this module claims to avoid. The bound is now the
+# provider's own 10th percentile over tool-call-capable models -- the same
+# statistic that produced the 128000 default from the catalog as a whole --
+# floored so "conservative" cannot degenerate into "unusable" (poe's raw p10 is
+# 480 tokens).
+_p10="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+# One flagship, nine ordinary models: max says 2,000,000, the truth says 65536.
+sibs = {"flagship": {"id": "flagship", "tool_call": True,
+                     "limit": {"context": 2000000, "output": 16384}}}
+for i in range(9):
+    sibs["m%d" % i] = {"id": "m%d" % i, "tool_call": True,
+                       "limit": {"context": 65536, "output": 8192}}
+print(R.derive_limits({"id": "uncatalogued"}, sibs)[:2])
+# The floor still keeps it usable when the percentile is absurdly small.
+tiny = {"img": {"id": "img", "tool_call": True, "limit": {"context": 480, "output": 480}},
+        "big": {"id": "big", "tool_call": True, "limit": {"context": 2000000, "output": 16384}}}
+print(R.derive_limits({"id": "uncatalogued"}, tiny)[:2])' "$SCRIPTS_DIR")"
+assert_eq "(65536, 8192)
+(65536, 8192)" "$_p10" "fallback follows the provider's typical model, floored at a usable window"
+
+it "a context narrower than the 8192 output floor does not invert the pair"
+# microcorp's sole model is the impossible 8000/8000 shape: the output slot holds
+# a context value, so it is discarded, and the 8192 floor would then exceed the
+# entire 8000-token window.
+assert_eq "8000" "$(rfield "$LOUT" MICROCORP_API_KEY context_limit)" "context kept"
+assert_eq "4000" "$(rfield "$LOUT" MICROCORP_API_KEY max_output)"    "floor halved to fit"
+
+it "a catalogued model with no limit block at all still yields a guard"
+assert_eq "128000" "$(rfield "$LOUT" VOIDCORP_API_KEY context_limit)" "conservative default"
+assert_eq "8192"   "$(rfield "$LOUT" VOIDCORP_API_KEY max_output)"    "carved from it"
+
+it "a context_limit override re-carves the cap instead of keeping a stale one"
+# kimi-for-coding states context_limit 262144 with no max_output. The cap on
+# record was carved from the 128000 unknown-model fallback; keeping it would pin
+# the alias to 8192 output when its own stated window affords 102144.
+_kfix="$HOME/limfixture-kimi"; mkdir -p "$_kfix"
+cat > "$_kfix/overrides.json" <<'JSON'
+{ "opaquecorp": { "strong_model": "oc-provider-only-model", "context_limit": 262144 } }
+JSON
+python3 "$RESOLVE" --models-dev "$LFIX/catalog.json" \
+  --overrides "$_kfix/overrides.json" --keys "OPAQUECORP_API_KEY" > "$_kfix/out.json"
+assert_eq "262144" "$(rfield "$_kfix/out.json" OPAQUECORP_API_KEY context_limit)" "stated context"
+assert_eq "102144" "$(rfield "$_kfix/out.json" OPAQUECORP_API_KEY max_output)" "re-carved, not stale 8192"
+
+it "an operator max_output >= their own context_limit is corrected, not shipped"
+# A human pin outranks the credit rule and the model ranking; it does not
+# outrank input+output<=context, which is a property of the endpoint.
+_bfix="$HOME/limfixture-bogus"; mkdir -p "$_bfix"
+cat > "$_bfix/overrides.json" <<'JSON'
+{ "statedcorp": { "strong_model": "sc-auto", "context_limit": 32000, "max_output": 64000 } }
+JSON
+python3 "$RESOLVE" --models-dev "$LFIX/catalog.json" \
+  --overrides "$_bfix/overrides.json" --keys "STATEDCORP_API_KEY" > "$_bfix/out.json"
+_bc="$(rfield "$_bfix/out.json" STATEDCORP_API_KEY context_limit)"
+_bo="$(rfield "$_bfix/out.json" STATEDCORP_API_KEY max_output)"
+cond=1; [ "$_bo" -lt "$_bc" ] && cond=0
+assert_eq 0 "$cond" "override pair corrected to output($_bo) < context($_bc)"
+
+it "a malformed operator override is rejected AND reported, never fail-open"
+# I4: overrides.json is hand-edited, so its values are validated, not merely
+# present-checked. `isinstance(True, int)` is True in Python, so
+# `"context_limit": true` used to become the integer 1, carve to no cap at all,
+# and make the launch wrapper export NEITHER guard -- fully unguarded, which is
+# the exact hole this work exists to close. `-1`, `0` and `50000.5` reached the
+# same place. Each bad shape must leave the derived pair standing and say why.
+_ovfix="$HOME/limfixture-badoverrides"; mkdir -p "$_ovfix"
+for _bad in 'true' '-1' '0' '50000.5' '"abc"' 'null' '[]'; do
+  cat > "$_ovfix/overrides.json" <<JSON
+{ "statedcorp": { "strong_model": "sc-auto", "context_limit": $_bad } }
+JSON
+  python3 "$RESOLVE" --models-dev "$LFIX/catalog.json" \
+    --overrides "$_ovfix/overrides.json" --keys "STATEDCORP_API_KEY" > "$_ovfix/out.json" 2>"$_ovfix/err"
+  _rc=$?
+  assert_eq 0 "$_rc" "context_limit=$_bad does not crash the resolver"
+  _c="$(rfield "$_ovfix/out.json" STATEDCORP_API_KEY context_limit)"
+  _o="$(rfield "$_ovfix/out.json" STATEDCORP_API_KEY max_output)"
+  _ok=1
+  case "$_c" in ''|*[!0-9]*) _ok=0 ;; esac
+  case "$_o" in ''|*[!0-9]*) _ok=0 ;; esac
+  [ "$_ok" = 1 ] && [ "$_c" -gt 0 ] && [ "$_o" -gt 0 ] && [ "$_o" -lt "$_c" ] || _ok=0
+  assert_eq 1 "$_ok" "context_limit=$_bad still yields a complete guard pair (got $_c/$_o)"
+  # `null` is an absent value, not a typo; everything else must be called out.
+  if [ "$_bad" != "null" ]; then
+    _reason="$(python3 -c '
+import json,sys
+for r in json.load(open(sys.argv[1])):
+    if r["key_var"]=="STATEDCORP_API_KEY": print(r["selection_reason"])' "$_ovfix/out.json")"
+    case "$_reason" in *"ignored override context_limit"*) _sc=0 ;; *) _sc=1 ;; esac
+    assert_eq 0 "$_sc" "context_limit=$_bad rejection is surfaced, not silent"
+  fi
+done
+
+it "a digit-string override is honored instead of being silently dropped"
+# "200000" is unambiguous and hand-written JSON produces it constantly; it used
+# to be dropped with no diagnostic at all.
+cat > "$_ovfix/overrides.json" <<'JSON'
+{ "statedcorp": { "strong_model": "sc-auto", "context_limit": "200000" } }
+JSON
+python3 "$RESOLVE" --models-dev "$LFIX/catalog.json" \
+  --overrides "$_ovfix/overrides.json" --keys "STATEDCORP_API_KEY" > "$_ovfix/out.json"
+assert_eq "200000" "$(rfield "$_ovfix/out.json" STATEDCORP_API_KEY context_limit)" "digit string coerced"
+assert_eq "40000"  "$(rfield "$_ovfix/out.json" STATEDCORP_API_KEY max_output)"    "cap re-carved from it"
+
+it "an override too small to carve a cap from is refused, not shipped unguarded"
+cat > "$_ovfix/overrides.json" <<'JSON'
+{ "statedcorp": { "strong_model": "sc-auto", "context_limit": 1 } }
+JSON
+python3 "$RESOLVE" --models-dev "$LFIX/catalog.json" \
+  --overrides "$_ovfix/overrides.json" --keys "STATEDCORP_API_KEY" > "$_ovfix/out.json"
+_tc="$(rfield "$_ovfix/out.json" STATEDCORP_API_KEY context_limit)"
+_to="$(rfield "$_ovfix/out.json" STATEDCORP_API_KEY max_output)"
+_tok=0; [ -n "$_to" ] && [ "$_to" -gt 0 ] && [ "$_to" -lt "$_tc" ] && _tok=1
+assert_eq 1 "$_tok" "refused context_limit=1; derived pair stands (got $_tc/$_to)"
+
+it "a malformed catalog row degrades to 'no limits', it does not crash the sync"
+# models.dev is REMOTE input. `model.get("limit") or {}` keeps a truthy list, so
+# a row whose limit/cost is a JSON array used to abort `claude-providers sync`
+# with an AttributeError traceback.
+_malformed="$HOME/malformed-catalog.json"
+cat > "$_malformed" <<'JSON'
+{
+  "brokencorp": {
+    "env": ["BROKENCORP_API_KEY"],
+    "api": "https://api.brokencorp.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "listlimit": {"id":"listlimit","tool_call":true,"limit":[1,2],"cost":[3,4]},
+      "listcost":  {"id":"listcost","tool_call":true,"limit":{"context":262144,"output":8192},"cost":["nope"],"release_date":["2026"]}
+    }
+  }
+}
+JSON
+python3 "$RESOLVE" --models-dev "$_malformed" --keys "BROKENCORP_API_KEY" > "$HOME/malformed-out.json" 2>"$HOME/malformed-err"
+assert_eq 0 $? "malformed catalog resolves without a traceback"
+_mc="$(rfield "$HOME/malformed-out.json" BROKENCORP_API_KEY context_limit)"
+_mo="$(rfield "$HOME/malformed-out.json" BROKENCORP_API_KEY max_output)"
+_mok=0; [ -n "$_mc" ] && [ -n "$_mo" ] && [ "$_mo" -gt 0 ] && [ "$_mo" -lt "$_mc" ] && _mok=1
+assert_eq 1 "$_mok" "malformed rows still yield a valid guard pair (got $_mc/$_mo)"
+
+it "derive_limits emits a COMPLETE, valid guard pair for ANY input"
+# Property sweep over the shapes models.dev actually contains, including the
+# degenerate ones: absent limit block (the uncatalogued-pin case), context-only,
+# output-only, the impossible output>=context, windows far below the 8192
+# output floor, and the malformed types a remote catalog can hand us. A second
+# loop (below) drives the CORROBORATION CORRECTION branch — which the main
+# product loop cannot reach with corroboration=None — across viable and
+# sub-viable corrected contexts, so the round-4 (1, None) fail-open is swept too.
+#
+# The invariant is STRICT, and deliberately so. It used to read
+# `if ro is not None and ro >= rc`, which permitted a null output — while `outs`
+# already contained 0, the exact input that produces one. The assertion
+# therefore skipped its own most interesting case, and the block claimed "the
+# launch wrapper always has a guard" while proving only half a pair: a context
+# alone is NOT the guard, both env vars have to be exported. Now:
+#   (i)   context is a positive int (not None, not bool, not float);
+#   (ii)  max_output is a positive int, ALWAYS present;
+#   (iii) max_output < context.
+#
+# C3: this block used to end its python with a blanket `2>/dev/null` and assert
+# the output was EMPTY. Any crash — an import error, a typo, a renamed symbol —
+# produced empty stdout and therefore read as a PASS; making the module
+# unimportable left this test green. The case count was printed to stderr and
+# thrown away, so nothing proved the sweep had run at all. Now stderr is left
+# alone (a traceback is visible and fails the match) and the assertion carries
+# the POSITIVE case count on stdout, so "nothing went wrong" and "nothing
+# happened" can no longer produce the same result.
+_prop="$(python3 -c '
+import itertools, sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+# 1 is the I5 case: a context too small to carve any output cap from. It used
+# to yield the pair (1, None) — a context with no guard, the fail-open shape —
+# and the sweep did not contain it.
+ctxs = [None, 0, -1, 1, True, False, 50000.5, "200000", "abc", 448, 4000, 8000,
+        8192, 16000, 60000, 125000, 128000, 200000, 262144, 1000000, 1048576]
+outs = [None, 0, -1, True, False, 4096.5, "8192", 448, 2048, 4096, 8000, 8192,
+        65536, 131072, 262144, 1000000]
+sibsets = [{}, {"a": {"id": "a", "limit": {"context": 4000, "output": 2048}}},
+           {"b": {"id": "b", "limit": {"context": 60000, "output": 4096}}},
+           {"c": {"id": "c", "limit": {"context": 2000000, "output": 65536}}},
+           {"d": {"id": "d"}},
+           {"e": {"id": "e", "limit": [1, 2]}},
+           {"f": {"id": "f", "limit": {"context": 32768, "output": 0}, "tool_call": True}}]
+def posint(v):
+    return isinstance(v, int) and not isinstance(v, bool) and v > 0
+bad = []
+for c, o, sibs in itertools.product(ctxs, outs, sibsets):
+    lim = {}
+    if c is not None: lim["context"] = c
+    if o is not None: lim["output"] = o
+    m = {"id": "m", "limit": lim} if lim else {"id": "m"}
+    try:
+        rc, ro, _ = R.derive_limits(m, sibs)
+    except Exception as exc:
+        bad.append("ctx=%r out=%r -> RAISED %s" % (c, o, type(exc).__name__)); continue
+    if not posint(rc):
+        bad.append("ctx=%r out=%r -> context %r not a positive int" % (c, o, rc)); continue
+    if not posint(ro):
+        bad.append("ctx=%r out=%r -> max_output %r not a positive int" % (c, o, ro)); continue
+    if ro >= rc:
+        bad.append("ctx=%r out=%r -> %s>=%s (inverted)" % (c, o, ro, rc))
+# The product loop above passes corroboration=None, so it structurally CANNOT
+# reach the correction branch (`ctx = corroborated`) — the exact latent path
+# the round-4 fail-open lived on. This second loop forces a corroboration
+# correction to every target below, INCLUDING the sub-viable ctx=1 that used to
+# produce (1, None), and holds the SAME strict invariant. A small-but-viable
+# target (e.g. 32768) must be CARVED, never inflated to the unknown floor.
+corr_cases = 0
+for target in [1, 2, 448, 4000, 8000, 8192, 16000, 32768, 65536, 128000, 262144]:
+    corr_cases += 1
+    accused_models = {
+        "v/probe": {"id": "v/probe", "tool_call": True,
+                    "limit": {"context": 1000000, "output": 16384}},
+        "v/probe:free": {"id": "v/probe:free", "tool_call": True,
+                         "limit": {"context": 1000000, "output": 262144}}}
+    catalog = {"acc": {"models": accused_models}}
+    for i in range(3):  # three independent same-vendor peers at `target`
+        catalog["p%d" % i] = {"models": {"v/probe": {
+            "id": "v/probe", "tool_call": True,
+            "limit": {"context": target, "output": 4096}}}}
+    corr = R.build_context_corroboration(catalog)
+    rc, ro, note = R.derive_limits(accused_models["v/probe:free"],
+                                   accused_models, corr, "acc")
+    if "context corrected to" not in note:
+        bad.append("target=%r -> correction branch NOT reached" % target); continue
+    if not posint(rc):
+        bad.append("target=%r -> context %r not a positive int" % (target, rc)); continue
+    if not posint(ro):
+        bad.append("target=%r -> max_output %r not a positive int" % (target, ro)); continue
+    if ro >= rc:
+        bad.append("target=%r -> %s>=%s (inverted)" % (target, ro, rc))
+print("cases=%d violations=%s" % (len(ctxs)*len(outs)*len(sibsets) + corr_cases,
+                                  " | ".join(bad[:6])))' "$SCRIPTS_DIR")"
+assert_eq "cases=2363 violations=" "$_prop" "derive_limits invariant over all 2363 shapes (incl. correction branch): '$_prop'"
+
+it "EVERY row of the real models.dev catalog satisfies the guard contract"
+# The designed sweep above covers the shapes we thought of; this one covers the
+# ones models.dev actually ships (5696 rows across 167 providers at the time of
+# writing). Read-only, and SKIPped when no cache is on the host, so the suite
+# stays hermetic -- it never writes outside the sandbox and never fetches.
+# $HOME is the sandbox here, so the real cache is located via getent, not $HOME.
+_sweep_cache="${CMA_MODELS_DEV_CACHE:-}"
+if [ -z "$_sweep_cache" ]; then
+  _sweep_home="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6)"
+  [ -n "$_sweep_home" ] && \
+    _sweep_cache="$_sweep_home/.local/share/claude-multi-account/providers/models.dev.cache.json"
+fi
+if [ -r "$_sweep_cache" ]; then
+  _sweep="$(python3 -c '
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+with open(sys.argv[2]) as fh:
+    catalog = json.load(fh)
+corr = R.build_context_corroboration(catalog)
+def posint(v):
+    return isinstance(v, int) and not isinstance(v, bool) and v > 0
+bad, rows = [], 0
+for pid, provider in catalog.items():
+    models = (provider or {}).get("models")
+    if not isinstance(models, dict):
+        continue
+    for mid, m in models.items():
+        if not isinstance(m, dict):
+            continue
+        rows += 1
+        try:
+            c, o, _ = R.derive_limits(m, models, corr, pid)
+        except Exception as exc:
+            bad.append("%s/%s RAISED %s" % (pid, mid, type(exc).__name__)); continue
+        if not posint(c): bad.append("%s/%s context=%r" % (pid, mid, c))
+        elif not posint(o): bad.append("%s/%s max_output=%r" % (pid, mid, o))
+        elif o >= c: bad.append("%s/%s %s>=%s" % (pid, mid, o, c))
+# C3: the row count is asserted, not discarded to stderr, and stderr is no
+# longer swallowed. A crash now yields a traceback and a non-matching stdout
+# instead of an empty string that reads as success.
+print("swept>=1000 %s violations=%s"
+      % (rows >= 1000, " | ".join(bad[:6])))' "$SCRIPTS_DIR" "$_sweep_cache")"
+  assert_eq "swept>=1000 True violations=" "$_sweep" "live-catalog contract: '$_sweep'"
+else
+  # A silent SKIP that scores as a PASS is how the only test covering
+  # corroboration against real data disappears into the tally on CI or a fresh
+  # clone. Make its absence audible AND scoreless — no assert_eq here, so it
+  # cannot be counted as a passing test. Corroboration itself is no longer
+  # UNCOVERED without the cache: the C1/C2/I1-I6 adjudication fixtures and the
+  # property sweep's correction-branch loop above exercise it hermetically. What
+  # is skipped here is only the every-live-row confirmation, which genuinely
+  # needs the cache; scoring it as a pass would be the lie this branch warns of.
+  printf '    \033[33m[SKIP]\033[0m live-catalog sweep: no models.dev cache at %s — every-row confirmation skipped (corroboration still covered hermetically above)\n' \
+    "${_sweep_cache:-<unset>}" >&2
+fi
+
+it "an output slot of 0 is UNKNOWN, never a binding cap of zero"
+# I5: models.dev carries "output": 0 on 166 live rows and "context": 0 on 104
+# (stepfun, stepfun-ai). Read literally, a zero cap yielded max_output=None on
+# 176 rows -- 18 with a context >= 32768, 11 of those tool-call capable -- and
+# an empty cap is precisely the fail-open the module contracts against. The
+# violation was masked only because lib.sh re-derives a cap when the resolver
+# emits none: a "0 violations" claim that silently depended on a file this
+# module does not own.
+_zero="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+out = []
+for lim in ({"context": 262144, "output": 0}, {"context": 0, "output": 0},
+            {"context": 0, "output": 65536}):
+    out.append("%s->%s" % (sorted(lim.items()), R.derive_limits({"id": "z", "limit": lim}, {})[:2]))
+print(" ".join(out))' "$SCRIPTS_DIR")"
+assert_eq "[('context', 262144), ('output', 0)]->(262144, 102144) [('context', 0), ('output', 0)]->(128000, 8192) [('context', 0), ('output', 65536)]->(128000, 8192)" \
+  "$_zero" "zero limits fall back to a real guard pair"
+
+it "the out>=context shape resolves identically with or without a pre-detector"
+# I2: the dedicated `output >= context` branch was provably dead -- disabling it
+# changed the result on 0 of 5696 live rows -- because _carve_output's `cap` is
+# strictly below `ctx` on every branch, so min(out, cap) == cap for any
+# out >= ctx. The 1099 rows in that shape are fixed by the CARVE. This pins the
+# property so the branch is never reinstated as a no-op that documentation then
+# credits with real work.
+_deadeq="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+bad = []
+for c in (448, 4000, 8000, 8192, 60000, 128000, 200000, 262144, 1000000):
+    for o in (c, c + 1, c * 2, 1000000):
+        with_out = R.derive_limits({"id": "m", "limit": {"context": c, "output": o}}, {})[:2]
+        no_out = R.derive_limits({"id": "m", "limit": {"context": c}}, {})[:2]
+        if with_out != no_out:
+            bad.append("ctx=%d out=%d: %s != %s" % (c, o, with_out, no_out))
+print(" | ".join(bad[:4]))' "$SCRIPTS_DIR")"
+assert_eq "" "$_deadeq" "carve already subsumes out>=context: '$_deadeq'"
+
+it "shipped overrides.json: nvidia strong slot holds the flagship, not the nano"
+# The nvidia pins were inverted: the 30B-A3B nano sat in the strong slot while
+# the 550B flagship sat in fast. Guard the corrected orientation at source --
+# a hand-edited nvidia.env would be regenerated away by the next sync.
+SHIPPED="$SCRIPTS_DIR/providers/overrides.json"
+assert_eq "nvidia/nemotron-3-ultra-550b-a55b" \
+  "$(jq -r '.nvidia.strong_model // "MISSING"' "$SHIPPED")" "nvidia strong = ultra-550b"
+assert_eq "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" \
+  "$(jq -r '.nvidia.fast_model // "MISSING"' "$SHIPPED")" "nvidia fast = nano-omni-30b"
+
 it "VCS token is skipped, unknown llm key is unmapped"
 assert_eq "skipped" "$(rfield "$OUT" GITHUB_TOKEN status)" "GITHUB_TOKEN skipped"
 assert_eq "vcs" "$(rfield "$OUT" GITHUB_TOKEN classification)" "GITHUB_TOKEN vcs"
@@ -472,11 +1005,20 @@ if command -v zsh >/dev/null 2>&1; then
   # the launch-time activation gate permits the launch and the zsh indirect
   # key-read (${!var}) path this test targets is actually exercised.
   cma_status_write acme verified acme-big ""
+  # Provenance, zsh-side. bash's assert_fn_from cannot see into `zsh -c`, so the
+  # snippet reports it itself: zsh's $functions_source[] (zsh/parameter, zsh>=5.4)
+  # names the file that defined a function. Without this the block would only be
+  # SAFE BY ACCIDENT — it would still pass if the source silently failed and a
+  # /etc/zshenv or ~/.zshenv had already defined the host's cma_run_provider.
   z_out="$(CLAUDE_BIN=/usr/bin/true HOME="$HOME" zsh -c '
     emulate -L zsh
     source "'"$ALIAS_FILE"'" 2>&1
+    zmodload zsh/parameter 2>/dev/null
+    print -r -- "PROV=${functions_source[cma_run_provider]}"
     cma_run_provider acme </dev/null
     echo "RC=$?"' 2>&1)"
+  z_prov="$(printf '%s\n' "$z_out" | sed -n 's/^PROV=//p')"
+  assert_eq "$ALIAS_FILE" "$z_prov" "zsh provenance: cma_run_provider came from the sandbox alias file"
   echo "$z_out" | grep -qi 'bad substitution' ; assert_eq 1 $? "no zsh bad substitution"
   echo "$z_out" | grep -q 'RC=0' ; assert_eq 0 $? "wrapper exits 0 under zsh"
 else
@@ -603,19 +1145,27 @@ _acw_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALI
 # SIGPIPE (rc 141), which pipefail surfaces as the pipeline exit -> a false
 # FAIL (want=0 got=141) even though the match IS present. A herestring feeds
 # the body via a temp file (no writer to kill), so grep's real rc is preserved.
-grep -qF 'CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"' <<<"$_acw_body"
-assert_eq 0 $? "auto-compact-window exported from CMA_PROVIDER_CONTEXT_LIMIT"
+# v1.24.0: the window is no longer CMA_PROVIDER_CONTEXT_LIMIT verbatim. It is
+# co-derived with the output cap ($_cma_win = context - output, clamped) so the
+# two guards cannot sum past the context — see the token-budget section at the
+# end of this file for the behavioural assertions. The static check here is that
+# the export still traces back to CMA_PROVIDER_CONTEXT_LIMIT.
+grep -qF 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$_cma_win"' <<<"$_acw_body"
+assert_eq 0 $? "auto-compact-window exported from the derived window"
 # shellcheck disable=SC2016
 grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-' <<<"$_acw_body"
-assert_eq 0 $? "export is guarded by [[ -n \${CMA_PROVIDER_CONTEXT_LIMIT:-} ]]"
+assert_eq 0 $? "the derived window's input is CMA_PROVIDER_CONTEXT_LIMIT"
+# shellcheck disable=SC2016
+grep -qF '_cma_win="$_cma_octx"' <<<"$_acw_body"
+assert_eq 0 $? "window seeded from the sanitized context limit"
 
 it "cma_run_provider does NOT export the window when CMA_PROVIDER_CONTEXT_LIMIT is empty/unknown"
 # Static-body check: the export line is conditional — immediately preceded by
 # the [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" ]] guard — so an empty/unknown
 # limit never exports a bogus window.
 # shellcheck disable=SC2016
-grep -B1 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -q 'CMA_PROVIDER_CONTEXT_LIMIT:-'
-assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is guarded on the preceding line"
+grep -B5 'export CLAUDE_CODE_AUTO_COMPACT_WINDOW' <<<"$_acw_body" | grep -qF 'if [ -n "$_cma_octx" ]; then'
+assert_eq 0 $? "export CLAUDE_CODE_AUTO_COMPACT_WINDOW is inside the known-context guard"
 
 it "migration regenerates an outdated cma_run_provider that lacks the auto-compact cap guard"
 # Mirror the cma_run migration regression above. The cma_run_provider migration
@@ -624,17 +1174,20 @@ it "migration regenerates an outdated cma_run_provider that lacks the auto-compa
 # export (which the guard does not check). Build an OLD-format alias file whose
 # cma_run_provider carries ALL other current markers but is MISSING that guard.
 # Rather than hand-write the body, take the CURRENT emitted body and delete the
-# WHOLE auto-compact block as ONE unit — the 'local _cma_compact_cap=…' line
-# through its closing 'fi'. Deleting the block atomically (a) genuinely removes a
-# marker the guard keys on, so migration fires for the RIGHT reason, and (b) keeps
-# the body valid bash (no orphan 'fi' — the bug a line-wise 'grep -v' strip of the
-# export + its guard continuation introduced, which lost the 'if' but kept the 'fi').
+# WHOLE token-guard region as ONE unit, between its begin/end sentinels.
+# Deleting the block atomically (a) genuinely removes markers the guard keys on
+# ('_cma_compact_cap' AND the v1.24.0 '_cma_in_guard'), so migration fires for
+# the RIGHT reason, and (b) keeps the body valid bash (no orphan 'fi' — the bug a
+# line-wise 'grep -v' strip of the export + its guard continuation introduced,
+# which lost the 'if' but kept the 'fi'). Sentinel-delimited rather than
+# 'first fi after the local', which silently under-deleted once the region grew
+# a second 'if' and left '_cma_compact_cap' behind in the window block.
 _mig2="$ALIAS_FILE.migtest2"
 {
   printf 'export CLAUDE_BIN="/usr/bin/true"\n\n'
   awk '
-    /local _cma_compact_cap=/  { drop=1 }
-    drop && /^[[:space:]]*fi$/ { drop=0; next }
+    /cma-token-guards:begin/ { drop=1 }
+    /cma-token-guards:end/   { drop=0; next }
     !drop
   ' <<<"$_acw_body"
   printf '\nalias kimi-for-coding="cma_run_provider kimi-for-coding"\n'
@@ -794,6 +1347,14 @@ rm -f "$(cma_status_cache)"
 # message. --force overrides. Uses acme (native transport, from Section 3) +
 # CLAUDE_BIN=/usr/bin/true so a permitted launch exits 0 without a real claude.
 # ---------------------------------------------------------------------------
+
+it "gate subshells load cma_run_provider from the sandbox alias file, not the host"
+# BASH_ENV=~/.bashrc means the HOST's cma_run_provider is ALREADY defined in this
+# shell. Every `( source "$ALIAS_FILE"; cma_run_provider … )` below would still
+# "pass" if that source silently failed — it would just grade live host code.
+# --source performs the same source in a throwaway subshell (mirroring those call
+# sites) while landing the pass/fail in THIS shell's counters, so `summary` sees it.
+assert_fn_from --source "$ALIAS_FILE" cma_run_provider "gate subshell wrapper provenance"
 
 it "activation gate: unverified alias refuses to launch (rc 3, actionable message)"
 cma_status_write acme unverified acme-big semantic
@@ -1361,6 +1922,12 @@ cma_status_write "acme4" "unverified" "acme-tiny" "existence"
 assert_eq "unverified" "$(cma_status_read acme4)" "low-score multi-alias -> unverified"
 assert_jq "$(cma_status_cache)" '.acme4.failing_layer' "existence" "low-score -> existence"
 
+it "multi-alias gate subshells also load the wrapper from the sandbox alias file"
+# Re-asserted rather than inherited from Section 7: the alias file has been
+# regenerated by the intervening syncs, so this is a different generation of the
+# file feeding the two multi-alias gate subshells below.
+assert_fn_from --source "$ALIAS_FILE" cma_run_provider "multi-alias gate subshell wrapper provenance"
+
 it "multi-alias activation gate: verified alias launches (cma_run_provider rc 0)"
 cma_status_write "acme2" "verified" "acme-big" ""
 mkdir -p "$HOME/.claude-prov-acme2"
@@ -1534,5 +2101,532 @@ grep -q '^alias acme="cma_run_provider acme"' "$ALIAS_FILE"; assert_eq 0 $? "acm
 it "prune is a no-op (with a clear message) once no orphans remain"
 _clean_out="$(bash "$PROVIDERS_SH" prune --offline --keys-file "$KEYS" 2>&1)"
 grep -qi 'no orphan' <<<"$_clean_out"; assert_eq 0 $? "prune reports there is nothing left to prune"
+
+
+# ---------------------------------------------------------------------------
+# Section N — token-budget invariants (regression for the v1.24.0 launch 400)
+#
+# Live failure this section pins down (openrouter, proof run):
+#   "API Error: 400 This endpoint's maximum context length is 262144 tokens.
+#    However, you requested about 265483 tokens (33796 of text input,
+#    103687 of tool input, 128000 in the output)."
+#
+# Two independent defects produced it, and BOTH are asserted here:
+#   A. providers_resolve.py copied limit.output out of the models.dev catalog
+#      with no sanity check. That catalog carries context-sized numbers in the
+#      output slot (1099 of 5696 rows have output >= context). openrouter's row
+#      for nvidia/nemotron-3-super-120b-a12b:free is {context:1000000,
+#      output:262144} — 262144 is the model's REAL context (kilo's row for the
+#      same id says {context:262144, output:262144}, and so does the live 400).
+#   B. lib.sh exported the input guard ONLY when context <= 200000, so the
+#      large-context providers that most need a guard got none at all.
+# ---------------------------------------------------------------------------
+
+TGFIX="$HOME/tokenguard"
+mkdir -p "$TGFIX"
+
+# Fixture mirrors the three real shapes, with limits chosen so a regression is
+# unambiguous rather than coincidentally passing.
+cat > "$TGFIX/catalog.json" <<'JSON'
+{
+  "leaky": {
+    "env": ["LEAKY_API_KEY"],
+    "api": "https://api.leaky.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "big":      {"id":"big","reasoning":true,"tool_call":true,"release_date":"2026-03-11","limit":{"context":1000000,"output":16384},"cost":{"input":0.21,"output":0.455}},
+      "big:free": {"id":"big:free","reasoning":true,"tool_call":true,"release_date":"2026-03-11","limit":{"context":1000000,"output":262144},"cost":{"input":0,"output":0}}
+    }
+  },
+  "twin": {
+    "env": ["TWIN_API_KEY"],
+    "api": "https://api.twin.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "same": {"id":"same","reasoning":true,"tool_call":true,"release_date":"2026-03-11","limit":{"context":262144,"output":262144},"cost":{"input":0,"output":0}}
+    }
+  },
+  "honest": {
+    "env": ["HONEST_API_KEY"],
+    "api": "https://api.honest.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "wide": {"id":"wide","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":1048576,"output":131072},"cost":{"input":0,"output":0}}
+    }
+  },
+  "peerone": {
+    "env": ["PEERONE_API_KEY"],
+    "api": "https://api.peerone.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "big":       {"id":"big","tool_call":true,"limit":{"context":262144,"output":262144},"cost":{"input":0.2,"output":0.4}},
+      "solid":     {"id":"solid","tool_call":true,"limit":{"context":1000000,"output":65536},"cost":{"input":0.2,"output":0.4}},
+      "modest":    {"id":"modest","tool_call":true,"limit":{"context":262144,"output":32768},"cost":{"input":0.2,"output":0.4}}
+    }
+  },
+  "peertwo": {
+    "env": ["PEERTWO_API_KEY"],
+    "api": "https://api.peertwo.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "big":       {"id":"big","tool_call":true,"limit":{"context":262144,"output":16384},"cost":{"input":0.2,"output":0.4}},
+      "solid":     {"id":"solid","tool_call":true,"limit":{"context":1000000,"output":65000},"cost":{"input":0.2,"output":0.4}},
+      "modest":    {"id":"modest","tool_call":true,"limit":{"context":262144,"output":32768},"cost":{"input":0.2,"output":0.4}}
+    }
+  },
+  "peerthree": {
+    "env": ["PEERTHREE_API_KEY"],
+    "api": "https://api.peerthree.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "big":       {"id":"big","tool_call":true,"limit":{"context":262144,"output":32768},"cost":{"input":0.2,"output":0.4}},
+      "solid":     {"id":"solid","tool_call":true,"limit":{"context":1000000,"output":65536},"cost":{"input":0.2,"output":0.4}},
+      "modest":    {"id":"modest","tool_call":true,"limit":{"context":262144,"output":16384},"cost":{"input":0.2,"output":0.4}}
+    }
+  },
+  "peerfour": {
+    "env": ["PEERFOUR_API_KEY"],
+    "api": "https://api.peerfour.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "big":       {"id":"big","tool_call":true,"limit":{"context":100000,"output":16384},"cost":{"input":0.2,"output":0.4}},
+      "solid":     {"id":"solid","tool_call":true,"limit":{"context":262144,"output":65536},"cost":{"input":0.2,"output":0.4}},
+      "modest":    {"id":"modest","tool_call":true,"limit":{"context":32768,"output":16384},"cost":{"input":0.2,"output":0.4}}
+    }
+  },
+  "falsepos": {
+    "env": ["FALSEPOS_API_KEY"],
+    "api": "https://api.falsepos.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "solid":      {"id":"solid","tool_call":true,"limit":{"context":1000000,"output":16384},"cost":{"input":0.2,"output":0.4}},
+      "solid:free": {"id":"solid:free","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":1000000,"output":65536},"cost":{"input":0,"output":0}}
+    }
+  },
+  "crushed": {
+    "env": ["CRUSHED_API_KEY"],
+    "api": "https://api.crushed.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "modest":      {"id":"modest","tool_call":true,"limit":{"context":262144,"output":16384},"cost":{"input":0.2,"output":0.4}},
+      "modest:free": {"id":"modest:free","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":262144,"output":32768},"cost":{"input":0,"output":0}}
+    }
+  },
+  "lonely": {
+    "env": ["LONELY_API_KEY"],
+    "api": "https://api.lonely.ai/v1",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "orphan":      {"id":"orphan","tool_call":true,"limit":{"context":900000,"output":16384},"cost":{"input":0.2,"output":0.4}},
+      "orphan:free": {"id":"orphan:free","reasoning":true,"tool_call":true,"release_date":"2026-06-01","limit":{"context":900000,"output":65536},"cost":{"input":0,"output":0}}
+    }
+  }
+}
+JSON
+
+TGOUT="$HOME/tokenguard.json"
+python3 "$RESOLVE" --models-dev "$TGFIX/catalog.json" \
+  --keys "LEAKY_API_KEY,TWIN_API_KEY,HONEST_API_KEY,FALSEPOS_API_KEY,CRUSHED_API_KEY,LONELY_API_KEY" > "$TGOUT"
+assert_eq 0 $? "token-guard fixture resolves"
+
+# Claude Code's measured per-request input floor (system prompt + tool schemas)
+# from the live 400 above: 33796 + 103687.
+TG_FLOOR=137483
+
+it "a :free row contradicted by independent providers has its context corrected"
+# leaky/big:free claims {1000000, 262144} while its own paid sibling gets only
+# 16384 output, so something in the record is mislabelled. peerone and peertwo
+# both publish `big` at 262144, so the CONTEXT is the fiction. This mirrors the
+# live shape exactly: openrouter says 1000000 for
+# nvidia/nemotron-3-super-120b-a12b while kilo, nvidia, cortecs and nebius all
+# say 262144 — and the live 400 said "maximum context length is 262144 tokens".
+# Without the fix this record emits context=1000000 / max_output=262144 — the
+# exact pair that produced the 400.
+assert_eq "262144" "$(rfield "$TGOUT" LEAKY_API_KEY context_limit)" "leaky context corrected to the real 262144"
+_leaky_out="$(rfield "$TGOUT" LEAKY_API_KEY max_output)"
+assert_eq "102144" "$_leaky_out" "leaky output carved out of the context, not copied from it"
+
+# ---------------------------------------------------------------------------
+# C1 regression — the same detector, firing on records that are RIGHT.
+#
+# Reading the offending output value as a context was a coin flip: on the live
+# catalog it fires on 10 rows, shrinks 4, and 2 of those 4 were destroyed:
+#
+#   openrouter/nvidia/nemotron-3-ultra-550b-a55b:free {1000000, 65536}
+#       -> ctx 65536, losing 934,464 tokens (93.4%). But nvidia's OWN record
+#       for that model is {1000000, 65536} and vercel's is {1000000, 65000} —
+#       65536 is a genuine output budget.
+#   openrouter/google/gemma-4-26b-a4b-it:free {262144, 32768}
+#       -> ctx 32768, losing 229,376 tokens (87.5%) AND collapsing the output
+#       cap to the 8192 floor. But 32768 is the most published output for that
+#       model (8 of 16 records) and 14 of 16 publish context=262144.
+#
+# An 8192 output cap on a coding model is its own dead alias, so "it errs
+# small" does not make a wrong firing safe.
+# ---------------------------------------------------------------------------
+it "a :free row whose context IS corroborated keeps it (the ultra-550b shape)"
+# falsepos/solid:free is {1000000, 65536} with a paid sibling at 16384 — the
+# anomaly fires — but peerone and peertwo publish `solid` at 1000000 too.
+assert_eq "1000000" "$(rfield "$TGOUT" FALSEPOS_API_KEY context_limit)" "context NOT collapsed to the output value 65536"
+assert_eq "65536"   "$(rfield "$TGOUT" FALSEPOS_API_KEY max_output)"    "the genuine 65536 output budget survives, not the 8192 floor"
+
+it "a corroborated :free row keeps a usable output cap (the gemma-4 shape)"
+# crushed/modest:free is {262144, 32768} with a paid sibling at 16384. Peers
+# publish `modest` at 262144, so 32768 is an output budget, not a context.
+assert_eq "262144" "$(rfield "$TGOUT" CRUSHED_API_KEY context_limit)" "context NOT collapsed to 32768"
+assert_eq "32768"  "$(rfield "$TGOUT" CRUSHED_API_KEY max_output)"    "output stays 32768, not floored to 8192"
+
+it "with no independent corroboration the catalog context is kept, not guessed away"
+# lonely/orphan exists nowhere else, so a single provider's self-inconsistency
+# is all the evidence there is — and that evidence was measured to be right
+# half the time. Keep the published context and say so rather than shrink on a
+# coin flip.
+assert_eq "900000" "$(rfield "$TGOUT" LONELY_API_KEY context_limit)" "uncorroborated context kept"
+_lonely_reason="$(python3 -c '
+import json,sys
+for r in json.load(open(sys.argv[1])):
+    if r["key_var"]=="LONELY_API_KEY": print(r["selection_reason"])' "$TGOUT")"
+case "$_lonely_reason" in *"no corroboration"*) _lc=0 ;; *) _lc=1 ;; esac
+assert_eq 0 "$_lc" "the absence of corroboration is stated, not silent: '$_lonely_reason'"
+
+# ---------------------------------------------------------------------------
+# Round-3 adjudicator tests. Everything below drives providers_resolve directly
+# rather than through the fixture catalog, because the properties at stake are
+# properties of the VOTE — who may vote, how many, and how the votes combine —
+# and a fixture that has to round-trip the whole resolver cannot state them
+# sharply enough to fail for the right reason.
+#
+# The prior fixtures could not catch these at all: peerone and peertwo were
+# given IDENTICAL contexts for every model, so median, minimum and maximum were
+# the same number and no aggregation bug could ever change an answer. Mutating
+# the lower median to `vals[0]` (always take the minimum) left the suite at
+# 380 passed / 0 failed. Live data is never homogeneous — median differed from
+# minimum on 4 of the 5 lowerings the round-2 code performed.
+# ---------------------------------------------------------------------------
+_ADJ="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+
+def cat(*rows):
+    """rows: (provider_id, model_id, context, output) -> a catalog dict."""
+    c = {}
+    for pid, mid, ctx, out in rows:
+        lim = {"context": ctx}
+        if out is not None:
+            lim["output"] = out
+        c.setdefault(pid, {"models": {}})["models"][mid] = {
+            "id": mid, "tool_call": True, "limit": lim}
+    return c
+
+def derive(catalog, pid, mid):
+    corr = R.build_context_corroboration(catalog)
+    models = catalog[pid]["models"]
+    return R.derive_limits(models[mid], models, corr, pid)
+
+# --- C1: the accused must not vote in its own trial ------------------------
+# A provider publishing a genuine 1,000,000 free row, and exactly ONE obscure
+# peer serving an 8192 truncation. Round 2 indexed the accused too, so
+# {accused, peer} met a threshold of 2, and with two voters the lower median IS
+# the minimum -- the single peer won outright and destroyed 99.2% of the window
+# under a note claiming two independent providers had agreed.
+c1 = cat(("provx", "nvidia/turbo", 1000000, 16384),
+         ("provx", "nvidia/turbo:free", 1000000, 262144),
+         ("provy", "turbo", 8192, 4096))
+ctx, out, note = derive(c1, "provx", "nvidia/turbo:free")
+print("C1_CTX=%s" % ctx)
+print("C1_CORROBORATED=%s" % ("yes" if "context corrected" in note else "no"))
+
+# Two peers is still not enough: with n=2 the lower median is the minimum, so
+# one peer decides alone -- the same defect one step further out.
+c1b = cat(("provx", "nvidia/turbo", 1000000, 16384),
+          ("provx", "nvidia/turbo:free", 1000000, 262144),
+          ("provy", "turbo", 8192, 4096), ("provz", "turbo", 1000000, 65536))
+print("C1_TWOPEERS_CTX=%s" % derive(c1b, "provx", "nvidia/turbo:free")[0])
+
+# Three INDEPENDENT peers, a majority of them low -> the correction is earned.
+c1c = cat(("provx", "nvidia/turbo", 1000000, 16384),
+          ("provx", "nvidia/turbo:free", 1000000, 262144),
+          ("provy", "turbo", 262144, 4096), ("provz", "turbo", 262144, 65536),
+          ("provw", "turbo", 1000000, 65536))
+print("C1_THREEPEERS_CTX=%s" % derive(c1c, "provx", "nvidia/turbo:free")[0])
+
+# The two cases above cannot, on their own, distinguish "the accused was
+# excluded" from "the threshold was not met" -- both return None. These two can,
+# and they pin the exclusion in BOTH directions.
+#
+# (a) The accused makes up the quorum. Two low peers is n=2 and no correction;
+#     let the accused vote and n becomes 3, the lower median lands on the peers`
+#     8192, and the accused is convicted by a quorum it joined itself.
+c1d = cat(("provx", "nvidia/turbo", 1000000, 16384),
+          ("provx", "nvidia/turbo:free", 1000000, 262144),
+          ("provy", "turbo", 8192, 4096), ("provz", "turbo", 8192, 4096))
+print("C1_SELFQUORUM_CTX=%s" % derive(c1d, "provx", "nvidia/turbo:free")[0])
+
+# (b) The accused props up its own claim. Four independents split 2-2 and the
+#     lower median is 262144, so the record is corrected -- but if the accused
+#     votes, its own 1000000 becomes the fifth ballot, drags the median up to
+#     1000000, and the record acquits itself. Exclusion has to cut both ways or
+#     it is not a rule about evidence, it is a rule about outcomes.
+c1e = cat(("provx", "nvidia/turbo", 1000000, 16384),
+          ("provx", "nvidia/turbo:free", 1000000, 262144),
+          ("pa", "turbo", 262144, 4096), ("pb", "turbo", 262144, 4096),
+          ("pc", "turbo", 1000000, 4096), ("pd", "turbo", 1000000, 4096))
+print("C1_SELFACQUIT_CTX=%s" % derive(c1e, "provx", "nvidia/turbo:free")[0])
+
+# --- C2: the aggregate is the MEDIAN, distinguishable from min and max -----
+# A deliberately heterogeneous pool: min 16000, lower median 80000, max 262144.
+# All three are different numbers, so any of the three plausible aggregation
+# rules produces a different answer and a mutation cannot hide.
+het = R.build_context_corroboration(
+    cat(("pa", "m", 16000, 4096), ("pb", "m", 32768, 4096),
+        ("pc", "m", 80000, 4096), ("pd", "m", 131072, 4096),
+        ("pe", "m", 262144, 4096)))
+print("C2_MEDIAN=%s" % R._corroborated_context("m", het, None))
+print("C2_MIN=%s C2_MAX=%s" % (16000, 262144))
+# Even-sized pool: lower median must be the LOWER of the two middle values and
+# must still differ from both extremes.
+het4 = R.build_context_corroboration(
+    cat(("pa", "m", 16000, 4096), ("pb", "m", 80000, 4096),
+        ("pc", "m", 131072, 4096), ("pd", "m", 262144, 4096)))
+print("C2_MEDIAN4=%s" % R._corroborated_context("m", het4, None))
+
+# --- I1: output == context is NOT evidence about the context ---------------
+# The commonest mislabel in the catalog is output copied FROM context (1099 of
+# 5696 live rows), which _carve_output already fixes. Comparing that copy with
+# a paid sibling`s genuine output cap makes the free row look bigger as
+# arithmetic, not as evidence. Round 2 adjudicated these anyway and lowered
+# three real windows, worst llama-3.2-3b-instruct:free 131072->80000 (39%),
+# where the low votes were other hosts` truncations.
+i1 = cat(("orx", "meta/lla", 131072, 16384),
+         ("orx", "meta/lla:free", 131072, 131072),
+         ("pa", "lla", 16000, 4096), ("pb", "lla", 32768, 4096),
+         ("pc", "lla", 32768, 4096), ("pd", "lla", 80000, 4096))
+print("I1_CTX=%s" % derive(i1, "orx", "meta/lla:free")[0])
+# ...but the shape the mechanism WAS built for (output strictly below context)
+# is still adjudicated, so this is a narrowing, not a disabling.
+i1b = cat(("orx", "nv/sup", 1000000, 16384),
+          ("orx", "nv/sup:free", 1000000, 262144),
+          ("pa", "sup", 262144, 4096), ("pb", "sup", 262144, 4096),
+          ("pc", "sup", 256000, 4096))
+print("I1_STILL_ADJUDICATES=%s" % derive(i1b, "orx", "nv/sup:free")[0])
+
+# --- I2: a value rejected as a cap cannot convict a context ----------------
+# 262144.7 is reported by this module as "not a usable cap; treated as
+# unknown", and then used, on that same rejected value, to cut 1,000,000 down
+# to 32,768 -- 96.7% of the window.
+i2 = {"px": {"models": {
+        "x/y": {"id": "x/y", "limit": {"context": 1000000, "output": 16384}},
+        "x/y:free": {"id": "x/y:free", "limit": {"context": 1000000, "output": 262144.7}}}},
+      "pa": {"models": {"y": {"id": "y", "limit": {"context": 32768, "output": 4096}}}},
+      "pb": {"models": {"y": {"id": "y", "limit": {"context": 32768, "output": 4096}}}},
+      "pc": {"models": {"y": {"id": "y", "limit": {"context": 32768, "output": 4096}}}}}
+print("I2_CTX=%s" % derive(i2, "px", "x/y:free")[0])
+
+# --- I3: unrelated models that share a last segment are not one model ------
+# Live: 392 normalized keys span >1 vendor prefix and 257 disagree on context.
+i3 = cat(("alpha", "alpha/turbo", 1000000, 16384),
+         ("alpha", "alpha/turbo:free", 1000000, 262144),
+         ("beta", "beta/turbo", 8192, 4096), ("gamma", "gamma/turbo", 8192, 4096),
+         ("delta", "delta/turbo", 8192, 4096))
+print("I3_CTX=%s" % derive(i3, "alpha", "alpha/turbo:free")[0])
+# The fold must not over-tighten either: a BARE id states no vendor and must
+# still corroborate a vendored one (cortecs publishes `nemotron-...` where
+# openrouter publishes `nvidia/nemotron-...`).
+i3b = cat(("orx", "nvidia/nem", 1000000, 16384),
+          ("orx", "nvidia/nem:free", 1000000, 262144),
+          ("cortecs", "nem", 262144, 4096), ("kilo", "nvidia/nem", 262144, 4096),
+          ("nv", "nem", 262144, 4096))
+print("I3_BARE_STILL_VOTES=%s" % derive(i3b, "orx", "nvidia/nem:free")[0])
+
+# --- I4: what corroboration CANNOT establish, pinned as behaviour ----------
+# A genuinely throttled free tier is left at the paid value, because every peer
+# record describes the PAID tier. This is a real blind spot, asserted here so
+# it stays documented rather than quietly assumed solved.
+i4 = cat(("px", "v/model", 1000000, 16384),
+         ("px", "v/model:free", 1000000, 65536),
+         ("pa", "model", 1000000, 4096), ("pb", "model", 1000000, 4096),
+         ("pc", "model", 1000000, 4096))
+print("I4_THROTTLED_FREE_NOT_CAUGHT=%s" % derive(i4, "px", "v/model:free")[0])
+
+# --- I5: a context too small to carve any cap from is a hole, not a window --
+print("I5_PAIR=%s" % (R.derive_limits({"id": "z", "limit": {"context": 1}}, {})[:2],))
+
+# --- I6: a corroboration CORRECTION to a sub-viable context (round-4 fail-open) ---
+# The raw-catalog viability guard (MIN_VIABLE_CONTEXT) re-validated ONLY the
+# catalog context, but `ctx` is re-assigned afterward by the correction
+# (`ctx = corroborated`). Three same-vendor peers all publishing context=1 drag
+# the accused down to 1; the accused output (50000) exceeds its paid sibling
+# (16384) so the anomaly fires and the correction branch is taken. Before the
+# fix _carve_output returned None and derive_limits emitted (1, None) — a
+# context with NO output cap, the precise fail-open the module exists to close.
+def _pair_ok(c, o):
+    return (isinstance(c, int) and not isinstance(c, bool) and c > 0
+            and isinstance(o, int) and not isinstance(o, bool) and 0 < o < c)
+i6 = cat(("acc", "acme/turbo-9000", 1000000, 16384),
+         ("acc", "acme/turbo-9000:free", 1000000, 50000),
+         ("p1", "acme/turbo-9000", 1, 1), ("p2", "acme/turbo-9000", 1, 1),
+         ("p3", "acme/turbo-9000", 1, 1))
+_c6, _o6, _n6 = derive(i6, "acc", "acme/turbo-9000:free")
+print("I6_CAPLESS=%s" % ("yes" if _o6 is None else "no"))
+print("I6_OK=%s" % ("yes" if _pair_ok(_c6, _o6) else "no"))
+print("I6_CTX_RECOVERED=%s" % ("yes" if isinstance(_c6, int) and _c6 > 1 else "no"))
+print("I6_VIA_CORRECTION=%s" % ("yes" if "context corrected to" in _n6 else "no"))
+print("I6_VIA_FALLBACK=%s" % ("yes" if "fell back to the conservative estimate" in _n6 else "no"))
+# ...and a correction to a SMALL-BUT-VIABLE context (peers agree on 32768) must
+# still be carved AS 32768, never inflated up to the unknown floor — inflating
+# it would re-introduce the opposite 400 (a window wider than the endpoint).
+i6b = cat(("acc", "v/x", 1000000, 16384), ("acc", "v/x:free", 1000000, 262144),
+          ("q1", "v/x", 32768, 4096), ("q2", "v/x", 32768, 4096),
+          ("q3", "v/x", 32768, 4096))
+_c6b, _o6b, _ = derive(i6b, "acc", "v/x:free")
+print("I6_SMALLVIABLE=%s" % ((_c6b, _o6b),))
+print("I6_SMALLVIABLE_OK=%s" % ("yes" if (_c6b == 32768 and _pair_ok(_c6b, _o6b)) else "no"))
+
+# --- Q4: the usability floor must not overstate a provider`s own catalog ----
+# `inference` is the provider cited as the motivating case: p10 4000, median
+# 16000, yet the 65536 floor applied unclamped with 7 of its 9 tool-call rows
+# below it -- a ~61440 input window against endpoints that may serve 4000.
+narrow = {"m%d" % i: {"id": "m%d" % i, "tool_call": True,
+                      "limit": {"context": c, "output": 1024}}
+          for i, c in enumerate([4000, 4000, 8000, 16000, 16000, 32768, 131072])}
+print("Q4_NARROW=%s" % R._conservative_unknown_context(narrow))
+wide = {"m%d" % i: {"id": "m%d" % i, "tool_call": True,
+                    "limit": {"context": c, "output": 1024}}
+        for i, c in enumerate([8000, 32768, 200000, 200000, 262144])}
+print("Q4_WIDE=%s" % R._conservative_unknown_context(wide))
+# On a two-row pool the lower median IS the minimum, so the clamp must NOT
+# apply -- otherwise one 480-token image endpoint alone decides the estimate
+# and drags a provider that also serves a 2M flagship below usability.
+pair = {"img": {"id": "img", "tool_call": True, "limit": {"context": 480, "output": 480}},
+        "big": {"id": "big", "tool_call": True, "limit": {"context": 2000000, "output": 16384}}}
+print("Q4_PAIR=%s" % R._conservative_unknown_context(pair))
+' "$SCRIPTS_DIR")"
+_adj() { printf '%s\n' "$_ADJ" | sed -n "s/^$1=//p"; }
+
+it "C1: the accused provider does not vote in its own trial"
+assert_eq "1000000" "$(_adj C1_CTX)" "one peer cannot sentence a 1M window to 8192"
+assert_eq "no" "$(_adj C1_CORROBORATED)" "no correction is claimed when none was earned"
+assert_eq "1000000" "$(_adj C1_TWOPEERS_CTX)" "two peers still leave one peer deciding alone — not enough"
+assert_eq "262144" "$(_adj C1_THREEPEERS_CTX)" "three independents, a majority low, DO earn the correction"
+assert_eq "1000000" "$(_adj C1_SELFQUORUM_CTX)" "the accused cannot make up the quorum that convicts it"
+assert_eq "262144" "$(_adj C1_SELFACQUIT_CTX)" "nor cast the ballot that acquits it"
+
+it "C2: the vote aggregates by lower median, not by minimum or maximum"
+# This is the assertion the whole round-2 suite lacked. 80000 is neither the
+# minimum (16000) nor the maximum (262144) of the pool, so mutating the
+# aggregation in either direction changes this number.
+assert_eq "80000" "$(_adj C2_MEDIAN)" "5-provider pool: lower median 80000, not min 16000 / max 262144"
+assert_eq "80000" "$(_adj C2_MEDIAN4)" "4-provider pool: LOWER of the two middles, not min 16000 / max 262144"
+
+it "I1: output==context is the output mislabel, not evidence against the context"
+assert_eq "131072" "$(_adj I1_CTX)" "an out==ctx row is not adjudicated even with 4 low peers"
+assert_eq "262144" "$(_adj I1_STILL_ADJUDICATES)" "out<ctx, the shape it was built for, still adjudicates"
+
+it "I2: an output rejected as unusable cannot convict a context"
+assert_eq "1000000" "$(_adj I2_CTX)" "output=262144.7 is not a cap and not a witness either"
+
+it "I3: models sharing a last segment across vendors are not the same model"
+assert_eq "1000000" "$(_adj I3_CTX)" "beta/gamma/delta turbo do not sentence alpha/turbo"
+assert_eq "262144" "$(_adj I3_BARE_STILL_VOTES)" "a bare id still corroborates a vendored one"
+
+it "I4: corroboration cannot detect a genuinely throttled free tier (known blind spot)"
+assert_eq "1000000" "$(_adj I4_THROTTLED_FREE_NOT_CAUGHT)" "peers describe the PAID tier, so a real throttle is invisible here"
+
+it "I5: a context too small to carve a cap from never yields a capless pair"
+assert_eq "(128000, 8192)" "$(_adj I5_PAIR)" "context=1 falls back to the conservative pair, not (1, None)"
+
+it "I6: a corroboration correction to a SUB-VIABLE context never yields a capless pair (round-4 fail-open)"
+# FAILS before the fix (derive_limits returned (1, None)); passes after. The
+# raw-catalog MIN_VIABLE_CONTEXT guard did not re-cover `ctx = corroborated`.
+assert_eq "no"  "$(_adj I6_CAPLESS)"       "the resolved pair is NEVER (ctx, None)"
+assert_eq "yes" "$(_adj I6_OK)"            "0 < max_output < context_limit, both positive ints"
+assert_eq "yes" "$(_adj I6_CTX_RECOVERED)" "the sub-viable context (1) is recovered to a real window, not kept at 1"
+assert_eq "yes" "$(_adj I6_VIA_CORRECTION)" "it genuinely went THROUGH the corroboration-correction branch"
+assert_eq "yes" "$(_adj I6_VIA_FALLBACK)"  "and THROUGH the viability fallback, not some unrelated path"
+assert_eq "yes" "$(_adj I6_SMALLVIABLE_OK)" "a small-but-viable correction (32768) is carved, NOT inflated to the floor"
+
+it "Q4: the usability floor never overstates a provider's own distribution"
+assert_eq "16000" "$(_adj Q4_NARROW)" "a narrow provider gets its median, not the 65536 floor"
+assert_eq "65536" "$(_adj Q4_WIDE)" "a provider whose median clears the floor still gets 65536"
+assert_eq "65536" "$(_adj Q4_PAIR)" "a 2-row pool has no median to speak of; the floor stands"
+
+it "a context value never lands in the output slot"
+for _kv in LEAKY_API_KEY TWIN_API_KEY HONEST_API_KEY; do
+  _c="$(rfield "$TGOUT" "$_kv" context_limit)"
+  _o="$(rfield "$TGOUT" "$_kv" max_output)"
+  _lt=0; [ "$_o" -lt "$_c" ] && _lt=1
+  assert_eq 1 "$_lt" "$_kv: max_output ($_o) < context_limit ($_c)"
+  _ne=1; [ "$_o" = "$_c" ] && _ne=0
+  assert_eq 1 "$_ne" "$_kv: max_output is not the context value verbatim"
+done
+
+it "derived input floor + output cap fits inside the real context window"
+for _kv in LEAKY_API_KEY TWIN_API_KEY HONEST_API_KEY; do
+  _c="$(rfield "$TGOUT" "$_kv" context_limit)"
+  _o="$(rfield "$TGOUT" "$_kv" max_output)"
+  _fits=0; [ $(( TG_FLOOR + _o )) -le "$_c" ] && _fits=1
+  assert_eq 1 "$_fits" "$_kv: ${TG_FLOOR}+${_o} <= ${_c}"
+done
+
+it "the impossible context==output row is repaired rather than trusted"
+assert_eq "262144" "$(rfield "$TGOUT" TWIN_API_KEY context_limit)" "twin keeps its (correct) context"
+assert_eq "102144" "$(rfield "$TGOUT" TWIN_API_KEY max_output)" "twin's output no longer equals its context"
+
+it "a credible large output budget is NOT collapsed (no over-correction)"
+# The repair must be targeted: a genuine {context:1048576, output:131072} row
+# keeps its wide window. An earlier draft that distrusted every output above
+# the CLI ceiling shrank this to a 131072 window and crippled the alias.
+assert_eq "1048576" "$(rfield "$TGOUT" HONEST_API_KEY context_limit)" "honest keeps its full 1M window"
+assert_eq "128000" "$(rfield "$TGOUT" HONEST_API_KEY max_output)" "honest output clamped to the CLI ceiling only"
+
+# --- the launch-time half: lib.sh's guards, extracted verbatim -------------
+_GUARD_SRC="$(awk '/cma-token-guards:begin/{f=1;next} /cma-token-guards:end/{exit} f' "$SCRIPTS_DIR/lib.sh")"
+it "the token-guard block is extractable from lib.sh"
+_gs=0; [ -n "$_GUARD_SRC" ] && _gs=1
+assert_eq 1 "$_gs" "guard source found between the sentinels"
+
+# Runs the SHIPPED guard arithmetic and echoes "<window> <maxout>".
+_guard() { # _guard CTX OUT
+  CMA_PROVIDER_CONTEXT_LIMIT="$1"
+  CMA_PROVIDER_MAX_OUTPUT="$2"
+  unset CLAUDE_CODE_AUTO_COMPACT_WINDOW CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  eval "$_GUARD_SRC"
+  printf '%s %s\n' "${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}" "${CLAUDE_CODE_MAX_OUTPUT_TOKENS:-}"
+}
+
+it "an input guard is ALWAYS exported when the context is known (fail-open regression)"
+# The old gate skipped the export whenever context > 200000, leaving exactly
+# the big-window providers unguarded. Every one of these must now export.
+for _ctx in 200001 262144 1000000 1048576; do
+  read -r _w _o <<<"$(_guard "$_ctx" "")"
+  _has=0; [ -n "$_w" ] && _has=1
+  assert_eq 1 "$_has" "context=$_ctx exports an auto-compact window (got '$_w')"
+done
+
+it "an output cap is ALWAYS exported when the context is known"
+# Leaving it unset is not neutral: Claude Code then reserves its own 128000
+# default, which is what overflowed the 262144 window in the live failure.
+for _pair in "262144 262144" "262144 " "1000000 262144"; do
+  set -- $_pair
+  read -r _w _o <<<"$(_guard "$1" "${2:-}")"
+  _has=0; [ -n "$_o" ] && _has=1
+  assert_eq 1 "$_has" "ctx=$1 out='${2:-}' exports an output cap (got '$_o')"
+done
+
+it "exported input window + output cap never exceed the context"
+for _pair in "262144 102144" "262144 262144" "200000 32000" "1048576 131072" "131072 8192" "262144 "; do
+  set -- $_pair
+  read -r _w _o <<<"$(_guard "$1" "${2:-}")"
+  _sum=$(( ${_w:-0} + ${_o:-0} ))
+  _ok=0; [ "$_sum" -le "$1" ] && _ok=1
+  assert_eq 1 "$_ok" "ctx=$1 out='${2:-}': window($_w)+cap($_o)=$_sum <= $1"
+done
+
+it "unknown limits export no guard at all (honest, not invented)"
+read -r _w _o <<<"$(_guard "" "")"
+assert_eq "" "$_w" "no context => no auto-compact window"
+assert_eq "" "$_o" "no context => no output cap"
+
 
 summary

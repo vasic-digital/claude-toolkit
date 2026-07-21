@@ -8,6 +8,14 @@
 
 set -uo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# SERIALIZATION: acquired here, at the OUTERMOST entry point, before any leg
+# runs. The nested `run-all.sh` below acquires the same lock and inherits it
+# from this process instead of deadlocking against it (see lib/suite-lock.sh).
+# shellcheck source=lib/suite-lock.sh
+source "$TESTS_DIR/lib/suite-lock.sh"
+cma_suite_lock_acquire suite
+
 PROOF_DIR="${PROOF_DIR:-$TESTS_DIR/proof}"
 mkdir -p "$PROOF_DIR"
 STAMP="$(date '+%Y-%m-%dT%H:%M:%S%z')"

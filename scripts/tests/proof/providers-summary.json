@@ -3,8 +3,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "semantic": "verified",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-chutes-semantic.txt",
@@ -16,7 +16,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-deepseek-semantic.txt",
@@ -48,10 +48,10 @@
     }
   },
   "helixagent": {
-    "status": "verified",
+    "status": "failed",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -75,8 +75,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "semantic": "verified",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-inference-semantic.txt",
@@ -88,7 +88,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-kilo-semantic.txt",
@@ -120,10 +120,10 @@
     }
   },
   "nvidia": {
-    "status": "verified",
+    "status": "unverified",
     "layers": {
       "existence": true,
-      "semantic": "verified",
+      "semantic": "skip",
       "superpowers_tui": "unverified"
     },
     "evidence": {
@@ -135,8 +135,8 @@
     "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "semantic": "verified",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-opencode-semantic.txt",
@@ -148,7 +148,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-openrouter-semantic.txt",
@@ -160,7 +160,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-poe-semantic.txt",
@@ -168,11 +168,11 @@
     }
   },
   "siliconflow": {
-    "status": "unverified",
+    "status": "verified",
     "layers": {
       "existence": true,
-      "semantic": "skip",
-      "superpowers_tui": "unverified"
+      "semantic": "verified",
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-siliconflow-semantic.txt",
@@ -208,7 +208,7 @@
     "layers": {
       "existence": true,
       "semantic": "verified",
-      "superpowers_tui": "unverified"
+      "superpowers_tui": "verified"
     },
     "evidence": {
       "semantic": "/home/milos/Factory/projects/tools_and_research/claude_toolkit/scripts/tests/proof/providers-xiaomi-semantic.txt",

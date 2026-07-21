@@ -1,4 +1,7 @@
+# ROUTE-INTENDED: huggingface/Qwen/Qwen3-Coder-480B-A35B-Instruct (transport=router)
+# ROUTE-INTENDED-BACKGROUND: huggingface/Qwen/Qwen3-Coder-30B-A3B-Instruct
 claude-providers: alias huggingface is failed — not launching.
   Re-verify: claude-providers sync   (re-runs verification for huggingface)
   Override (operator): run the alias with --force
-# FAIL: no-engagement
+# LAUNCH-REFUSED: rc=3 — activation gate — alias not 'verified'; refused before any ccr route write
+# FAIL: launch-refused-unverified (rc=3 intended=huggingface/Qwen/Qwen3-Coder-480B-A35B-Instruct; NO turn ran — route attribution is not applicable)

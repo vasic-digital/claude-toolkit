@@ -19,6 +19,28 @@ There's no hard limit. Each provider gets its own config directory (`~/.claude-p
 
 Both deepseek and xiaomi have OpenAI-compatible endpoints that work through ccr. Router transport is more uniform and easier to debug — all providers go through the same path.
 
+## Model selection
+
+### Which model does an alias run?
+
+The strongest one your account can actually pay for. If the provider account has credit or purchased tokens, the alias runs the strongest **paid** model that passes verification. If it has no credit, the alias runs the strongest **free** model. This applies to both the main model and the fast/background model, and to every alias `sync --multi` creates.
+
+### What if the toolkit can't tell whether I have credit?
+
+Unknown is treated as *no credit*, so you get the free model. That is deliberate: a paid model on an unfunded key fails at launch with a 402/403 and leaves you with a dead alias, while a free model on a funded key only costs some capability. Re-run `claude-providers sync` once the credit signal is readable and the paid model is picked up.
+
+### I bought credit — how do I get the paid model?
+
+Run `claude-providers sync`. Model tier is decided at sync time, not at launch, so an alias created while the account was empty keeps its free model until the next sync re-evaluates it.
+
+### Can I force a specific model regardless of credit?
+
+Yes. Pin `strong_model` / `fast_model` for that provider in `scripts/providers/overrides.json` and re-sync. A pin always wins over the automatic tier choice — including a paid pin on an account with no readable credit, in which case the resulting launch failure is expected.
+
+### Are free models verified less strictly?
+
+No. A free model goes through exactly the same sentinel and tool-calling probes as a paid one, and its alias is not activated unless both pass. The credit rule decides *which* model is tested, never *how strictly*.
+
 ## Verification
 
 ### Why is my provider showing as "failed"?
@@ -30,6 +52,12 @@ Run `claude-providers list-faulty` to see the failure layer. Common causes:
 ### Why is my provider showing as "unverified"?
 
 The provider passed existence but failed a later layer. Run `claude-providers list-all` to see which layer failed.
+
+### What does `# FAIL: route-mismatch` in an evidence file mean?
+
+The live-TUI (layer 4) turn was served by a *different* backend than the alias under test, so it proves nothing about that alias. Router-transport providers share one ccr `Router.default`, and an alias whose `base_url` is the gateway itself skips its own rewrite and inherits the previous provider's route. Each evidence file records `# ROUTE-INTENDED:` and `# ROUTE-RESOLVED:`; when they differ the leg fails rather than passing unattributably. `# FAIL: route-unknown` is the same refusal when the resolved route cannot be read at all (including when `jq` is missing — for a router-transport alias that is a hard precondition, not a skip).
+
+Two sibling failures exist for the same reason. `# FAIL: route-mismatch-background` means `.Router.default` matched but `.Router.background` did not, so background sub-requests of that same turn were served by another backend — partly-foreign evidence is no more attributable than wholly-foreign evidence. `# FAIL: route-unproven` means the config file named the right route but nothing proves the running gateway ever loaded it: the launch wrapper's `ccr restart` runs under `|| true` and can be refused (an authenticated gateway will not bounce without `CCR_API_KEYS` visible), which would leave the previous provider serving while the file reads back correct. Since the router offers no live-route query, the leg demands a restart receipt bracketing the launch — a fresh `gateway listening on` line in `~/.claude-code-router/service.log`, or a changed `service.json` — and fails closed without one.
 
 ### How do I re-verify a provider?
 

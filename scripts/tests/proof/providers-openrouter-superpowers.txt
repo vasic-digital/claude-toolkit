@@ -1,2 +1,7 @@
-Profile "default-claude-code" was not found or is disabled.
-# FAIL: no-engagement
+# ROUTE-INTENDED: openrouter/nvidia/nemotron-3-super-120b-a12b:free (transport=router)
+# ROUTE-INTENDED-BACKGROUND: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":18388,"duration_api_ms":15190,"ttft_ms":7237,"ttft_stream_ms":7229,"time_to_request_ms":685,"num_turns":3,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"a4e091fe-4501-450d-9479-f074a3864f91","total_cost_usd":0.8333600000000001,"usage":{"input_tokens":165537,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":227,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":165537,"outputTokens":227,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.8333600000000001,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"1ac20449-264b-4a76-ab9b-e98a5112bf72"}
+# ROUTE-RESOLVED: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+# ROUTE-RESOLVED-BACKGROUND: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 791336
+# PASS

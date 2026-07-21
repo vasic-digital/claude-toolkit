@@ -143,7 +143,7 @@ AUTH_PORT="$(cat "$AUTH_PORT_FILE" 2>/dev/null)"
 
 # --- fake helixagent binary on PATH -----------------------------------------
 mkdir -p "$HOME/.local/bin"
-cat > "$HOME/.local/bin/helixagent" <<'EOF'
+sandbox_stub "$HOME/.local/bin/helixagent" <<'EOF'
 #!/usr/bin/env bash
 # fake helixagent stub — only needs to exist for `command -v`.
 echo "helixagent (test stub)"
@@ -285,7 +285,7 @@ bash "$PROVIDERS_SH" sync --offline --no-verify --keys-file "$KEYS" >>"$PROOF" 2
 # ===========================================================================
 it "CASE C: helixagent present but server down -> alias STILL created off pins"
 # Restore the binary, kill the server (simulate 'installed but not running').
-cat > "$HOME/.local/bin/helixagent" <<'EOF'
+sandbox_stub "$HOME/.local/bin/helixagent" <<'EOF'
 #!/usr/bin/env bash
 echo "helixagent (test stub)"
 EOF

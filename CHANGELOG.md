@@ -2,6 +2,617 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.24.0 — 2026-07-21 — credit-aware model selection; and the v1.23.0 launch regression + the false "ALL GREEN" claim that hid it
+
+Two things ship together here. The **new capability** is credit-aware model
+selection (below). The **regression** is that v1.23.0 made the bundled Go
+`claude-code-router` the sole router but never implemented the launch grammar
+the toolkit speaks, so **every router-transport provider alias was dead at
+launch** for the whole life of that release — and it shipped anyway because the
+verification suite counted a layer-4 FAIL as a pass and no gate read the
+evidence it had just written. Both the capability and the regression (with the
+false claim that hid it) are documented below. This is a minor bump because it
+adds a new user-facing capability, not only a fix.
+
+### Added — credit-aware model selection (mandatory tier policy)
+
+- **Every provider alias now picks its model by whether the account can be
+  billed.** Credit / purchased tokens available ⇒ the strongest *paid* model the
+  provider serves that verifies; no credit ⇒ the strongest *free* model; credit
+  state *unknown* ⇒ treated conservatively as no-credit ⇒ the free choice. The
+  unknown branch is deliberately conservative and asymmetric: picking a paid
+  model on an unfunded key fails at launch with 402/403 and leaves a dead alias,
+  whereas picking a free model on a funded key only gives up capability and the
+  next `sync` corrects it. A human `strong_model`/`fast_model` pin (or
+  `model_policy=free|paid`) in `providers/overrides.json` still wins; the tier
+  logic only decides when nothing is pinned. Implemented in
+  `scripts/providers_resolve.py` (`tier_preference`, `model_cost_tier`,
+  `select_models`); the matching credit/cost-aware selection capability landed
+  in the LLMsVerifier submodule (`llm-verifier/{providers,scoring,selection}`),
+  kept project-agnostic per its decoupling rules.
+- **Free vs paid is classified from real catalog pricing, and "zero-cost" is not
+  assumed to mean free.** A catalog `cost:{input:0,output:0}` is often a
+  subscription/plan-gated entry that needs a specific key — classifying it free
+  would pick a model that fails at launch. Models with missing or partial
+  pricing are reported as tier `unknown`, never guessed as free; the OpenRouter
+  `:free` id suffix is honoured. Deep research established that reliable
+  programmatic balance APIs are rare across providers (most are console-only), so
+  credit state is inferred from the verification probe's response — 402/403 ⇒ no
+  credit, 429 ⇒ transient (never demotes), 401 ⇒ bad key — with a schema-versioned
+  24h cache so stale results are never replayed. Covered by
+  `scripts/tests/test_provider_credit.sh` (127 assertions) and the
+  `providers/credit-endpoints.json` signal table.
+- **Cost note (honest trade-off):** credit detection adds one bounded
+  paid-model probe per provider (30s cap), so the *first* full
+  `claude-providers sync` after a cache reset is slower than before; the
+  result is cached for 24h, so subsequent syncs skip it. The probes are
+  bounded and never hang; a slow provider is a duration cost, not a stall.
+
+### Fixed
+
+- **Token-limit guards were derived independently and could not both be
+  satisfied, killing an alias at launch with a 400.** `openrouter` died on
+  every real turn with `maximum context length is 262144 tokens. However, you
+  requested about 265483 (33796 of text input, 103687 of tool input, 128000 in
+  the output)`. Three separate defects converged:
+  - `limit.output` was copied verbatim from models.dev, which is not
+    internally consistent: **1099 of 5696 catalogued models report
+    `limit.output >= limit.context`** (counted over raw published values,
+    including the 104 rows whose `context` is 0 — the resolver later treats
+    those as unknown rather than as a cap of zero, which is why the
+    both-fields-positive count is 995), which is physically impossible — the
+    output budget is carved out of the context, so it is strictly smaller. A
+    record in that shape has a context-sized number sitting in its output slot
+    (`kilo`'s row is the pure form: `{context:262144, output:262144}`).
+  - models.dev stores limits per `(provider, model)` PAIR, and only
+    openrouter's row inflates this model to `1000000` while parking its true
+    context (262144) in `output`. The same model id reads 262144 under nvidia,
+    kilo and nano-gpt.
+  - `scripts/lib.sh` exported the input guard **only when the context was
+    ≤ 200000** — fail-open, so precisely the large-context providers got no
+    guard at all. The pre-existing "output ≥ context ⇒ don't export" branch was
+    actively harmful: declining to export hands the decision to Claude Code's
+    own 128000 default. (The `128000` in the error above was this clamp, which
+    coincidentally equals that default.)
+  `providers_resolve.py:derive_limits()` fixes this in two independent ways.
+  First, the output cap is always **carved** out of the context rather than
+  trusted verbatim, which by itself corrects every one of those 1099 rows — a
+  separate `output >= context` detector was written for them and later removed
+  once it was proven to change the result on **0 of 5696 rows**: whenever
+  `output >= context` the carve already yields `cap < context <= output`, so
+  `min(output, cap) == cap` regardless. Second, a `:free` record claiming a
+  larger output budget than its paid sibling now raises only a *suspicion*,
+  which is adjudicated against the rest of the catalog: a context is lowered
+  only when at least **three distinct providers, not counting the accused
+  record's own provider**, publishing the same model (matched after normalising
+  `:free` suffixes, vendor prefixes and case, and gated so an unrelated vendor's
+  same-named model cannot vote) contradict it — and only to a value one of them
+  actually publishes. Both halves of that rule are load-bearing and were learned
+  the hard way: while the accused counted itself and the threshold was two, a
+  single peer decided every verdict, because at two voters the lower median *is*
+  the minimum. That cut a genuine 1,000,000-token window to 8,192 under a note
+  claiming two independent providers had agreed, when nothing had agreed with
+  anything. Adjudication is further restricted to records where
+  `output < context`; where the two are equal the record shows the catalog's
+  commonest mislabel — output copied *from* context — which the carve already
+  corrects, and comparing that copy against a sibling's genuine output cap is a
+  category error that produced three wrong reductions before it was caught.
+  What this mechanism can establish is only that a claim is not credible **as
+  data** — a plausibility ceiling drawn from peers, never a measurement. It
+  cannot establish "the model's real context", because there is no such
+  quantity: each (provider, model) pair is its own deployment, and
+  `llama-3.2-3b-instruct` is genuinely served at 16000, 32768, 80000 and 131072
+  by different hosts with none of them wrong. It therefore has a permanent,
+  deliberate blind spot in the opposite direction: a genuinely throttled `:free`
+  tier is corroborated at its paid siblings' value and left alone. The
+  earlier single-sibling version was wrong on half its live firings — it
+  collapsed `nemotron-3-ultra-550b:free` from 1,000,000 to 65,536 (93.4% of the
+  window lost) and `gemma-4-26b:free` from 262,144 to 32,768, even though
+  NVIDIA's own record and 14 of 15 providers respectively publish the larger
+  value. Corroboration restores both while preserving the two genuine catches.
+  The guiding asymmetry — understating a window only costs capability, whereas
+  overstating one kills the alias at launch — is bounded by a second one
+  learned here: an 8192-token output cap on a coding model is itself a dead
+  alias, so a detector that fires wrongly is not made safe by erring small. A
+  large but
+  credible record does not trip either detector: xiaomi's `mimo-v2.5-pro`
+  genuinely serves `{context:1048576, output:131072}`, and its **context is not
+  collapsed** — it derives `1048576 / 128000`, where the output is reduced only
+  by the separate, pre-existing clamp to Claude Code's 128000 ceiling, not by
+  the mislabel detectors. The guards
+  are now **co-derived** in `scripts/lib.sh` — `window = min(context - output,
+  200000)`, exported for every known context — which closes both the fail-open
+  gate and the 200k–270k dead zone in which a real window got no input guard.
+  `openrouter`/`kilo` now derive `262144 / 102144`, leaving 22517 tokens of
+  headroom. **This defect predates v1.24.0**: HEAD's resolver produced
+  `1048576/1048576` for openrouter — limits belonging to a different model
+  entirely — so the credit-aware pin re-derivation already improved it.
+- **A concurrency race could destroy the user's alias file on a clean run.**
+  `cma_ensure_alias_file` performed six sequential temp+rename migrations plus
+  two direct `cat >> "$ALIAS_FILE"` appends, racing `cma_provider_write_alias`
+  — which `claude-providers list --refresh-aliases` fires **21× on every shell
+  start** via the session hook. No lock existed on the alias file anywhere.
+  Each writer was atomic and preserving *in isolation*, which is exactly why
+  no single-function bug could be found: the second writer's read predates the
+  first writer's rename, so it faithfully writes back a stale whole file. This
+  was observed live — the file went `37288 → 282 → 32112 → 974 → 909 → 25682 →
+  130` bytes within four seconds, losing both wrapper functions and all four
+  `claude1..4` account aliases, leaving every alias pointing at an undefined
+  function. It is **not** interrupt-only: the corruption timestamp preceded the
+  suspected `SIGTERM` by ~14 minutes.
+  All alias-file writes now funnel through a single committer
+  (`cma_alias_commit`): the COMPLETE file (header + both wrappers + every
+  account alias + every provider alias) is rendered into one temp and published
+  with a single `mv`, behind an exclusive lock (`flock(1)`, falling back to an
+  atomic-`mkdir` lock with rename-verified stale breaking for hosts without
+  `flock`, e.g. macOS). A byte-identical no-op guard renders and compares
+  *before* taking the lock, so a settled host performs **zero renames per shell
+  start** and the common path cannot enter the race at all; the session hook
+  additionally pins a zero-wait acquire so it can never block a shell. `INT`/
+  `TERM` are masked across the critical section, and a sanity gate (header,
+  both wrappers, the exact alias-name set, an account-alias floor) parks a
+  rejected candidate as `<alias-file>.rejected.<ts>` rather than publishing it.
+  The render-once design also retires the drop-and-re-append migrations that
+  leaked ~15 orphaned `# Wrapper:` comment blocks and reordered the file.
+  Covered by `scripts/tests/test_alias_file_concurrency.sh` (69 assertions).
+  Teeth: against the pre-fix code the storm test records **115 structurally
+  broken states published during a single storm** — a 35KB file collapsed to
+  1274 bytes with both wrappers gone, reproducing the live incident — and
+  reports `16 failed, 17 passed`; after the fix, three consecutive runs give
+  `69 passed, 0 failed` with an identical 35257-byte result (the storm case's
+  three runs were `37 passed` when first landed; the file has since grown its
+  lock-release / gate-integration / account-floor coverage). `test_lib.sh` now
+  also lints that exactly **one** code path writes or renames onto
+  `$ALIAS_FILE`.
+- **Unknown or partial model limits failed open.** A pinned model absent from
+  the catalog produced `context_limit=None, max_output=None`, so neither guard
+  was exported and Claude Code fell back to its own 128000 default against an
+  unmeasured window — the same fail-open class as the gate above. `inference`
+  shipped `verified` and launchable in exactly that state. Unknown limits now
+  resolve to a conservative *number* rather than to silence:
+  `UNKNOWN_MODEL_CONTEXT = 128000` (measured, not invented — **93.95%** of the
+  **4544** tool-call-capable models in the live catalog publish ≥128000, and
+  p10 = 128000), narrowed further by the provider's *own* p10 over its
+  tool-call-capable models, with `output < context` enforced in a single place.
+  A bare provider ceiling was not enough. Measured as *"how often does this
+  mechanism pull the fallback below the 128000 default"*: the bare ceiling
+  (`published = pool[-1]`, all the old mechanism was) did so for only 3 of 167
+  providers (1.8%) — `inference` 125000, `llmtr` 16384, `morph` 32000 —
+  leaving the default free to overstate a small window (pin an uncatalogued
+  32k model on a provider whose ceiling is 10,000,000 and the wrapper would
+  have exported a ~120k input window against it). The per-provider percentile
+  does so for 32 of 167 (19.2%) instead — both counts unaffected by the median
+  clamp: the ceiling expression reads no floor term at all, and the clamp moves
+  only two estimates (`inference` 65536→16000, `atomic-chat` 65536→32768), both
+  already below 128000 either way. It carries a `MIN_USABLE_UNKNOWN_CONTEXT`
+  floor of 65536 because an unfloored percentile swings the other way (poe's raw
+  p10 is 480 tokens, which would trade a 400 for an unusable alias). (A
+  different question — "is `pool[-1]` the term that decides the returned value"
+  — answers 1 of 167 under the shipped clamp and 2 before it; that is the
+  reading the old "2 of 167" was computed under.)
+  Operator overrides in `providers/overrides.json` are now validated rather than
+  trusted: `true`, `-1`, `0`, `1` and `50000.5` each previously produced a state
+  in which the launch wrapper exported **neither** guard — silently reproducing
+  the exact fail-open being closed — and a quoted `"200000"` was dropped without
+  a word. Non-positive, boolean and fractional values are rejected with the
+  reason recorded, clean digit strings are honoured, and an override that cannot
+  carve a usable cap rolls back to the derived pair. Catalog rows with
+  `"output": 0` (166 rows) or `"context": 0` (104 rows) are treated as unknown
+  rather than as a binding cap of zero; this removes the resolver's silent
+  dependence on the launch wrapper re-deriving a cap on its behalf. A launch-gate refusal was deliberately rejected as the remedy: it
+  would destroy a proven-working alias, and the operator's realistic response
+  is `--force`, which bypasses the gate *and still exports no guards*.
+  This also surfaced a second defect: the `MIN_SAFE_OUTPUT` floor was applied
+  unconditionally, so any window below it came out **inverted** — **136 of 5696
+  catalogued rows emitted `output >= context`** (`mistral/open-mistral-7b` at
+  8000/8000 → 8192). *Method: replay the pre-fix carve
+  (`cap = max(min(ctx − 160000, 128000), 8192)`, no halving branch) over every
+  catalog row and count rows whose emitted output (`min(published_output, cap)`)
+  is ≥ their context.* Now 0 violations and 0 missing contexts across all 5696.
+  `inference` derives `125000/8192`, `poe` `128000/8192` (a latent instance —
+  its stored limits were stale and the next `sync` would have emptied them),
+  and `kimi-for-coding` `262144/102144`. Teeth: `14 failed, 329 passed` before,
+  `343 passed, 0 failed` after.
+- **Every router-transport provider alias failed at launch.** The Go router
+  implemented `start|ui|serve|web|stop|config|help` and no agent-launch
+  subcommand, so the wrapper's `ccr default-claude-code -- "$@"` (in
+  `scripts/lib.sh`'s `cma_run_provider`) fell through to the dispatch `default:`
+  branch, printed `Profile "default-claude-code" was not found or is disabled.`
+  and exited 1. The binary's own `--help` advertised the grammar it did not
+  implement. The router now implements the agent-launch subcommand
+  (`cmd/ccr/launch.go`, dispatched as `default-claude-code`/`code`).
+- **`ccr restart` was also unimplemented, and failed silently.** The wrapper
+  invoked it under `>/dev/null 2>&1 || true`, so the missing subcommand produced
+  no error anywhere. (That swallowing `|| true` no longer exists — it was
+  removed later in this same release, once a review showed a failed restart
+  leaves the gateway serving its previous route while the config file reads back
+  correct; the launch now refuses rather than proceeding against a route it
+  cannot show was applied.) Because a running gateway keeps
+  serving its startup config (`cmd/ccr/serve.go:137-143`), the per-launch config
+  rewrite was never applied: an alias would route to whichever provider the
+  daemon happened to start with, silently and with no diagnostic. `restart` is
+  now implemented and replays the original flags.
+- **The LAUNCH path could silently rebuild an authenticated gateway
+  UNAUTHENTICATED.** `ensureGateway` has three arms: a live gateway that
+  answers (use it), a live service whose gateway does not answer (bounce it),
+  and nothing running (autostart). The middle arm and `cmdRestart` both refuse
+  when the recorded service had inbound auth enabled and no `CCR_API_KEYS` is
+  visible to the call (`cmd/ccr/launch.go:160`, `cmd/ccr/service.go:386`) —
+  the autostart arm carried no such refusal. (The launch subcommand —
+  `cmd/ccr/launch.go` — is itself new in this release, so this contrasts arms
+  within a file authored here, not a previously shipped omission.) That arm is
+  also the one reached
+  when a previously-authenticated service *died* leaving its pidfile behind:
+  `readServiceState` succeeds and still reports `AuthEnabled: true`, but
+  `processAlive` is false. A launch from a shell without `CCR_API_KEYS`
+  therefore brought the gateway back with inbound authentication silently off
+  — `startService` hands its key list to `applyChildAPIKeyEnv`, which *unsets*
+  `CCR_API_KEYS` when the list is empty. The autostart branch now mirrors the
+  refusal (`err == nil && st.AuthEnabled && len(flags.APIKeys) == 0`,
+  `cmd/ccr/launch.go:199`) and names the risk in `cmdRestart`'s own word,
+  UNAUTHENTICATED; a genuinely absent pidfile recorded no auth posture, so a
+  first-ever fresh start is unaffected. Teeth:
+  `cmd/ccr/launch_authfailsafe_test.go` constructs exactly that state (a
+  reaped pid, plus a stale `AuthEnabled` pidfile) and asserts the refusal
+  names UNAUTHENTICATED. Neutering the refusal makes it FAIL — without it
+  `ensureGateway` proceeds to rebuild, and what comes back is a
+  `gatewayReadyTimeout` (15s, `launch.go:68`) readiness error, never the
+  asserted refusal; with the refusal in place the test passes in 0.008s.
+  **Bounded honestly:** the gateway binds loopback and inbound auth is opt-in,
+  so the blast radius is a local downgrade, not an exposed endpoint. It is
+  still a real silent downgrade of a posture the operator explicitly turned
+  on, which is precisely the class `cmdRestart` already refused. (Nit landed
+  in the same change: `cmdLaunch`'s unused `profile` parameter is now `_`.)
+- **Gateway address was not recorded, and a gateway-disabled service stayed
+  disabled across restarts.** `service.json` carried no gateway address, so
+  `restart` could not replay it and the launcher could not find it. The pidfile
+  now records `gatewayHost`/`gatewayPort` (older pidfiles backfill to the
+  documented defaults rather than host `""`/port 0), and on finding a live
+  service whose gateway does not answer, the launcher restarts it with the
+  gateway enabled.
+- **The test suite destroyed two production scripts in the working tree.**
+  `scripts/claude-session.sh` (201 lines) and `scripts/claude-sync-state.sh`
+  (103 lines) were found truncated to 8-line and 2-line test stubs. Cause: tests
+  wrote stubs to `$HOME/.local/bin/claude-session`, which in the REAL home is a
+  symlink into this repo (`install.sh` links every `claude-*.sh` there), and
+  `cat >` follows symlinks — so any run without an effective sandbox `HOME`
+  overwrote the production script through the link. Symptom: every alias failed
+  with `No conversation found with session ID:
+  11111111-2222-3333-4444-555555555555`. Both files restored from git. Hardened
+  in `scripts/tests/lib/sandbox.sh`: a new `sandbox_stub` helper (asserts the
+  sandbox, asserts the target is inside it, and **removes** an existing symlink
+  instead of writing through it) plus an `assert_sandboxed` guard that aborts
+  with exit 99 if `$HOME` is not a `mktemp` sandbox, called from `make_sandbox`
+  itself. Every stub write across the suite was converted to it.
+- **9 of 13 pinned providers carried the wrong token limits.** When
+  `providers/overrides.json` pinned a `strong_model`/`fast_model`,
+  `providers_resolve.py` copied the pinned id but never re-derived the model's
+  context/output limits — so a pinned model inherited whichever limits the
+  auto-selection had picked first (e.g. nvidia inherited `z-ai/glm-5.2`'s
+  `1000000/131072` instead of the real `256000/65536`), and the launch wrapper
+  exported `CLAUDE_CODE_MAX_OUTPUT_TOKENS` at roughly 2× the model's true cap.
+  A sibling bug ignored the documented `context_limit`/`max_output` override
+  fields entirely. Both fixed at source (limits are re-derived from the model
+  actually selected; explicit override fields are honoured), with regression
+  tests; an unknown pinned model now yields honest `None` limits rather than
+  another model's numbers. (`nvidia`'s strong/fast slots were also un-inverted.)
+- **Test-suite hygiene, three latent hazards fixed and guarded.** (1) A leaked
+  Go module cache: because a sandbox *is* `$HOME`, every Go-building test wrote a
+  500–850 MB read-only `go/pkg/mod` cache that `cleanup_sandbox`'s `rm -rf` could
+  not remove (EACCES), leaving ~35 GB of orphaned `cma-test.*` dirs; fixed with a
+  `chmod -R u+w` before removal. (2) `test_sessions.sh` wrote fixed
+  `/tmp/cma-test-*.log` paths outside the sandbox (cross-run collision) — moved
+  under the sandbox. (3) `test_install.sh` called `make_sandbox` twice, orphaning
+  the first sandbox and writing its rc/log outside the live one — fixed with a
+  `fresh_sandbox` helper. (4) The live-providers leg now fails the suite **only**
+  for providers that independently reached status `verified`; a provider already
+  classified `failed`/`unverified`/`orphaned` account-side is reported on its own
+  `KNOWN-NON-WORKING` line, never silently skipped and never counted as a pass —
+  so a permanently-red gate can no longer hide a genuinely new regression.
+- **`_cma_mtime` returned nothing usable on macOS, and the same broken idiom
+  existed twice.** The idiom is `date -r "$path" +%s` with a `stat -c %Y`
+  fallback. Both halves fail on BSD/macOS for independent reasons: `date -r`
+  there reads its argument as **epoch seconds**, not as a file path, and
+  `stat -c` is GNU-only (BSD spells it `stat -f %m`). So on macOS the first
+  branch silently produced a garbage/zero read and the second could not run at
+  all. The two sites differ in provenance, and the distinction is load-bearing
+  for what is claimed. `_cma_mtime` (`scripts/lib.sh:279`) and the whole
+  rolling-rc-backup subsystem it feeds (`cma_newest_rc_backup`,
+  `cma_backup_rc_file`, the `<rc>.cma-orig` / `<rc>.cma-backup.<epoch>` files)
+  are **new in this release** — none of them exists in `HEAD` — so `_cma_mtime`
+  returning 0 for *every* file, and thereby degrading `cma_newest_rc_backup`
+  from "newest by mtime" to "last by name", is an **intra-release defect caught
+  before commit**, never a shipped one. The genuinely pre-existing defect is the
+  second copy: the session-refresh hook `lib.sh` emits inside a `<<'HOOK'`
+  heredoc (`scripts/lib.sh:1492`, and shipped today at `HEAD`'s
+  `scripts/lib.sh:1416`), which runs in the **user's** shell and cannot call
+  `_cma_mtime`, so it has to stay self-contained. Both sites were fixed
+  independently to the portable `stat -c %Y … || stat -f %m …` pair — GNU-first,
+  so on Linux `stat -c` succeeds and the BSD branch is never reached. A separate
+  portable-mtime precedent already existed in-tree — `claude-providers.sh`'s
+  `case "$(uname -s)"` dispatch (`Darwin*) stat -f %m` / `*) stat -c %Y`,
+  lines 114-117) — but it is **not** the same idiom: its own comment (:112-113)
+  records that an earlier `||` chain in the *reverse* order broke on Linux,
+  because there `stat -f` also succeeds. It is cited as prior art for handling
+  both platforms, not as a line the fix was copied from. Guard:
+  `scripts/tests/test_rc_safety.sh` (f) now lints `lib.sh` for the
+  `date -r "$var" +%s` form and requires the helper to carry the BSD branch —
+  **21 passed, 0 failed**. **Honest scope:** neither half was a data-loss defect.
+  For the new-in-this-release subsystem, its data-safety never rested on the
+  mtime read at all: rolling backups are named `<rc>.cma-backup.<epoch>`
+  (`lib.sh:327`), so name-order and epoch-order coincide and the "newest" pick
+  is correct regardless of mtime, and `<rc>.cma-orig`, the load-bearing recovery
+  point, is written exactly once and never consulted by mtime — but that
+  describes how the intra-release defect *would* have behaved had it shipped, not
+  production history, because none of that code is in `HEAD`. In the one half
+  that DID ship, the emitted hook, the failure was a missed TTL rather than a
+  wrong one — its fallback is `echo "$now"`, so the computed age was 0 and the
+  background `claude-providers sync` simply never fired. This was a correctness
+  and portability defect, not a data-loss one, and is not claimed as more.
+- **Concurrent suite runs are now serialized** (`scripts/tests/lib/suite-lock.sh`).
+  Two overlapping `run-all.sh`/`run-proof.sh` invocations mutate the repo while it
+  tests itself, which is what once made a set of deterministic tests look flaky;
+  the lock (flock, with an atomic-`mkdir` fallback for macOS) is re-entrant for
+  the nested `run-proof.sh → run-all.sh` case and bounded-waits then exits 75 on
+  contention. It caught a real second session running the suite during its own
+  verification.
+
+### Fixed — the verification that was supposed to catch this
+
+- **A layer-4 PASS could be non-attributable — it proved *some* backend
+  worked, not the one under test.** Every router-transport provider rewrites
+  ccr's shared `Router.default` to itself immediately before launching, but an
+  alias whose `base_url` IS the gateway (`http://127.0.0.1:3456/v1`) trips a
+  self-reference guard in `cma_run_provider` and skips that rewrite — so it
+  inherited whatever the *previous* provider left in
+  `~/.claude-code-router/config.json`. `helixagent` was badged `verified` on a
+  turn served by a different provider entirely: 157,419 tokens passed through a
+  nominally 24,576-token alias because it had inherited a ~1M-context route.
+  The evidence file recorded the request and the response but never *which
+  backend served it*, so a pass and a pass-by-inheritance were indistinguishable
+  — which is why this survived a release. (The `modelUsage:
+  claude-opus-4-8[1m]` line in every layer-4 file is not a leak to the
+  operator's Anthropic account: the router branch never exports
+  `ANTHROPIC_MODEL`, so Claude Code labels and prices turns with its own
+  defaults while ccr rewrites the model server-side. It does mean that field
+  can never be used to attribute a backend.) `verify_superpowers_tui.sh` now
+  records `# ROUTE-INTENDED:` and `# ROUTE-RESOLVED:` in every evidence file
+  and fails the leg with `# FAIL: route-mismatch` when they disagree, or
+  `# FAIL: route-unknown` when the route cannot be read — an unattributable
+  turn now fails instead of passing. The gate does not merely compare the
+  on-disk config, because a written config that was never *applied* proves
+  nothing: `ccr restart` ran under `|| true`, and `cmdRestart` genuinely
+  refuses to bounce an authenticated gateway when `CCR_API_KEYS` is not visible
+  (`cmd/ccr/service.go:385-390` returns 1), so a swallowed failure would leave
+  the gateway serving its previous route while the file read back as correct.
+  The router exposes no live-route query (`/health` reports a provider *count*,
+  not a route), so the gate instead requires a **restart receipt** bracketing
+  the launch — a new `gateway listening on` line in
+  `~/.claude-code-router/service.log`, or a changed `service.json` — and fails
+  closed with `# FAIL: route-unproven` when it cannot show the route was
+  applied. Both `.Router.default` **and** `.Router.background` are compared
+  (a partly-foreign turn emits `# FAIL: route-mismatch-background`), and `jq`
+  is now a hard precondition rather than a silent skip, since a host without it
+  cannot run router providers at all. Route failures are evaluated
+  independently of provider status: a rejected key explains a provider that
+  cannot answer, but nothing about an account explains evidence attributed to
+  the wrong backend.
+  **The guarantee, stated precisely:** a layer-4 PASS on router transport is
+  impossible unless both router keys name the alias under test AND a restart
+  receipt brackets that launch. Two limits remain, and are not claimed away:
+  the receipt brackets the whole launch rather than the individual request (the
+  suite lock, not the gate, excludes a concurrent rewrite), and it proves *a*
+  config load rather than that the loaded bytes were the ones read back —
+  closing that would need a live-route query the router does not expose.
+  Covered by `scripts/tests/test_layer4_route_attribution.sh` (66 assertions
+  across 10 legs). Teeth are proven per-finding by mutation — reverting any one
+  fix flips exactly its own assertions — because `HEAD` is not a usable
+  baseline here (it predates the whole feature). The original bluff is
+  reproduced verbatim in the mismatch case: a `# PASS` written for a turn
+  served by `chutes` while the alias under test was `routertest`. The
+  previously vacuous assertions were replaced with ones that execute the
+  production sweep; against a mutant with that sweep deleted, the old
+  assertions still passed and the new ones fail.
+- **v1.23.0's "run-proof ALL GREEN" and "10–11 aliases verified live" were
+  false claims.** `scripts/tests/verify_providers_live.sh`'s layer-4 handler
+  called `_pass` on a layer-4 **FAIL** — it asserted "the verifier ran", not
+  "it passed". 21 alias
+  failures were counted as passes and the leg reported "40 passed, 0 failed"
+  while the router launch was broken end-to-end. Compounding it: no gate
+  anywhere grepped the proof directory for `# FAIL:` markers, so 37 stale
+  markers sat on disk unread. And the legs that produced the "10–11 verified"
+  figure (`verify_aliases_live.sh`, `alias_e2e_test.py`) never launch an alias
+  at all — they curl provider endpoints directly, explicitly "bypassing ccr", so
+  they could not have detected a broken launch path under any circumstances.
+  Fixes: line 126 is now `_fail`; the layer-3 `unverified` branch likewise
+  (`providers-semantic.sh` emits it only on a definitive driver failure —
+  transient conditions already route to `skip`); and a new proof-directory sweep
+  gate fails the run if any evidence file **from the current run** ends in
+  `# FAIL:`, independent of the stdout classification.
+- **Layer 3 could de-verify a working provider on its own completion budget.**
+  `chatComplete` returned the model's content and discarded `finish_reason`,
+  so a reply severed mid-generation was indistinguishable from a model that
+  had not complied. Measured live: siliconflow's round-1 reply came back as
+  `ZETA-9-ORANGE-` against the sentinel `ZETA-9-ORANGE-7f3a` — a strict
+  prefix, cut mid-token — and was reported as `sentinel not found in
+  response`, a definitive exit-1 that demoted a provider whose layer-4 TUI
+  turn PASSED. It now returns `chatOutcome{Content, FinishReason}`, and a
+  round-1 sentinel no-match at `finish_reason == "length"` is classified
+  **infra** (exit 3 ⇒ honest SKIP, never a demotion): a truncated probe never
+  completed, so it yields no verdict about the model at all, and blaming the
+  model for a budget *we* chose is exactly the bluff this layer exists to
+  avoid. Reading that path surfaced a second, latent defect. The judge branch
+  states its own policy in comment — "a broken judge must never demote the
+  model-under-test" — and routes every judge *call* failure to `failInfra`,
+  but an unparseable judge *reply* fell through to `fail()` (exit 1) even when
+  the reply was severed at `finish_reason == "length"`. A judge that merely
+  ran out of tokens therefore de-verified the model under test, contradicting
+  the judge-branch policy stated directly above it in its own comment; that case
+  now routes to `failInfra` too. The budgets were then raised — `round1MaxTokens` 256 → 2048,
+  `judgeMaxTokens` 64 → 2048, and round 2's bare literal `512` → the named
+  `round2MaxTokens = 2048` — and the three sites differ **in kind**, which is
+  the point:
+  - **The judge at 64 was the active defect.** Measured on deepseek-v4-pro,
+    3 samples per budget, task = emit one integer: reasoning 78–361 tokens;
+    64 ⇒ **0/3**, every sample `finish_reason=length` with empty content — the
+    exact truncation shape above. 128 ⇒ 0/3, 256 ⇒ 1/3, 512 ⇒ 3/3. 512 is
+    nonetheless the wrong fix: it passed only as a small-n artifact, and
+    widening to 9 samples surfaced a 500-token completion, leaving 12 tokens
+    of headroom. 2048 is chosen with margin rather than fitted to the sample.
+  - **Round 1 at 256 was NOT broken, and no claim is made that it was.** Same
+    model, task = echo an 18-char sentinel: reasoning 58–97 tokens; 64 ⇒ 0/3,
+    128 ⇒ 2/3, **256 ⇒ 3/3**. It is raised for a different and more
+    interesting reason: **reasoning-token distributions do not transfer across
+    models, or across tasks.** siliconflow truncated at 256 on that same
+    round-1 task — the severed-prefix case above. A per-task budget tuned on
+    one model silently de-verifies another. And truncation at *either* round
+    de-verifies a working provider — round 1 severs the **sentinel** (a
+    mechanical exact-match check, exit-1 on no-match), round 2 severs the
+    **description** (scored by the judge, which fairly rates a severed or empty
+    description below threshold 2 ⇒ `fail()` ⇒ exit-1); the *only* round-2 path
+    that is a mere skip is a truncated judge *call/reply*, which D1 routes to
+    `failInfra`. After D1 both truncation sites are prevented by budget rather
+    than one being intercepted, which is why **both** budgets were raised, not
+    just round 1's.
+  - **Round 2 at 512 was the release's second counted blocker — it de-verified
+    `inference`.** The round-2 *description* call (glm-5.2, `max_tokens` the
+    only variable) came back `finish_reason=length` with empty content on two
+    of three samples at 512; the judge fairly scored the severed/empty
+    description below threshold 2 ⇒ `fail()` ⇒ **exit-1**, demoting a provider
+    whose layer-4 TUI turn PASSES. This is the symmetric twin of the
+    siliconflow case, not a bonus clause: **both** run-proof failures were D1
+    truncation de-verifications — siliconflow's **sentinel** severed in round 1
+    (fixed by `round1MaxTokens`), `inference`'s **description** severed to empty
+    in round 2 (fixed by `round2MaxTokens`). Raised to 2048 the description
+    completes (`finish_reason=stop` on all three samples, well inside the
+    budget) and 12/12 verifier runs return `verified`, judge scores 2–3,
+    never below threshold — though six of the twelve sit at exactly 2, a
+    thin-but-consistent margin, not a proven bound. **Honest bound:** D1 does
+    not add a round-2-description→infra branch; it gives the description enough
+    budget to finish. A description that genuinely needed >2048 would still be
+    judged low and exit-1 — the fix is "enough budget to finish," not
+    "truncation can no longer de-verify."
+  Two scope limits, stated rather than papered over. The **default** judge is
+  Groq `llama-3.1-8b-instant` (`scripts/providers/judge.env.template`), a
+  non-reasoning model, so the judge=64 defect was **latent in the default
+  configuration** — it bites only when a reasoning model is configured as the
+  judge. And the measurements are one model, one provider, one prompt pair: a
+  sample maximum is not a distributional ceiling (the 500-token judge sample
+  appeared only when n went 3 → 9), so these budgets clear the observed tail
+  with headroom rather than claiming a proven bound. Landed in
+  `submodules/LLMsVerifier/llm-verifier/cmd/semantic-code-visibility/main.go`;
+  covered by that package's `main_truncation_test.go` (6 tests: budget
+  truncation named as such, a genuinely-empty reply still reported as empty,
+  `finish_reason` surfaced to the caller, and a budget floor asserted per site —
+  **not** a uniform one: `round2MaxTokens ≥ 2048` and `judgeMaxTokens ≥ 1024`,
+  but `round1MaxTokens ≥ 512`, so round 1 could be lowered to 512 and the suite
+  would still pass — a softer guard than this entry's own argument about
+  round-1 sentinel truncation implies) — `go test ./cmd/semantic-code-visibility/`
+  passes.
+
+### Added — regression guards
+
+- **`scripts/tests/test_ccr_conformance.sh`** — static, no-network conformance
+  between the launch grammar the toolkit speaks and the grammar the bundled Go
+  router understands. Scans `scripts/lib.sh` for `ccr <word>` in command
+  position, parses the `case` arms of the router's top-level dispatch, and
+  asserts required ⊆ supported. This would have caught the regression with no
+  network and no launch.
+- **`ccr` test stubs now fail loudly on an unrecognised subcommand** instead of
+  `exit 0`. The router path's only coverage was fake stubs that silently
+  succeeded on anything they did not recognise — a stub can certify nothing but
+  the stub.
+- **`TestMain` guard in the router's test package** (`cmd/ccr/main_testmain_test.go`)
+  prevents tests from spawning the real service binary. `startService` spawns a
+  detached child from `os.Executable()`, which under `go test` is the *test*
+  binary; the child re-ran the entire suite and forked exponentially, leaving
+  600+ live processes until `fork(2)` returned EAGAIN and unrelated tests failed
+  with "resource temporarily unavailable". Tests that legitimately need a
+  service process must go through `withStubService(t)`.
+- New guards, each proven to fail when the thing it guards is broken (mutation
+  tested): `test_mutation_residue.sh` (refuses to ship a `&& false` / always-pass
+  mutation left behind by testing), `test_providers_gate.sh` (a `verified`
+  provider's failure still fails the suite; account-dead ones do not — with an
+  anti-vacuous guard that the gate genuinely discriminates), `test_sandbox_hygiene.sh`
+  (no test writes a fixed `/tmp` path or a bare redirect into `.local/bin`),
+  `test_sandbox_leak.sh` (a test that leaks a sandbox fails even though it exits
+  0), `test_suite_lock.sh` (34 assertions, 3 mutations killed), and
+  `test_provider_credit.sh` (127 assertions for the credit-tier rule).
+- The layer-4 superpowers-engagement check was replaced: the old fuzzy
+  vocabulary grep produced both false passes (a confabulated claim) and false
+  failures (a genuine engagement phrased differently). It now poses an
+  unforgeable secret-knowledge challenge — one exact cell of the skill's own
+  table, content a model can only produce by having loaded the skill — plus a
+  distinct `empty-result` verdict for a model that runs but emits no text.
+
+### Verified
+
+Credit-aware selection (this release's new capability):
+- `scripts/tests/test_providers.sh` **294/0**; `test_provider_credit.sh` **127/0**.
+- The two rule-encoding branches are **mutation-proven** to have teeth: breaking
+  the unknown→free conservative default makes the anti-vacuous guard fire
+  (`available` and `unknown` stop differing); breaking the credit→paid branch
+  makes the paid models unreachable (19 assertions fail). Both restored
+  byte-identical.
+- LLMsVerifier credit/cost-aware code: `go build ./...` clean; the `providers`,
+  `scoring` and `selection` packages test green.
+
+Launch-regression fixes (carried from the v1.24.0 work):
+- **Live, through the real alias path — final `run-proof.sh` (2026-07-21):** all
+  six legs `rc=0` (`sandbox · live · providers · aliases · alias-e2e ·
+  constitution`). The aliases leg records `PASS: 9 FAIL: 0 SKIP-QUOTA: 0
+  SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21`, and the providers leg `9 passed,
+  0 failed, 12 gated-skipped`. The 12 gated-skipped are account-dead providers
+  (funds/keys) the verification gate correctly filters out — they are not
+  claimed to work. `helixagent` did change from its earlier PASS to the expected
+  route-attribution de-verification, exactly as predicted; that is the correct
+  outcome, not a regression. The two layer-3 truncation fixes are proven in the
+  regenerated evidence: `providers-siliconflow-semantic.txt` and
+  `providers-inference-semantic.txt` now both read `verified` (round-1 sentinel
+  intact, round-2 judge scored 3 and 2), where before this release they read
+  `unverified` on severed responses.
+- **Evidence provenance.** Only proof artefacts produced after 2026-07-20 13:54
+  are cited: from that point `~/.claude-code-router/service.log` retains the
+  gateway restart records that let each launch be attributed to the route it
+  actually owned. Older artefacts (Jul 5/18/19) predate both those retained
+  records and the switch to the Go router as sole router, cannot be attributed
+  retroactively, and are deliberately not relied on for any claim here.
+
+- **Full hermetic suite (2026-07-21): 42 files / 42 passed / 0 failed — ALL
+  GREEN**, run against the final tree (`run-all.sh`, which auto-discovers every
+  `test_*.sh`, including the new `test_redact.sh` and `test_semantic_evidence.sh`).
+  This is the real tally the earlier "NOT yet asserted" note deferred to: a prior
+  36-file run predated these fixes and covered fewer files, so it was deliberately
+  never claimed as a full-suite green — claiming it would have repeated the
+  v1.23.0 error this release exists to correct.
+- **Independent whole-branch review (2026-07-20):** GO — on the tree as it
+  stood that day, CHANGELOG honesty, docs-vs-code fidelity, the I-2 fix, and the
+  §11.4.120 test reconciliation were all verified with pasted evidence, and the
+  sole flagged blocker was the mechanical submodule-commit step (addressed at
+  release time), not a code defect. **Scope — this GO covers only what the
+  review saw, and is not a sign-off on the shipped tree.** Substantial work
+  landed after it: the alias-file render-once race fix, the route-attribution
+  gate hardening, the empty-/unknown-limits fix, the rc-safety + `_cma_mtime`
+  work, the layer-3 D1 truncation fix, the semantic fail-open fix, and these
+  CHANGELOG entries themselves. Under this project's own re-review discipline,
+  changes after a GO re-arm the review, so the 2026-07-20 result is recorded as
+  what it was, a green light on an earlier state, not a release sign-off.
+- **Final whole-branch review (2026-07-21): GO on the shipped tree.** The two
+  thinnest-covered pieces — the `providers-semantic.sh` evidence mirror and the
+  layer-3 D1 truncation routing — were verified verdict-safe, secret-safe (the
+  mirror lands in an evidence file that is `_redact`-ed before commit), and
+  regression-safe (every new branch is FAIL→SKIP, never FAIL→PASS, so no
+  non-compliant model can newly pass; `go vet` / `go test` / `go build` clean).
+  Mutation residue and secrets are clean across all three repos, and docs name
+  only symbols that exist in the code. This is the sign-off the 2026-07-20 result
+  could not give.
+
+**Scope of what "ALL GREEN" claims here:** the hermetic suite and all six
+`run-proof.sh` legs pass on the final tree, and the 9 verified provider aliases
+work live end-to-end. It does NOT claim the 12 account-dead aliases work — those
+are gated out for lack of funds/keys, reported as known-non-working, and never
+counted as a pass. The release is cut from this state.
+
 ## v1.23.0 — 2026-07-20 — Bundled Go claude-code-router is now the SOLE router (JS fully replaced) + full retest
 
 The vendored Go `claude-code-router` (submodule, installed as `ccr` via

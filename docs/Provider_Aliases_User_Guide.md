@@ -63,15 +63,54 @@ deepseek                      # launch Claude Code on DeepSeek's strongest model
   `scripts/providers/overrides.json` (see §6).
 - **Strong model** → Claude Code's main model (`ANTHROPIC_MODEL`). Chosen as the
   provider's most capable: reasoning-capable first, then newest, then largest
-  context.
+  context — **within the tier your account can actually pay for** (see
+  §4.1).
 - **Fast model** → Claude Code's background model (`ANTHROPIC_SMALL_FAST_MODEL`),
-  chosen as the cheapest tool-call-capable model.
+  chosen as the cheapest tool-call-capable model in that same tier.
 - **Transport**:
   - `native` — provider speaks the Anthropic API directly (models.dev `npm` is
     `@ai-sdk/anthropic`). The alias runs `claude` with `ANTHROPIC_BASE_URL` /
     `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` set.
   - `router` — provider is OpenAI-compatible / Gemini. The alias launches
     through `claude-code-router` (`ccr default-claude-code`), which translates the protocol.
+
+### 4.1 Model tier — strongest paid if you have credit, strongest free if you don't
+
+Model selection is **credit-aware**. This is a hard rule applied to every
+provider alias:
+
+| Credit state of that provider's account | What the alias runs |
+| --------------------------------------- | ------------------- |
+| Credit / purchased tokens available      | the strongest **paid** model the provider serves that passes verification |
+| No credit                                | the strongest **free** model (free tier / `$0` cost) that passes the same verification |
+| Unknown — can't be determined            | treated as *no credit*: the free choice |
+
+**Why "unknown" falls back to free.** The two possible mistakes cost very
+different amounts. Choosing a paid model on an unfunded key gives you a 402/403
+at launch and a dead alias right when you wanted to work. Choosing a free model
+on a funded key only costs some capability, and the next `claude-providers sync`
+promotes it as soon as the credit signal becomes readable. So an inconclusive
+billing probe, a provider with no balance endpoint, or a stale offline catalog
+all resolve conservatively.
+
+**It's a floor on cost, not a cap on quality.** Inside whichever tier applies,
+the pick is still the *strongest* model. The rule narrows the candidate set; it
+does not lower the bar within it. It applies to both the strong and the fast
+slot, and to every alias `sync --multi` generates.
+
+**Verification does not relax for free models.** A free model still has to pass
+the sentinel probe and the tool-calling probe (§7) before its alias is
+activated. "Cheapest that works" never degrades into "cheapest".
+
+**Your pin always wins.** A `strong_model` / `fast_model` entry in
+`scripts/providers/overrides.json` (§6) overrides the automatic choice
+completely. Use it when you know exactly what you're paying for on a given
+provider and want the tier logic to stay out of it.
+
+> The enforcement mechanism (in `providers_resolve.py`, with matching detection
+> in the bundled LLMsVerifier) landed alongside this section. The table and the
+> rules above are the **behavioural contract**; check the source for the current
+> flag and field names.
 
 ## 5. Config dirs, plugins, and shared state
 
@@ -203,6 +242,12 @@ models.dev-derived value:
 This is how you (for example) give DeepSeek the short alias `dseek` — without
 touching any code.
 
+A `strong_model` / `fast_model` pin here also **overrides the credit-aware tier
+choice** described in §4.1. If you pin a paid model on a provider whose credit
+state the toolkit reads as empty or unknown, that pin is honoured — the tier
+logic never second-guesses an explicit operator decision, so the launch failure
+that follows an unfunded key is then yours to expect.
+
 > **Do not copy transport/base_url from an example.** As of **v1.19.0** every
 > provider — DeepSeek and Xiaomi included — is pinned to `router` transport on
 > its OpenAI-compatible endpoint, because both were verified working there and
@@ -267,6 +312,30 @@ rejections there demote the alias, while transient judge/infra errors are an
 honest SKIP that never demotes. (Requires the Go toolchain; the build reads
 keys from your keys file.)
 
+The live-TUI layer (`claude-providers verify <id> --deep`, runner
+`verify_superpowers_tui.sh`) additionally **proves which backend served the
+turn**. Router-transport aliases share one ccr `Router.default`, and an alias
+whose `base_url` is the gateway itself skips its own rewrite and would
+otherwise inherit the previous provider's route — a PASS that says nothing
+about the alias under test. Every evidence file now records
+`# ROUTE-INTENDED:` and `# ROUTE-RESOLVED:` (the latter read after the launch),
+and the leg fails with `# FAIL: route-mismatch` when they differ, or
+`# FAIL: route-unknown` when the route is unreadable. Native-transport aliases
+record an explicit `n/a` and are not route-checked.
+
+Two further refusals close the remaining holes. `.Router.background` is checked
+alongside `.Router.default`, because Claude Code dispatches background
+sub-requests of the same turn through it — a mismatch there is
+`# FAIL: route-mismatch-background`. And because reading the config file back
+only proves what it *says*, the leg also demands a **restart receipt**
+bracketing the launch (a fresh `gateway listening on` line in
+`~/.claude-code-router/service.log`, or a changed `service.json`): the wrapper's
+`ccr restart` runs under `|| true` and can legitimately be refused, which would
+leave the previous provider serving while the file reads back correct. Without a
+receipt the leg fails closed with `# FAIL: route-unproven`. For router-transport
+aliases `jq` is a hard precondition — without it the route is unreadable and the
+leg refuses rather than skipping.
+
 ## 8. Known limitation — default session color
 
 The original goal was for each provider session to default its `/color` to
@@ -288,6 +357,10 @@ setting, `sync` will seed it automatically.
 | `offline and no models.dev cache` | Run `claude-providers sync` once online to populate the cache. |
 | A key didn't become an alias | It's `unmapped` (no models.dev match) or classified `vcs`/`infra`. Map it with `add`, or check `scripts/providers/evidence/mapping-report.md`. |
 | Alias missing after sync | `source ~/.local/share/claude-multi-account/aliases.sh` or open a new shell. |
+| 400 "exceeded model token limit" | The catalog row for the model is self-inconsistent (`limit.output >= limit.context`). `derive_limits()` in `scripts/providers_resolve.py` always **carves** the output cap out of the context instead of trusting the published one, so such a row resolves to the same cap an absent output would; re-run `claude-providers sync` to rewrite the alias `.env`. A model the catalog has never heard of (an operator pin) no longer emits *no* limits either — an unknown context resolves to a conservative measured fallback (the catalog p10, narrowed by the provider's own p10, capped by that provider's widest window and floored so it stays usable), so both guards always exist. A `:free` row whose output budget exceeds its paid sibling's is only adjudicated at all when its `output < context` (where they are equal the row is just the common output-copied-from-context mislabel, which the carve already fixes), and its context is only lowered when at least three *distinct* providers **other than the accused one**, publishing the same model under a compatible vendor prefix, put it lower — then only to the lower median of what they publish. A lone suspicious row is left alone, because a wrongly-shrunk window is its own dead alias. Note the deliberate blind spot in the other direction: a genuinely throttled `:free` tier is corroborated at the *paid* value and left alone, since every peer record describes the paid tier. |
+| `# FAIL: route-mismatch` in a `--deep` evidence file | The verification turn was served by a different backend than the alias under test (see §7). Re-run that leg on its own rather than after another router alias. |
+| `# FAIL: route-mismatch-background` | Same, for the `.Router.background` entry: background sub-requests of that turn went to another backend (see §7). |
+| `# FAIL: route-unproven` | The route was written but nothing proves the live gateway loaded it — the `ccr restart` was refused or never happened. Most often an authenticated gateway restarted without `CCR_API_KEYS` visible; re-run the leg with the gateway's keys in the environment. |
 
 ## 10. Remote distributed deployment & heavy testing
 

@@ -485,9 +485,20 @@ def enrich_from_catalog(verified_models, catalog_models):
             ctx_score = min(WEIGHT_CONTEXT, int(WEIGHT_CONTEXT * math.log10(ctx / 1000) / math.log10(1000)))
             model["score"] += ctx_score
 
-        # Free tier bonus (5 pts)
-        inp_cost = cost.get("input", 999) if cost else 999
-        if inp_cost == 0:
+        # Free/paid tier — the same classification providers_resolve.py uses, so
+        # the --multi path and the single-alias path cannot disagree about which
+        # models are free. Zero on BOTH sides is free; missing pricing is
+        # "unknown", never assumed free.
+        inp_cost = cost.get("input") if isinstance(cost, dict) else None
+        out_cost = cost.get("output") if isinstance(cost, dict) else None
+        if isinstance(inp_cost, (int, float)) and isinstance(out_cost, (int, float)):
+            tier = "free" if (inp_cost == 0 and out_cost == 0) else "paid"
+        elif str(mid).endswith(":free"):
+            tier = "free"
+        else:
+            tier = "unknown"
+        model["credit_tier"] = tier
+        if tier == "free":
             model["score"] += WEIGHT_FREE
             model["capabilities"]["is_free"] = True
 
@@ -500,6 +511,276 @@ def enrich_from_catalog(verified_models, catalog_models):
             model["failure_reason"] = f"Output tokens too small: {out} < {MIN_OUTPUT_TOKENS}"
 
     return verified_models
+
+
+# --- Credit probing ----------------------------------------------------------
+#
+# The operator's rule ("paid model if we have credit, else strongest free")
+# needs a per-provider answer to "does this account have usable credit?".
+# There is no universal API for that. Two signals exist, in descending order of
+# trustworthiness:
+#
+#   1. A documented balance/credits endpoint. Very few providers publish one;
+#      the ones that do are listed in providers/credit-endpoints.json (data,
+#      not code, so an operator can add one without touching Python).
+#   2. Inference from a probe against a PAID model. A 402 Payment Required or a
+#      documented "insufficient balance" body proves there is no credit; a 200
+#      proves there is. Everything else (401 bad key, 429 rate limit, 5xx,
+#      timeout) proves NOTHING and must stay "unknown".
+#
+# Anything we cannot establish is "unknown", which providers_resolve.py treats
+# as no-credit. Guessing "available" would spend real money on a hunch.
+
+CREDIT_CACHE_VERSION = 1          # must match providers_resolve.CREDIT_CACHE_VERSION
+CREDIT_CACHE_TTL_SECONDS = 86400
+
+CREDIT_AVAILABLE = "available"
+CREDIT_EXHAUSTED = "exhausted"
+CREDIT_UNKNOWN = "unknown"
+
+# Body substrings that a provider uses to say "you are out of money". Matched
+# case-insensitively against the error body of a non-2xx paid-model probe.
+NO_CREDIT_PATTERNS = [
+    r"insufficient[ _-]?(?:balance|credit|funds|quota)",
+    r"payment[ _-]?required",
+    r"out of (?:credit|credits|funds)",
+    r"no (?:remaining )?credits?",
+    r"credit[ _-]?(?:balance )?(?:is )?(?:too low|exhausted|depleted)",
+    r"balance is not enough",
+    r"exceeded your current quota",
+    r"billing[ _-]?(?:hard[ _-]?)?limit",
+    r"add (?:more )?(?:funds|credits)",
+]
+
+
+def redact(text, secret=""):
+    """Scrub an API key (and anything key-shaped) out of text before it is
+    logged, cached, or printed. Credit detail strings end up on disk, so this
+    is the only way error bodies are ever allowed out of a probe."""
+    if not text:
+        return ""
+    out = str(text)
+    if secret and len(secret) >= 6:
+        out = out.replace(secret, "[REDACTED]")
+    # Generic key shapes (sk-..., hf_..., long bearer blobs) in case a provider
+    # echoes the credential back in its error message.
+    out = re.sub(r"\b(?:sk|pk|hf|gsk|xai|nvapi|csk)[-_][A-Za-z0-9\-_]{8,}", "[REDACTED]", out)
+    out = re.sub(r"Bearer\s+[A-Za-z0-9\-_.]{8,}", "Bearer [REDACTED]", out)
+    return out
+
+
+def _walk(obj, path):
+    """Walk a path of dict keys / list indices; None if any hop is absent.
+
+    Integer path elements index into lists, which is how DeepSeek's
+    `balance_infos[0].total_balance` is reached declaratively.
+    """
+    cur = obj
+    for key in path:
+        if isinstance(key, int):
+            if not isinstance(cur, list) or not (-len(cur) <= key < len(cur)):
+                return None
+            cur = cur[key]
+        else:
+            if not isinstance(cur, dict) or key not in cur:
+                return None
+            cur = cur[key]
+    return cur
+
+
+def _dig(obj, path):
+    """Numeric field at `path`, or None.
+
+    Providers are inconsistent about types: OpenRouter sends JSON numbers,
+    DeepSeek sends decimal STRINGS ("110.00"). Both are accepted; anything that
+    is not a number in disguise (including booleans, which Python would
+    otherwise happily treat as 0/1) returns None.
+    """
+    cur = _walk(obj, path)
+    if isinstance(cur, bool) or cur is None:
+        return None
+    if isinstance(cur, (int, float)):
+        return cur
+    if isinstance(cur, str):
+        try:
+            return float(cur.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _dig_bool(obj, path):
+    """Boolean field at `path`, or None. DeepSeek's `is_available` is a direct
+    'do you have enough money' answer — better than any arithmetic we could do."""
+    cur = _walk(obj, path)
+    return cur if isinstance(cur, bool) else None
+
+
+def probe_balance_endpoint(spec, api_key, timeout=TIMEOUT_DEFAULT):
+    """Query a documented balance endpoint. Returns a credit record or None if
+    the endpoint could not give a usable answer."""
+    url = spec.get("url")
+    if not url:
+        return None
+    auth = (spec.get("auth") or "bearer").lower()
+    if auth == "bearer":
+        headers = {"Authorization": f"Bearer {api_key}"}
+    elif auth == "x-api-key":
+        headers = {"x-api-key": api_key}
+    else:
+        headers = {(spec.get("auth_header") or "Authorization"): api_key}
+
+    status, body = http_get_json(url, headers, timeout)
+    if status != 200 or not isinstance(body, dict):
+        return {
+            "credit": CREDIT_UNKNOWN,
+            "signal": "balance_endpoint",
+            "detail": redact(
+                "%s returned HTTP %s — balance undetermined" % (url, status), api_key),
+        }
+
+    # `signals` is an ORDERED list: providers expose several fields of differing
+    # precision and the order encodes which to believe first. OpenRouter is the
+    # motivating case — `limit_remaining` is exact but null on keys with no
+    # spending cap, so it falls through to `is_free_tier`, which answers the
+    # weaker question "has this account ever bought credits".
+    for sig in (spec.get("signals") or []):
+        path = sig.get("path") or []
+        kind = (sig.get("type") or "balance").lower()
+        label = ".".join(str(p) for p in path)
+
+        if kind in ("boolean", "boolean_negated"):
+            flag = _dig_bool(body, path)
+            if flag is None:
+                continue
+            good = flag if kind == "boolean" else (not flag)
+            return {
+                "credit": CREDIT_AVAILABLE if good else CREDIT_EXHAUSTED,
+                "signal": "balance_endpoint",
+                "detail": "%s: %s=%s (%s)" % (url, label, flag,
+                                              sig.get("desc") or kind),
+            }
+
+        granted = _dig(body, path)
+        if granted is None:
+            continue
+        spent = _dig(body, sig.get("minus")) if sig.get("minus") else None
+        remaining = granted - spent if spent is not None else granted
+        return {
+            "credit": CREDIT_AVAILABLE if remaining > 0 else CREDIT_EXHAUSTED,
+            "signal": "balance_endpoint",
+            "detail": "%s: %s remaining=%s (value=%s spent=%s)"
+                      % (url, label, remaining, granted,
+                         spent if spent is not None else "n/a"),
+        }
+
+    return {
+        "credit": CREDIT_UNKNOWN,
+        "signal": "balance_endpoint",
+        "detail": "%s returned 200 but none of the %d configured signals were "
+                  "present — schema changed?" % (url, len(spec.get("signals") or [])),
+    }
+
+
+def probe_paid_model(model_id, endpoint, api_key, timeout=TIMEOUT_DEFAULT):
+    """Infer credit from a minimal completion against a PAID model.
+
+    Only two outcomes are evidence: a 200 (the account paid for a token, so it
+    has credit) and an explicit payment/balance rejection. Auth errors, rate
+    limits and outages are deliberately 'unknown'.
+    """
+    url, headers, body = build_probe_request(model_id, endpoint, api_key)
+    body["max_tokens"] = 1
+    body["messages"] = [{"role": "user", "content": "hi"}]
+    status, resp, _elapsed = http_post_json(url, body, headers, timeout)
+    blob = redact(json.dumps(resp) if isinstance(resp, dict) else str(resp), api_key)
+    low = blob.lower()
+
+    if status == 200:
+        # A 200 that actually carries an error body is not proof of anything.
+        err = resp.get("error") if isinstance(resp, dict) else None
+        if err:
+            return {"credit": CREDIT_UNKNOWN, "signal": "paid_model_probe",
+                    "detail": "HTTP 200 with error body on %s: %s" % (model_id, blob[:200])}
+        return {"credit": CREDIT_AVAILABLE, "signal": "paid_model_probe",
+                "detail": "paid model %s served a completion (HTTP 200)" % model_id}
+
+    if status == 402:
+        return {"credit": CREDIT_EXHAUSTED, "signal": "paid_model_probe",
+                "detail": "HTTP 402 Payment Required on paid model %s" % model_id}
+
+    if status in (400, 403, 429) and any(re.search(p, low) for p in NO_CREDIT_PATTERNS):
+        return {"credit": CREDIT_EXHAUSTED, "signal": "paid_model_probe",
+                "detail": "HTTP %d on paid model %s with a no-credit body: %s"
+                          % (status, model_id, blob[:200])}
+
+    reason = {
+        0: "network failure — no signal",
+        401: "HTTP 401 (bad/expired key) — says nothing about credit",
+        404: "HTTP 404 (model not served here) — says nothing about credit",
+        429: "HTTP 429 (rate limit) — transient, not a credit verdict",
+    }.get(status, "HTTP %s — not a recognised credit signal" % status)
+    if status >= 500:
+        reason = "HTTP %d (provider outage) — transient, not a credit verdict" % status
+    return {"credit": CREDIT_UNKNOWN, "signal": "paid_model_probe", "detail": reason}
+
+
+def run_credit_probe(provider_id, endpoint, api_key, endpoint_spec=None,
+                     paid_model="", timeout=TIMEOUT_DEFAULT):
+    """Best available credit signal for one provider, in priority order."""
+    if endpoint_spec:
+        rec = probe_balance_endpoint(endpoint_spec, api_key, timeout)
+        if rec and rec["credit"] != CREDIT_UNKNOWN:
+            rec["doc"] = endpoint_spec.get("doc", "")
+            rec["checked_at"] = datetime.now(timezone.utc).isoformat()
+            return rec
+        first = rec  # keep the failed-endpoint detail if the fallback is mute
+    else:
+        first = None
+
+    if paid_model:
+        rec = probe_paid_model(paid_model, endpoint, api_key, timeout)
+        rec["checked_at"] = datetime.now(timezone.utc).isoformat()
+        return rec
+
+    if first:
+        first["checked_at"] = datetime.now(timezone.utc).isoformat()
+        return first
+    return {
+        "credit": CREDIT_UNKNOWN, "signal": "none",
+        "detail": "no balance endpoint known for %s and no --paid-model given"
+                  % provider_id,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def load_credit_cache(path):
+    """Read the credit cache, honouring the same version+TTL gate the resolver
+    applies. A rejected cache comes back empty, never partially trusted."""
+    if not path or not os.path.exists(path):
+        return {"_cache_version": CREDIT_CACHE_VERSION, "providers": {}}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {"_cache_version": CREDIT_CACHE_VERSION, "providers": {}}
+    if not isinstance(data, dict) or data.get("_cache_version") != CREDIT_CACHE_VERSION:
+        return {"_cache_version": CREDIT_CACHE_VERSION, "providers": {}}
+    ts = data.get("_cached_at")
+    if not isinstance(ts, (int, float)) or time.time() - ts > CREDIT_CACHE_TTL_SECONDS:
+        return {"_cache_version": CREDIT_CACHE_VERSION, "providers": {}}
+    data.setdefault("providers", {})
+    return data
+
+
+def save_credit_cache(path, data):
+    if not path:
+        return
+    data["_cache_version"] = CREDIT_CACHE_VERSION
+    data["_cached_at"] = time.time()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
 
 # --- Cache -------------------------------------------------------------------
@@ -537,6 +818,27 @@ def save_cache(cache_file, data):
 
 # --- Main --------------------------------------------------------------------
 
+def rank_by_credit(results, credit_status):
+    """Order verified-model records by the credit-tier rule, strongest first.
+
+    Decisive, not a tie-break: with credit the strongest PAID model wins; without
+    it (or when we simply don't know) the strongest FREE model must win even over
+    a higher-scoring paid one, because we cannot pay for it. Sorts `results` in
+    place (and returns it) so `--multi` emits the alias-choosing order.
+
+    This is a module-level function ON PURPOSE: the ordering that actually decides
+    which model becomes the alias must be reachable by a test that calls the real
+    code, not a re-implementation of it.
+    """
+    if credit_status == "available":
+        tier_rank = {"paid": 0, "unknown": 1, "free": 2}
+    else:
+        tier_rank = {"free": 0, "unknown": 1, "paid": 2}
+    results.sort(key=lambda m: (tier_rank.get(m.get("credit_tier", "unknown"), 1),
+                                -m["score"]))
+    return results
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Verify and score all models for a provider")
     ap.add_argument("--provider", required=True, help="Provider ID")
@@ -549,6 +851,16 @@ def main(argv=None):
     ap.add_argument("--output", default="", help="Output file path (default: stdout)")
     ap.add_argument("--no-cache", action="store_true", help="Skip cache")
     ap.add_argument("--verbose", action="store_true", help="Verbose output")
+    ap.add_argument("--credit-probe", action="store_true",
+                    help="Probe account credit for --provider and write --credits-file")
+    ap.add_argument("--credits-file", default="", help="Credit cache path")
+    ap.add_argument("--credit-endpoints", default="",
+                    help="providers/credit-endpoints.json (balance endpoint table)")
+    ap.add_argument("--paid-model", default="",
+                    help="A PAID model id, used to infer credit when no balance endpoint exists")
+    ap.add_argument("--credit-status", default="unknown",
+                    choices=["available", "exhausted", "unknown"],
+                    help="Known credit status; ranks free models above paid when there is no credit")
     args = ap.parse_args(argv)
 
     # Read API key from environment variable — never from argv (secrets must not
@@ -561,6 +873,26 @@ def main(argv=None):
             file=sys.stderr,
         )
         return 1
+
+    # --- credit-probe mode: answer "does this account have credit?" and exit.
+    if args.credit_probe:
+        table = {}
+        if args.credit_endpoints and os.path.exists(args.credit_endpoints):
+            try:
+                with open(args.credit_endpoints) as f:
+                    table = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                table = {}
+        spec = table.get(args.provider) if isinstance(table, dict) else None
+        record = run_credit_probe(args.provider, args.endpoint, api_key,
+                                  endpoint_spec=spec, paid_model=args.paid_model,
+                                  timeout=args.timeout)
+        cache = load_credit_cache(args.credits_file)
+        cache["providers"][args.provider] = record
+        save_credit_cache(args.credits_file, cache)
+        # `record` is already redacted by the probe helpers.
+        print(json.dumps({"provider_id": args.provider, **record}, indent=2))
+        return 0
 
     # Load catalog for model metadata
     catalog_models = {}
@@ -633,8 +965,8 @@ def main(argv=None):
     # Enrich from catalog
     results = enrich_from_catalog(results, catalog_models)
 
-    # Sort by score descending
-    results.sort(key=lambda m: m["score"], reverse=True)
+    # Sort by credit tier first, then score (see rank_by_credit).
+    rank_by_credit(results, args.credit_status)
 
     # Build output
     verified = [m for m in results if m["verified"]]

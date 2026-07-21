@@ -48,12 +48,12 @@ chmod +x "$recorder"
 # Stub the helpers the wrapper invokes at \$HOME/.local/bin so its -x guards pass
 # and we can observe ordering. claude-session 'flags' returns deterministic
 # launch flags; everything else is a logged no-op.
-cat > "$SANDBOX_HOME/.local/bin/claude-sync-state" <<EOF
+sandbox_stub "$SANDBOX_HOME/.local/bin/claude-sync-state" <<EOF
 #!/usr/bin/env bash
 printf 'sync-state %s\n' "\$1" >> "$order_log"
 exit 0
 EOF
-cat > "$SANDBOX_HOME/.local/bin/claude-session" <<EOF
+sandbox_stub "$SANDBOX_HOME/.local/bin/claude-session" <<EOF
 #!/usr/bin/env bash
 printf 'session %s\n' "\$1" >> "$order_log"
 [ "\$1" = flags ] && echo "--session-id 11111111-2222-3333-4444-555555555555 --name execproj"
@@ -64,6 +64,12 @@ chmod +x "$SANDBOX_HOME/.local/bin/claude-sync-state" "$SANDBOX_HOME/.local/bin/
 # Load the wrapper into this shell, then point CLAUDE_BIN at the recorder.
 # shellcheck source=/dev/null
 source "$ALIAS_FILE"
+# PROVENANCE GATE — see lib/assert.sh:assert_fn_from. This file EXECUTES cma_run
+# rather than grepping its text, which makes it the most exposed of all: the
+# host's cma_run (already defined here via BASH_ENV) runs and behaves correctly,
+# so every runtime guarantee below would still "hold" on host code.
+it "HYGIENE: the cma_run under test comes from the sandbox alias file"
+assert_fn_from cma_run "$ALIAS_FILE" "wrapper loaded from the sandbox, not the host"
 export CLAUDE_BIN="$recorder"
 export CLAUDE_CONFIG_DIR="$SANDBOX_HOME/.claude-execacct"
 

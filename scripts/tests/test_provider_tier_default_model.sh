@@ -102,6 +102,12 @@ _child="$SANDBOX_HOME/child_tier_env.txt"
 } > "$_stub"
 chmod +x "$_stub"
 : > "$_child"
+# PROVENANCE GATE — see lib/assert.sh:assert_fn_from. The source lives inside
+# the subshell below, so the --source form is used: it re-sources in its own
+# subshell but asserts HERE, so a failure reaches summary instead of dying with
+# the subshell. Guards against the whole sink-side check grading the HOST's
+# cma_run, which BASH_ENV has already defined in this shell.
+assert_fn_from --source "$ALIAS_FILE" cma_run "cma_run under test comes from the sandbox alias file"
 (
   # Load the DEPLOYED wrapper bodies (redefines cma_run with the emitted body).
   # shellcheck disable=SC1090

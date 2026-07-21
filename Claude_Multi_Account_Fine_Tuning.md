@@ -492,9 +492,35 @@ Output is line-based:
 The orchestrator's exit code is 0 only if every `test_*.sh` file's own
 summary returned 0.
 
+**Only one suite run at a time.** `run-all.sh` and `run-proof.sh` both take a
+serialization lock (`tests/lib/suite-lock.sh`) before doing anything. A repo
+that mutates while its own tests execute cannot produce reproducible results —
+a second agent adding a test file mid-run is enough to make a set of
+deterministic tests look flaky — so overlapping runs are refused on purpose.
+The behaviour you will actually see:
+
+- **Contention**: the run announces the holder's PID and waits, up to
+  `CMA_SUITE_LOCK_WAIT` seconds (default 600). Usually the other run finishes
+  and yours proceeds; that is the common case and needs no action.
+- **Timeout**: it gives up with exit **75** (`EX_TEMPFAIL`) rather than hanging.
+  Set `CMA_SUITE_LOCK_WAIT=0` if you would rather fail immediately.
+- **Nesting**: `run-proof.sh` invokes `run-all.sh` as a child, and both are
+  documented entry points, so both lock. The child *inherits* the parent's lock
+  instead of deadlocking against it — and the inheritance is verified (live PID,
+  matching lock path, PID actually recorded in the lock), so a stale or forged
+  environment variable cannot quietly turn locking off.
+- **A crashed run does not wedge the suite**: `flock(1)` releases automatically,
+  and the portable `mkdir` fallback (macOS ships no `flock`) breaks a stale lock
+  via `rename(2)`, which exactly one contender can win.
+
+The lock file lives in the git dir (or `$TMPDIR`), never inside the tracked
+tree, so it can never show up in `git status` or be committed by accident.
+
 ### 7.2 What each test covers
 
-The suite has 10 test files, all auto-discovered by `run-all.sh`:
+Every `test_*.sh` file is auto-discovered by `run-all.sh`. The table below
+describes the core set; the suite has grown well beyond it, so
+`ls scripts/tests/test_*.sh` is the authoritative list:
 
 | File                  | What it asserts                                                                              |
 | --------------------- | -------------------------------------------------------------------------------------------- |
@@ -523,6 +549,36 @@ Two small libraries sit under `tests/lib/`:
   `make_account NAME [--plugins] [--settings JSON] [--history a|b|c]
   [--memory KEY:VALUE] [--todo SUBJECT]` (builds a realistic per-account
   fixture dir), plus thin wrappers `run_unify`, `run_add_account`, etc.
+  It also carries two hygiene helpers described below.
+
+**Sandbox hygiene: `assert_sandboxed` and `sandbox_stub`.** These cover two
+*different* failure modes, and the distinction matters.
+
+`assert_sandboxed` is called by `make_sandbox` itself and exits 99 unless
+`$HOME`'s basename matches `cma-test.*`. It proves the `HOME` switch actually
+took before any test writes a byte — it catches a test that never sandboxed at
+all.
+
+`sandbox_stub PATH` (stub content on stdin) is the required way to install a
+fake executable under `$HOME/.local/bin`. It asserts the sandbox, refuses any
+target that escapes `$HOME`, and — the guarantee a bare `cat >` does not give —
+**deletes an existing symlink before writing, rather than writing through it**.
+
+The reason this second helper exists is a real incident, not a hypothetical.
+`install.sh` symlinks every `claude-*.sh` into `~/.local/bin`, and those links
+point at the real repo. A shell redirect follows symlinks. A test that did
+`cat > "$HOME/.local/bin/claude-session"` therefore wrote *through* the link and
+truncated the production `scripts/claude-session.sh` from 201 lines to an
+8-line stub — and `scripts/claude-sync-state.sh` from 103 lines to 2 — which
+broke every provider alias with `No conversation found with session ID: …`.
+
+The part to internalise: **`$HOME` was a perfectly valid sandbox at the time.**
+`install.sh` had created those links *inside* the sandbox, so `assert_sandboxed`
+passed, exactly as designed, and could never have caught this. The sandbox
+assertion is not the protection here — breaking the symlink before writing is.
+`test_sandbox_hygiene.sh` lints the whole suite mechanically for this pattern
+(bare redirects into `.local/bin`) and for hardcoded `/tmp` write targets,
+reporting `file:line` so a violation is directly actionable.
 
 One subtlety worth knowing: `lib.sh` (the production helper) has
 `set -euo pipefail`. When a test sources it for unit-testing the helper
@@ -547,8 +603,14 @@ their own shell.
 3. Call `make_sandbox` once at the top.
 4. Use `it "..."` to label each scenario, then a sequence of
    `assert_*` calls.
-5. End the file with `summary` so the orchestrator picks up the result.
-6. Re-run `bash tests/run-all.sh` — auto-discovery will pick it up.
+5. Never write to `$HOME/.local/bin` with a bare redirect — use
+   `sandbox_stub "$HOME/.local/bin/<name>"` with the stub body on stdin, and
+   keep every other temporary path under `$SANDBOX_HOME` or `mktemp`, never a
+   literal `/tmp/...`. `test_sandbox_hygiene.sh` enforces both mechanically.
+6. End the file with `summary` so the orchestrator picks up the result.
+7. Re-run `bash tests/run-all.sh` — auto-discovery will pick it up. If another
+   suite run is already in progress it will wait for the lock (and exit 75 if
+   that run never finishes); that is expected, not a failure of your test.
 
 ---
 
@@ -707,9 +769,10 @@ Full guide, architecture diagrams, and the enable-policy flowchart live in
 
 The same alias machinery that powers `claude1..N` also drives **provider
 aliases**: a Claude Code alias per LLM provider whose key you keep in your keys
-file, pointed at that provider's strongest model. The command is
-`claude-providers` and it is **fully dynamic** — no provider, base URL, or model
-ID is hardcoded.
+file, pointed at the strongest model that provider will actually serve you (see
+*Model tier* below — strongest **paid** when the account has credit, strongest
+**free** when it does not). The command is `claude-providers` and it is **fully
+dynamic** — no provider, base URL, or model ID is hardcoded.
 
 ### Data flow (nothing hardcoded)
 
@@ -731,6 +794,50 @@ Two tiny editable inputs cover the only things data can't infer:
 `providers/key-aliases.json` (key-name → provider normalization) and
 `providers/overrides.json` (per-provider pins, e.g. a short `dseek` alias or a
 native `/anthropic` endpoint).
+
+### Model tier — strongest paid if funded, strongest free if not
+
+Model choice is **credit-aware**, and this is a hard rule for every provider
+alias the toolkit generates:
+
+| Credit state of the provider account | Model the alias runs |
+| ------------------------------------ | -------------------- |
+| Credit / purchased tokens available   | the strongest **paid** model that provider serves and that passes verification |
+| No credit                             | the strongest **free** model (free tier, `$0` cost) that passes the same verification |
+| Unknown / undeterminable              | treated as *no credit* — the free choice |
+
+Three things are worth being explicit about.
+
+**Why "unknown" resolves to free.** The two mistakes are not symmetric. Pinning a
+paid model on an unfunded key produces a 402/403 the moment you launch, and you
+are left holding a dead alias at the exact moment you wanted to work. Pinning a
+free model on a funded key costs you some capability and nothing else, and the
+next `claude-providers sync` upgrades it as soon as the credit signal is
+readable. So an inconclusive billing probe, a provider that exposes no balance
+endpoint, or an offline catalog all fall to the conservative branch.
+
+**It is a floor, not a cap.** Within whichever tier applies the selection is
+still the *strongest* model available: the rule constrains which models are
+eligible, it does not lower the bar inside that set. It applies to both slots —
+the strong model (`ANTHROPIC_MODEL`) and the fast/background model
+(`ANTHROPIC_SMALL_FAST_MODEL`) — and to every alias produced by `sync --multi`.
+
+**A human pin always wins.** If `scripts/providers/overrides.json` names a
+`strong_model` / `fast_model` for a provider, that is what runs; the tier logic
+only decides the unpinned case. Pinning is the supported way to say "I know what
+I'm paying for on this provider, stop deciding for me."
+
+The tier split constrains — rather than replaces — the capability ranking the
+resolver already applied (reasoning-capable first, then newest release, then
+largest context window, with output cost as a flagship tie-break for the strong
+slot; cheapest tool-call-capable model for the fast slot). Verification is
+unchanged and unconditional: a free model is not exempt from the sentinel and
+tool-calling probes, so "cheapest that works" never degrades into "cheapest".
+
+> The enforcement mechanism (in `providers_resolve.py` and in the bundled
+> **LLMsVerifier**, which carries the corresponding detection) landed alongside
+> this section. What is written above is the **behavioural contract**; consult
+> the source for the current function, flag, and field names.
 
 ### Transports
 

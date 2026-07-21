@@ -134,6 +134,28 @@ set +e
 rc=$?
 set -e
 
+# Evidence capture (§11.4.5 / §11.4.116 — a verdict must carry the evidence that
+# backs it). The driver's per-round JSON lands in ONE cache file that the next
+# provider overwrites, so a sweep across N providers leaves only the LAST run
+# diagnosable: a layer-3 FAIL for provider k is unreconstructable afterwards.
+# Callers capture THIS script's stderr per provider, so mirror the driver's JSON
+# (and any stderr) there. Verdict logic is untouched — stderr only.
+{
+  printf 'providers-semantic[%s]: driver rc=%s\n' "$PROVIDER" "$rc"
+  if [[ -s "$REPO_ROOT/.local-cache/semantic-last.json" ]]; then
+    printf 'driver json: '; cat "$REPO_ROOT/.local-cache/semantic-last.json"
+  fi
+  if [[ -s "$REPO_ROOT/.local-cache/semantic-last.err" ]]; then
+    printf 'driver stderr: '; head -c 2000 "$REPO_ROOT/.local-cache/semantic-last.err"; echo
+  fi
+} >&2 || true
+# `|| true` is load-bearing (independent-review finding F1). `set -e` is active
+# here, and this block sits BETWEEN `rc=$?` and the verdict `case`. An I/O fault
+# inside it (unreadable cache, full pipe, closed stderr) would abort the script
+# before the verdict word is echoed — and claude-providers.sh reads an EMPTY
+# verdict as "keep the existence verdict", silently turning a definitive layer-3
+# FAIL into `verified`. Evidence capture must never be able to decide the verdict.
+
 case "$rc" in
   0) echo verified;   echo "providers-semantic[$PROVIDER]: layer-3 sentinel+judge PASS" >&2; exit 0 ;;
   1) echo unverified; echo "providers-semantic[$PROVIDER]: layer-3 FAIL (cannot see code / bluffed)" >&2; exit 1 ;;

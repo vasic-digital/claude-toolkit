@@ -94,8 +94,13 @@ PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
 for rc in "${CMA_RC_FILES[@]}"; do
   [[ -f "$rc" ]] || continue
   if ! grep -F -q "$PATH_LINE" "$rc"; then
-    printf '\n# Claude multi-account: ensure ~/.local/bin is on PATH\n%s\n' "$PATH_LINE" >> "$rc"
-    cma_log "added PATH line to $rc"
+    # Back up BEFORE the append; refuse the write if the rc cannot be protected.
+    if cma_backup_rc_file "$rc"; then
+      printf '\n# Claude multi-account: ensure ~/.local/bin is on PATH\n%s\n' "$PATH_LINE" >> "$rc"
+      cma_log "added PATH line to $rc"
+    else
+      cma_warn "skipped adding PATH line to $rc (could not back it up)"
+    fi
   fi
 done
 
@@ -123,6 +128,12 @@ migrate_inline_aliases() {
     fi
   done < "$rc"
   if (( changed )); then
+    # Refuse the rewrite unless the rc can be protected by a pristine backup.
+    if ! cma_backup_rc_file "$rc"; then
+      rm -f "$tmp"
+      cma_warn "skipped migrating inline aliases in $rc (could not back it up)"
+      return 0
+    fi
     cp -p "$rc" "${rc}.preunify.$(date +%Y%m%d%H%M%S)"
     mv "$tmp" "$rc"
     cma_log "migrated inline claude* aliases in $rc -> $ALIAS_FILE"

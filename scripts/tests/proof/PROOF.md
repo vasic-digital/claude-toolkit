@@ -1,11 +1,11 @@
 # Toolkit proof of work
 
-- generated: `2026-07-20T03:08:00+0500`
+- generated: `2026-07-21T05:24:54+0500`
 - host: `Linux 6.12.41-6.12-alt1 x86_64`
 
 ## Sandbox suite (hermetic, no network)
 ```
-Test files: 29   passed: 29   failed: 0   (skipped-prereq: 0) ALL GREEN 
+Test files: 42   passed: 42   failed: 0   (skipped-prereq: 0) ALL GREEN 
 ```
 exit code: `0`  ·  full log: [40-sandbox-suite.log](40-sandbox-suite.log)
 
@@ -27,25 +27,25 @@ result: `SKIP: opencode not installed on this host — live verification skipped
 
 ## Live provider-alias verification (real installed state)
 ```
-✓ 40 passed, 0 failed
+✓ 26 passed, 0 failed
 ```
 exit code: `0`  ·  evidence: [50-providers-live.txt](50-providers-live.txt)
 
 ## Live alias verification (real provider + Claude aliases)
 ```
-PASS: 10 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 11 TOTAL: 21
+PASS: 9 FAIL: 0 SKIP-QUOTA: 0 SKIP-TRANSIENT: 0 SKIP-GATED: 12 TOTAL: 21
 ```
 exit code: `0`  ·  full log: [43-live-aliases.log](43-live-aliases.log)  ·  evidence: [alias-verify-evidence.txt](alias-verify-evidence.txt)
 
 ## Live alias end-to-end verification (provider endpoints)
 ```
-  "total": 21,   "passed": 10,   "failed": 0, 
+  "total": 21,   "passed": 9,   "failed": 0, 
 ```
 exit code: `0`  ·  full log: [44-alias-e2e.log](44-alias-e2e.log)
 
 ## Constitution / conformance static checks (Tier C)
 ```
-✓ 5 passed, 0 failed
+✓ 7 passed, 0 failed
 ```
 exit code: `0`  ·  full log: [45-constitution.log](45-constitution.log)  ·  evidence: [45-constitution.txt](45-constitution.txt)
 

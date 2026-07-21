@@ -10,6 +10,14 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 export SCRIPTS_DIR
 
+# SERIALIZATION: two suite runs must never overlap — a repo that mutates while
+# its own tests execute produces results that cannot be reproduced. Silent on
+# the normal path; prints only when it actually contends. When run-proof.sh is
+# the caller this legitimately inherits the lock instead of deadlocking on it.
+# shellcheck source=lib/suite-lock.sh
+source "$TESTS_DIR/lib/suite-lock.sh"
+cma_suite_lock_acquire suite
+
 FILES=()
 if (( $# )); then
   for arg in "$@"; do FILES+=("$TESTS_DIR/test_${arg}.sh"); done

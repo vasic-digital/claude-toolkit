@@ -50,7 +50,17 @@ if [[ ! -d "$SUB" ]]; then
 else
   # Whole subtree (minus .git): as of writing, zero hits across all files,
   # so no *_test.go carve-out is needed.
-  hits="$(grep -rn --exclude-dir=.git -E 'claude_toolkit|cma_|claude-providers' "$SUB" 2>/dev/null)"
+  #
+  # ANTI-VACUOUS: "$SUB is a directory" is NOT the same as "$SUB has content".
+  # An uninitialised submodule is an empty-but-present dir, and grep over it
+  # returns nothing — which is exactly this check's success condition, so the
+  # assertion would pass having read zero bytes. Count the files first and
+  # require a positive number; only then does an empty hit list mean anything.
+  sub_files="$(find "$SUB" -name .git -prune -o -type f -print 2>/dev/null | grep -c . || true)"
+  cond=1; [[ "${sub_files:-0}" -ge 20 ]] && cond=0
+  assert_eq 0 "$cond" "CONST-051 swept a populated submodule ($sub_files files under $SUB)"
+  echo "CONST-051 files swept: $sub_files" >> "$EV"
+  hits="$(grep -rn --exclude-dir=.git -E 'claude_toolkit|cma_|claude-providers' "$SUB")"
   if [[ -n "$hits" ]]; then printf 'CONST-051 coupling hits:\n%s\n' "$hits" >> "$EV"; fi
   assert_eq "" "$hits" "no claude_toolkit / cma_ / claude-providers references in the submodule"
 fi
@@ -84,9 +94,17 @@ assert_eq 1 "$docs_ok" "four governance docs exist and stay within 5% size drift
 
 # --- §11.4.113: no force-push in repo scripts --------------------------------
 it "§11.4.113: no force-push in any repo script"
+# ANTI-VACUOUS: a mistyped root, a moved upstreams/ dir or a missing checkout
+# all make this grep print nothing — the same output as a clean tree. Prove the
+# sweep had a corpus before reading "no hits" as "no force-push".
+fp_files="$(find "$CMA_REPO_ROOT/scripts" "$CMA_REPO_ROOT/upstreams" \
+  -type f \( -name '*.sh' -o -name '*.py' \) -print 2>/dev/null | grep -c . || true)"
+cond=1; [[ "${fp_files:-0}" -ge 20 ]] && cond=0
+assert_eq 0 "$cond" "§11.4.113 swept a populated tree ($fp_files .sh/.py files)"
+echo "§11.4.113 files swept: $fp_files" >> "$EV"
 fp_hits="$(grep -rnE --include='*.sh' --include='*.py' --exclude-dir=proof --exclude-dir=__pycache__ \
   'push[[:space:]]+--force([^A-Za-z]|$)|push[[:space:]]+-[A-Za-z]*f([^A-Za-z]|$)' \
-  "$CMA_REPO_ROOT/scripts" "$CMA_REPO_ROOT/upstreams" 2>/dev/null)"
+  "$CMA_REPO_ROOT/scripts" "$CMA_REPO_ROOT/upstreams")"
 if [[ -n "$fp_hits" ]]; then printf '§11.4.113 force-push hits:\n%s\n' "$fp_hits" >> "$EV"; fi
 assert_eq "" "$fp_hits" "no force-push flags under scripts/ or upstreams/"
 

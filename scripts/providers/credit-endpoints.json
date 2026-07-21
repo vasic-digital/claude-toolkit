@@ -1,0 +1,69 @@
+{
+  "_comment": [
+    "Documented account-balance endpoints, keyed by models.dev provider id.",
+    "Data, not code: an operator can add a provider here without touching Python.",
+    "",
+    "Consumed by `model_verify.py --credit-probe`, which writes the verdict into",
+    "the schema-versioned credit cache that providers_resolve.py reads when it",
+    "applies the operator's credit rule (strongest PAID model when the account is",
+    "funded, strongest FREE model when it is not).",
+    "",
+    "Only providers with a DOCUMENTED, first-party balance endpoint belong here.",
+    "Most providers publish none; for those the probe falls back to interpreting a",
+    "request against a paid model (402 / 'insufficient balance' => no credit,",
+    "200 => credit) and, failing that, reports 'unknown' — which the resolver",
+    "conservatively treats as no credit rather than guessing.",
+    "",
+    "Entry fields:",
+    "  url      absolute https endpoint (GET)",
+    "  auth     bearer | x-api-key | raw (header named by auth_header)",
+    "  doc      citation for the response shape below",
+    "  signals  ORDERED list, most precise first; the first one PRESENT in the",
+    "           response decides. Each signal has:",
+    "             path  list of dict keys / integer list indices",
+    "             type  balance          number (or decimal string) > 0 => funded",
+    "                   boolean          true  => funded",
+    "                   boolean_negated  false => funded",
+    "             minus optional path subtracted from a balance (spent-to-date)",
+    "             desc  what the field actually means, for the audit trail",
+    "",
+    "Ordering matters: a field that is exact but often null must come before a",
+    "coarser field that is always present, or the coarse one would mask it."
+  ],
+
+  "deepseek": {
+    "url": "https://api.deepseek.com/user/balance",
+    "auth": "bearer",
+    "doc": "https://api-docs.deepseek.com/api/get-user-balance",
+    "signals": [
+      {
+        "path": ["is_available"],
+        "type": "boolean",
+        "desc": "DeepSeek's own verdict on whether the balance suffices for API calls"
+      },
+      {
+        "path": ["balance_infos", 0, "total_balance"],
+        "type": "balance",
+        "desc": "total balance (decimal string) for the first listed currency"
+      }
+    ]
+  },
+
+  "openrouter": {
+    "url": "https://openrouter.ai/api/v1/key",
+    "auth": "bearer",
+    "doc": "https://openrouter.ai/docs/api-reference/limits",
+    "signals": [
+      {
+        "path": ["data", "limit_remaining"],
+        "type": "balance",
+        "desc": "credits left under this key's spending cap; null when the key is uncapped"
+      },
+      {
+        "path": ["data", "is_free_tier"],
+        "type": "boolean_negated",
+        "desc": "false once the account has purchased credits; weaker than a live balance, so it is only consulted when limit_remaining is null"
+      }
+    ]
+  }
+}

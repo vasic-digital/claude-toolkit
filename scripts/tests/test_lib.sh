@@ -193,31 +193,195 @@ grep -q 'CMA_CWD_HOOK:-' <<<"$_ph_body"; assert_eq 0 $? "cma_run respects CMA_CW
 grep -q '.local/bin/claude-cwd-hook' <<<"$_ph_body"; assert_eq 0 $? "cma_run falls back to global claude-cwd-hook"
 rm -f "$_mig_ph"
 
-# --- migration-marker checks use bash builtins, not grep subprocesses --------
-# cma_ensure_alias_file re-checks ~22 markers in the emitted cma_run_provider
-# body on EVERY call. Each `grep -qF PAT <<<"$body"` forks a process; measured
-# on a real 421-line/25KB body that is ~14ms per call vs ~3ms using bash's
-# built-in `[[ "$body" == *"PAT"* ]]`.
+# --- wrapper self-heal is unconditional, not marker-driven -------------------
+# HISTORY: cma_ensure_alias_file used to decide whether to regenerate each
+# wrapper by matching ~22 "markers" against the on-disk body, then DROPPING the
+# function block and re-appending it. That drop-then-re-append left the file
+# without the function between two separate whole-file writes — one half of the
+# concurrency race that destroyed the live alias file (see the alias-file
+# section header in lib.sh). The renderer now always emits the current wrapper
+# text, so there is no marker list, no drop window, and no stale body can
+# survive a write.
 #
-# The substitution is only safe because it keeps inspecting the REAL body
-# content on every call. An earlier attempt cached a version stamp instead and
-# was discarded: a corrupted body with an intact stamp line would have been
-# wrongly trusted, silently skipping the self-heal (test_128k_output_clamp.sh
-# deliberately constructs exactly that shape).
-#
-# Quoting the RHS is load-bearing: unquoted, `*` and `[` in a marker such as
-# `>| "$tmp"` would be interpreted as a glob rather than matched literally.
-it "migration marker checks avoid grep subprocesses"
-_mk_body="$(awk '/^cma_ensure_alias_file\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$SCRIPTS_DIR/lib.sh")"
-_mk_grep="$(grep -cE 'grep -q[A-Za-z]* .*<<<' <<<"$_mk_body" || true)"
-assert_eq 0 "$_mk_grep" "no 'grep -q ... <<<' marker checks remain in cma_ensure_alias_file"
-
-it "migration marker checks still inspect real body content (not a cached stamp)"
-# The guard fires when a marker is MISSING, so the emitted form is `!=`.
-_mk_builtin="$(grep -cE '\[\[ "\$_(prov|cma_run)_body" != \*' <<<"$_mk_body" || true)"
-_has_builtins=1; [[ "$_mk_builtin" -gt 0 ]] && _has_builtins=0
-assert_eq 0 "$_has_builtins" "markers are checked with bash builtins against the live body"
+# What still must hold: emitting the current body may never be short-circuited
+# by a cached version stamp. A corrupted body with an intact stamp line would
+# otherwise be wrongly trusted and the self-heal skipped
+# (test_128k_output_clamp.sh deliberately constructs exactly that shape).
+# The behavioural half of this is the cwd-hook regeneration test above, which
+# feeds in a stale cma_run body and asserts the current one comes back.
+it "wrapper regeneration has no marker/version-stamp short-circuit"
+_mk_body="$(awk '/^_cma_alias_render\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$SCRIPTS_DIR/lib.sh")
+$(awk '/^_cma_emit_managed\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$SCRIPTS_DIR/lib.sh")"
 _mk_stamp="$(grep -ciE 'version.?stamp|CMA_ALIAS_VERSION' <<<"$_mk_body" || true)"
 assert_eq 0 "$_mk_stamp" "no version-stamp short-circuit (would skip a needed self-heal)"
+_mk_cond="$(grep -cE 'grep -q.*cma_run(_provider)?\(\)' <<<"$_mk_body" || true)"
+assert_eq 0 "$_mk_cond" "wrapper emission is unconditional (not gated on the old body)"
+
+it "\$ALIAS_FILE has exactly one writer"
+# Nothing outside cma_alias_commit may write, append to, or rename onto the
+# alias file. That single-committer property is what makes the exclusive lock
+# and the sanity gate impossible to bypass — the incident was two writers, each
+# individually correct, interleaving.
+_wr="$(grep -nE '(command )?mv +-?f? *"?\$[A-Za-z_]+" *"\$ALIAS_FILE"|> *"\$ALIAS_FILE"|>> *"\$ALIAS_FILE"' \
+        "$SCRIPTS_DIR"/*.sh | grep -v ':[0-9]*: *#' || true)"
+_wr_n="$(printf '%s\n' "$_wr" | grep -c . || true)"
+assert_eq 1 "$_wr_n" "exactly one writer of \$ALIAS_FILE remains" "$_wr"
+
+# ===========================================================================
+# The ccr self-reference guard: ONE definition, and it matches the whole shape
+# ===========================================================================
+# The original guard was a `case` listing four literal spellings, DUPLICATED in
+# lib.sh's launch gate and providers-verify.sh's Gate 0. Everything it did not
+# literally list went through — including `127.0.1.1:3456`, which is Debian's
+# default loopback for the local hostname, i.e. a form that IS the gateway on a
+# stock install. Both halves matter and both are asserted here: that the two
+# call sites share one definition, and that the definition covers the shape.
+it "the ccr-gateway guard has exactly one definition (no drifting copy)"
+# lib.sh owns it; providers-verify.sh must CALL it, never re-implement it.
+_gw_defs="$(grep -c '^_cma_is_ccr_gateway() {' "$SCRIPTS_DIR/lib.sh" || true)"
+assert_eq 1 "${_gw_defs:-0}" "_cma_is_ccr_gateway defined once in lib.sh"
+_gw_dup="$(grep -c '_cma_is_ccr_gateway() {' "$SCRIPTS_DIR/providers-verify.sh" || true)"
+assert_eq 0 "${_gw_dup:-0}" "providers-verify.sh does not re-define it"
+_gw_call="$(grep -c '_cma_is_ccr_gateway ' "$SCRIPTS_DIR/providers-verify.sh" || true)"
+_gw_ok=1; (( _gw_call >= 1 )) && _gw_ok=0
+assert_eq 0 "$_gw_ok" "providers-verify.sh calls the shared helper"
+# The literal-spelling `case` that under-matched must be gone from both.
+_gw_legacy="$(grep -cE '127\.0\.0\.1:"?\$(_ccr_port|\{CMA_CCR_PORT)' \
+               "$SCRIPTS_DIR/lib.sh" "$SCRIPTS_DIR/providers-verify.sh" 2>/dev/null \
+             | awk -F: '{s+=$2} END{print s+0}')"
+assert_eq 0 "${_gw_legacy:-0}" "the duplicated literal-spelling case is gone"
+
+it "the ccr-gateway guard matches every form that IS the gateway"
+# Each of these resolves to the local ccr gateway on port 3456. Every one of
+# them was ALLOWED through by the old guard.
+_gw_missed=""
+for _u in \
+  'http://127.0.0.1:3456/v1' \
+  'http://localhost:3456/v1' \
+  'http://[::1]:3456/v1' \
+  'http://0.0.0.0:3456/v1' \
+  'http://127.0.1.1:3456/v1' \
+  'http://127.0.0.2:3456/v1' \
+  'http://127.255.255.254:3456/v1' \
+  'http://[::ffff:127.0.0.1]:3456/v1' \
+  'http://[0:0:0:0:0:0:0:1]:3456/v1' \
+  'http://[0::1]:3456/v1' \
+  'http://LOCALHOST:3456/v1' \
+  'http://LocalHost:3456' \
+  'http://user@127.0.0.1:3456/v1' \
+  'http://user:pw@localhost:3456/v1' \
+  'http://127.0.0.1:3456?x=1' \
+  'http://127.0.0.1:3456#frag' \
+  'http://127.0.0.1:3456/v1?x=1' \
+  'http://127.0.0.1:3456' \
+; do
+  _cma_is_ccr_gateway "$_u" || _gw_missed="$_gw_missed $_u"
+done
+assert_eq "" "$_gw_missed" "no gateway spelling slips through" "missed:$_gw_missed"
+
+it "the ccr-gateway guard does NOT false-positive on legitimate bases"
+# A guard that refuses everything is not a fix. These must all still launch.
+_gw_false=""
+for _u in \
+  'http://127.0.0.1:8080/v1' \
+  'http://127.0.0.1:3457/v1' \
+  'http://localhost:3457/v1' \
+  'http://localhost/v1' \
+  'https://api.deepseek.com/anthropic' \
+  'https://api.z.ai/api/coding/paas/v4' \
+  'https://openrouter.ai/api/v1' \
+  'http://192.168.1.10:3456/v1' \
+  'http://10.0.0.5:3456/v1' \
+  'https://127.0.0.1.example.com:3456/v1' \
+  'http://[fe80::1]:3456/v1' \
+  'http://[2001:db8::1]:3456/v1' \
+  'https://api.test/v1' \
+  'http://myhost:3456/v1' \
+; do
+  _cma_is_ccr_gateway "$_u" && _gw_false="$_gw_false $_u"
+done
+assert_eq "" "$_gw_false" "no legitimate base is swept up" "false positives:$_gw_false"
+
+it "the ccr-gateway guard honours a non-default CMA_CCR_PORT"
+( CMA_CCR_PORT=9999; _cma_is_ccr_gateway 'http://127.0.0.1:9999/v1' ); assert_eq 0 $? "9999 is the gateway when CMA_CCR_PORT=9999"
+( CMA_CCR_PORT=9999; _cma_is_ccr_gateway 'http://127.0.0.1:3456/v1' ); assert_eq 1 $? "3456 is NOT the gateway when CMA_CCR_PORT=9999"
+
+# ===========================================================================
+# Account detection must not count directories that are no longer accounts
+# ===========================================================================
+it "cma_detect_accounts ignores archived (.removed.*) and .preunify.* dirs"
+# claude-remove-account's DEFAULT (non---delete) mode renames the config dir to
+# `<dir>.removed.<ts>`, which keeps its projects/ marker. Counting those kept
+# the detected total permanently above the alias count, and _cma_alias_gate's
+# account floor arms only while `src_acct >= n_acct` — so a single ordinary
+# removal disarmed that floor forever on that host.
+_det_home="$(mktemp -d "$HOME/detect.XXXXXX")"
+mkdir -p "$_det_home/.claude-one/projects" "$_det_home/.claude-two/projects"
+mkdir -p "$_det_home/.claude-three.removed.20260101120000/projects"
+mkdir -p "$_det_home/.claude-four.preunify.20260101120000/projects"
+_det_n="$( HOME="$_det_home" cma_detect_accounts | wc -l | tr -d ' ' )"
+assert_eq 2 "$_det_n" "only the two live accounts are detected" \
+  "$(HOME="$_det_home" cma_detect_accounts)"
+_det_arch="$( HOME="$_det_home" cma_detect_accounts | grep -c 'removed\|preunify' || true )"
+assert_eq 0 "${_det_arch:-0}" "no archived dir appears in the detected set"
+
+# ===========================================================================
+# The renderer must not report success for a write it did not make
+# ===========================================================================
+it "_cma_alias_render propagates an output write failure"
+# The `{ ... } > \$out` status used to be discarded and the function always
+# returned 0. A candidate truncated by ENOSPC then reached the committer as a
+# successful render — and against a zero-alias source such a stump also clears
+# the sanity gate, which only requires the header plus the two wrapper opening
+# lines and has no aliases left to miss.
+rm -f "$ALIAS_FILE"; cma_ensure_alias_file >/dev/null 2>&1
+# (a) the output path cannot be opened at all
+( _cma_alias_render "$ALIAS_FILE" "" "" keep "$HOME/no/such/dir/cand" ) >/dev/null 2>&1
+assert_eq 1 $? "an unopenable output path is a failed render"
+# (b) a genuine ENOSPC. /dev/full accepts the open and fails every write, which
+#     is the real shape of the hazard. Linux-only; skipped elsewhere.
+if [[ -w /dev/full ]]; then
+  ( _cma_alias_render "$ALIAS_FILE" "" "" keep /dev/full ) >/dev/null 2>&1
+  assert_eq 1 $? "an ENOSPC write (/dev/full) is a failed render"
+else
+  _pass "SKIP (no writable /dev/full on this platform)"
+fi
+# CONTROL: a healthy render still succeeds.
+( _cma_alias_render "$ALIAS_FILE" "" "" keep "$HOME/.cand-ok" ) >/dev/null 2>&1
+assert_eq 0 $? "CONTROL: a normal render still returns success"
+
+# ===========================================================================
+# The alias lock is scoped to the file it guards, not to the host
+# ===========================================================================
+it "the alias lock is per-\$ALIAS_FILE — two alias files never contend"
+# Deliberately the OPPOSITE of tests/lib/suite-lock.sh, which is global by
+# design (one suite run per checkout, lock in the git dir). If this lock were
+# global, every sandbox — and every $HOME on a multi-user box — would serialize
+# against unrelated runs for up to CMA_ALIAS_LOCK_WAIT.
+_lk_a="$HOME/lockscope-a/aliases.sh"
+_lk_b="$HOME/lockscope-b/aliases.sh"
+mkdir -p "$(dirname "$_lk_a")" "$(dirname "$_lk_b")"
+cat > "$HOME/lockscope-hold.sh" <<'LK_EOF'
+#!/usr/bin/env bash
+set -uo pipefail
+source "$SCRIPTS_DIR/lib.sh"; set +e
+_cma_alias_lock_acquire || exit 9
+: > "$HOME/.lockscope-held"
+sleep 4
+LK_EOF
+chmod +x "$HOME/lockscope-hold.sh"
+rm -f "$HOME/.lockscope-held"
+SCRIPTS_DIR="$SCRIPTS_DIR" ALIAS_FILE="$_lk_a" "$HOME/lockscope-hold.sh" & _lk_pid=$!
+_lk_w=0
+while [[ ! -f "$HOME/.lockscope-held" ]] && (( _lk_w < 400 )); do sleep 0.01 2>/dev/null || sleep 1; _lk_w=$(( _lk_w + 1 )); done
+# B must acquire instantly even at zero wait: it protects a DIFFERENT file.
+SCRIPTS_DIR="$SCRIPTS_DIR" ALIAS_FILE="$_lk_b" CMA_ALIAS_LOCK_WAIT=0 bash -c '
+  source "$SCRIPTS_DIR/lib.sh"; set +e; _cma_alias_lock_acquire' >/dev/null 2>&1
+assert_eq 0 $? "a lock on alias file B is unaffected by a holder of alias file A"
+# CONTROL: the same file DOES contend — otherwise the assertion above is vacuous.
+SCRIPTS_DIR="$SCRIPTS_DIR" ALIAS_FILE="$_lk_a" CMA_ALIAS_LOCK_WAIT=0 bash -c '
+  source "$SCRIPTS_DIR/lib.sh"; set +e; _cma_alias_lock_acquire' >/dev/null 2>&1
+assert_eq 1 $? "CONTROL: the SAME alias file still contends (the lock is real)"
+kill "$_lk_pid" 2>/dev/null; wait "$_lk_pid" 2>/dev/null
 
 summary

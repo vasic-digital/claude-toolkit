@@ -155,7 +155,11 @@ assert_eq UNSET "$(clamp_eval val 12x8)"  "partly-numeric -> no export"
 it "clamp: huge all-digit value (>2^63-1) -> 128000 (no ctx) / UNSET (ctx known), never unclamped (F2)"
 assert_eq 128000 "$(clamp_eval val 99999999999999999999999)" "23-digit, no ctx -> 128000 (no overflow leak)"
 assert_eq 128000 "$(clamp_eval val 9223372036854775808)"     "2^63 (19-digit), no ctx -> 128000"
-assert_eq UNSET  "$(clamp_eval val 99999999999999999999999 262144)" "23-digit with known ctx -> mislabel shape, no export"
+# v1.24.0: with a known context the huge value is still discarded without
+# arithmetic, but the guard no longer leaves the cap UNSET — see the mislabel
+# block below for why "no export" was never the safe outcome. 262144 - the
+# 160000 input floor = 102144.
+assert_eq 102144 "$(clamp_eval val 99999999999999999999999 262144)" "23-digit with known ctx -> discarded, cap carved from the context"
 assert_eq 128000 "$(clamp_eval val 1000000)"                 "7-digit 1,000,000, no ctx -> 128000"
 assert_eq 128000 "$(clamp_eval val 999999)"                  "6-digit 999,999 (> cap), no ctx -> 128000"
 
@@ -172,21 +176,34 @@ assert_eq UNSET  "$(clamp_eval val 00)"      "00 -> no export"
 assert_eq 128000 "$(clamp_eval val 0128001)" "leading-zero 0128001 tests as 128001 -> clamped 128000 (not octal)"
 assert_eq 007    "$(clamp_eval val 007)"     "leading-zero small stays decimal-7 (exports 007 -> parsed as 7)"
 
-# --- (c''') catalog mislabel: output >= context -> NO export (nvidia5) -------
-# Main's v1.16.0 live-proven case, preserved through the merge: when
-# limit.output >= limit.context the "output" number is really the context
-# size; exporting it (or any clamp of it) makes Claude Code request that many
-# completion tokens and input+request overshoots the shared window (400).
-it "mislabel: output >= context -> no export; real budget < context -> clamped/verbatim (nvidia5)"
-assert_eq UNSET  "$(clamp_eval val 131072 131072)"  "output == context -> no export (nvidia5 400 case)"
-assert_eq UNSET  "$(clamp_eval val 262144 131072)"  "output > context -> no export"
+# --- (c''') catalog mislabel: output >= context -> DISCARD, then carve -------
+# Main's v1.16.0 live-proven case: when limit.output >= limit.context the
+# "output" number is really the context size; exporting it (or any clamp of it)
+# makes Claude Code request that many completion tokens and input+request
+# overshoots the shared window (400). Discarding it is still correct.
+#
+# v1.24.0 changes what happens NEXT. "Discard and export nothing" looked
+# honest but was not safe: Claude Code's own default for a model it does not
+# know is 128000, so declining to export IS a request for 128000 output
+# tokens. kilo's catalog row is exactly this shape (ctx == out == 262144) —
+# the mislabel branch blanked the value, the CLI reserved its 128000 default
+# against a 262144 window that must also carry Claude Code's ~137K
+# system-prompt + tool-schema floor, and 137483 + 128000 = 265483 overflows.
+# So once the bogus value is discarded the cap is CARVED OUT of the context
+# instead: clamp(context - 160000 input floor, 8192, 128000).
+it "mislabel: output >= context -> discarded, cap carved from the context (nvidia5/kilo)"
+assert_eq 8192   "$(clamp_eval val 131072 131072)"  "output == context -> bogus value discarded, floored cap (nvidia5 400 case)"
+assert_eq 8192   "$(clamp_eval val 262144 131072)"  "output > context -> bogus value discarded, floored cap"
+assert_eq 102144 "$(clamp_eval val 262144 262144)"  "kilo's ctx==out==262144 -> 102144, never the 128000 that overflowed"
 assert_eq 8192   "$(clamp_eval val 8192 32768)"     "real small budget < context -> verbatim"
 assert_eq 128000 "$(clamp_eval val 384000 1048576)" "deepseek 384000 < ctx 1M -> clamped 128000 (not raw)"
 
 # --- (d) clamp export present for BOTH transports; RAW export GONE ------------
 it "cma_run_provider exports the CLAMPED cap once (BOTH transports), never the raw value"
 assert_eq 1 "$(prov_body | grep -cF 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"')" "clamped export present"
-assert_eq 1 "$(prov_body | grep -cF -- '-gt 128000')" "clamp comparison present"
+# Two comparisons since v1.24.0: the CLI ceiling bounds the carve-out when the
+# context is known ($_cma_cap), and still clamps the raw value when it is not.
+assert_eq 2 "$(prov_body | grep -cF -- '-gt 128000')" "clamp comparison present on both the carve-out and no-context paths"
 assert_eq 0 "$(prov_body | grep -cF 'export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$CMA_PROVIDER_MAX_OUTPUT"')" "raw unclamped export removed"
 
 # --- (e) cma_run isolation unset present -------------------------------------
@@ -226,6 +243,13 @@ _child="$SANDBOX_HOME/child_token_env.txt"
 } > "$_stub"
 chmod +x "$_stub"
 : > "$_child"
+# PROVENANCE GATE — see lib/assert.sh:assert_fn_from. The launch below sources
+# $ALIAS_FILE INSIDE the subshell, so the check uses the --source form: it
+# re-does the source in its own subshell but asserts here, where the counters
+# survive. Without it a failed source would leave the subshell running the
+# HOST's cma_run (already defined via BASH_ENV) and the isolation assertions
+# would pass on host code.
+assert_fn_from --source "$ALIAS_FILE" cma_run "cma_run under test comes from the sandbox alias file"
 (
   # shellcheck disable=SC1090
   source "$ALIAS_FILE"

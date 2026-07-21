@@ -25,7 +25,55 @@ make_sandbox() {
   export ACCOUNT_PREFIX=".claude-"
   export CLAUDE_BIN="/usr/bin/true"  # dummy; we never actually launch claude
   mkdir -p "$DEFAULT_DIR" "$SANDBOX_HOME/.local/bin"
+  # Self-check: prove the switch actually took before any test writes.
+  assert_sandboxed
   trap 'cleanup_sandbox' EXIT
+}
+
+# assert_sandboxed — abort loudly unless $HOME is a sandbox from make_sandbox.
+#
+# This exists because a test that writes to $HOME without a sandbox does not
+# merely fail: in the REAL home, ~/.local/bin/claude-* are SYMLINKS into this
+# repo (install.sh links every claude-*.sh there), and `cat >` follows symlinks.
+# A single unsandboxed stub write therefore destroys the production script it
+# points at. That is not hypothetical — it silently truncated
+# scripts/claude-session.sh from 201 lines to an 8-line stub and
+# scripts/claude-sync-state.sh from 103 lines to 2, which broke every provider
+# alias with "No conversation found with session ID: 11111111-2222-...".
+#
+# Exits 99 rather than returning: there is no safe way to continue.
+assert_sandboxed() {
+  case "$(basename "${HOME:-/}")" in
+    cma-test.*) return 0 ;;
+  esac
+  echo "FATAL: test tried to use HOME=${HOME:-<unset>}, which is not a make_sandbox temp dir." >&2
+  echo "       Refusing to continue: writes under the real \$HOME follow symlinks into the repo" >&2
+  echo "       and would destroy production scripts. Call make_sandbox first." >&2
+  exit 99
+}
+
+# sandbox_stub PATH — install an executable stub (content on stdin) inside the
+# sandbox. Use this instead of `cat > "$HOME/..."` for anything under
+# $HOME/.local/bin.
+#
+# Three guarantees a bare `cat >` does not give:
+#   1. $HOME is a real sandbox (assert_sandboxed).
+#   2. The target is INSIDE that sandbox — a path that escaped it is a bug.
+#   3. An existing symlink is REMOVED before writing, never written through.
+#      Guarantee 3 is the one that matters: it is what turns "clobbered a
+#      production script" into "replaced a link inside a temp dir".
+sandbox_stub() {
+  local target="$1"
+  assert_sandboxed
+  case "$target" in
+    "$HOME"/*) : ;;
+    *) echo "FATAL: sandbox_stub target escapes the sandbox: $target" >&2; exit 99 ;;
+  esac
+  mkdir -p "$(dirname "$target")"
+  # Break the link rather than following it.
+  [[ -L "$target" ]] && rm -f -- "$target"
+  cat > "$target"
+  chmod +x "$target"
 }
 
 cleanup_sandbox() {
@@ -36,7 +84,21 @@ cleanup_sandbox() {
   # /tmp/.private/<user>/ on this host, /var/folders/... on macOS) so
   # we anchor on the cma-test. prefix rather than the parent.
   case "$(basename "$SANDBOX_HOME")" in
-    cma-test.*) rm -rf -- "$SANDBOX_HOME" ;;
+    cma-test.*)
+      # Go installs its module cache read-only (0444 files, 0555 dirs), so a
+      # plain `rm -rf` fails with EACCES partway through and leaves a
+      # ~13.5k-file `go/pkg/mod` skeleton behind on EVERY run of any
+      # Go-building test. Because the sandbox IS $HOME, each such test also
+      # re-downloads the whole cache — 500-850MB per sandbox, unshared — so the
+      # residue is the dominant term in sandbox leakage (109 orphans totalling
+      # 35GB were measured before this was fixed).
+      #
+      # Restore write permission first so the removal can actually complete.
+      # Safe by construction: this only ever runs inside a path whose basename
+      # matched cma-test.*, i.e. a mktemp dir this suite created.
+      chmod -R u+w -- "$SANDBOX_HOME" 2>/dev/null || true
+      rm -rf -- "$SANDBOX_HOME"
+      ;;
     *) echo "refusing to rm sandbox at unexpected path: $SANDBOX_HOME" >&2 ;;
   esac
 }

@@ -157,12 +157,21 @@ EOF
 chmod +x "$recorder"
 mkdir -p "$HOME/.local/bin"
 for stub in claude-sync-state claude-session; do
-  printf '#!/usr/bin/env bash\nexit 0\n' > "$HOME/.local/bin/$stub"
-  chmod +x "$HOME/.local/bin/$stub"
+  # sandbox_stub, not a bare redirect: in a real $HOME these names are symlinks
+  # into the repo and `>` would write THROUGH the link into the production script.
+  sandbox_stub "$HOME/.local/bin/$stub" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
 done
 
 # shellcheck source=/dev/null
 source "$ALIAS_FILE"
+# PROVENANCE GATE — see lib/assert.sh:assert_fn_from. Both launch legs below
+# (run_launch and the expired-token leg) depend on this source having taken;
+# the host's cma_run_provider is already defined here via BASH_ENV.
+it "HYGIENE: the cma_run_provider under test comes from the sandbox alias file"
+assert_fn_from cma_run_provider "$ALIAS_FILE" "wrapper loaded from the sandbox, not the host"
 CLAUDE_BIN="$recorder"
 
 run_launch() {  # -> prints captured ANTHROPIC_AUTH_TOKEN

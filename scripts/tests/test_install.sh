@@ -24,23 +24,41 @@ export SCRIPTS_DIR
 source "$TESTS_DIR/lib/assert.sh"
 source "$TESTS_DIR/lib/sandbox.sh"
 
-make_sandbox
+# fresh_sandbox — tear down the current sandbox (if any) and stand up a new one.
+#
+# This test deliberately needs TWO sandboxes: the second half re-runs install.sh
+# against a $HOME that has no prior alias file, to prove claude<N> aliases are
+# registered for pre-existing account dirs. Calling make_sandbox twice directly
+# is wrong on two counts:
+#   1. It reassigns SANDBOX_HOME and re-arms the EXIT trap, orphaning the first
+#      mktemp dir — one leaked temp dir per run, forever.
+#   2. Every path DERIVED from the old sandbox ($RC_FILE, $install_log) would
+#      silently keep pointing into that orphan, so the second half would write
+#      its install log and rc file outside the live sandbox.
+# Recomputing the derived paths here keeps both correct.
+fresh_sandbox() {
+  cleanup_sandbox          # no-op before the first sandbox exists
+  make_sandbox
 
-# Choose the rc file install.sh would target, the SAME way lib.sh derives
-# CMA_RC_FILES (Darwin -> ~/.zshrc only; Linux -> ~/.bashrc + ~/.zshrc).
-# install.sh only appends its PATH/source lines to rc files that ALREADY
-# exist, so pre-create one — otherwise the PATH-line assertion is vacuous.
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  RC_FILE="$HOME/.zshrc"
-else
-  RC_FILE="$HOME/.bashrc"
-fi
-: > "$RC_FILE"
+  # Choose the rc file install.sh would target, the SAME way lib.sh derives
+  # CMA_RC_FILES (Darwin -> ~/.zshrc only; Linux -> ~/.bashrc + ~/.zshrc).
+  # install.sh only appends its PATH/source lines to rc files that ALREADY
+  # exist, so pre-create one — otherwise the PATH-line assertion is vacuous.
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    RC_FILE="$HOME/.zshrc"
+  else
+    RC_FILE="$HOME/.bashrc"
+  fi
+  : > "$RC_FILE"
+
+  install_log="$SANDBOX_HOME/install.log"
+}
+
+fresh_sandbox
 
 # The exact literal install.sh writes (single-quoted: $HOME/$PATH stay literal).
 # shellcheck disable=SC2016  # intentional literal, must match the rc-file content verbatim
 PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
-install_log="$SANDBOX_HOME/install.log"
 
 # Run install.sh with the SAME bash that runs this test. install.sh needs
 # bash 4+ (and re-execs to a Homebrew bash on macOS); using $BASH guarantees a
@@ -88,9 +106,9 @@ assert_eq 1 "$path_line_count" "PATH line not duplicated after re-run"
 # Users saw "claude1: command not found" after a "successful" install.
 
 it "install.sh registers claude<N> aliases for pre-existing account dirs"
-# Start fresh: new sandbox HOME with no prior state.
-make_sandbox
-: > "$RC_FILE"
+# Start fresh: new sandbox HOME with no prior state (and the OLD sandbox is
+# torn down rather than orphaned — see fresh_sandbox above).
+fresh_sandbox
 # Create two account dirs that look like real Claude accounts.
 mkdir -p "$HOME/.claude-1/projects" "$HOME/.claude-2/projects"
 printf '{"account":"one"}\n' > "$HOME/.claude-1/.credentials.json"

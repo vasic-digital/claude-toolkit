@@ -341,24 +341,48 @@ rm -f "$_b3_pwn" "$_b3_tmpdir" "$_b3_tmpdir2"
 _b5_tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cma.XXXXXX")"
 cma_providers_dir() { echo "$_b5_tmpdir"; }
 
+# b5_probe — read ONE variable out of an emitted .env by sourcing it, without
+# the vacuous-pass shape these assertions used to have.
+#
+# The old form was `v="$(bash -c '. "$1"; printf "%s" "$VAR"' _ "$f" 2>/dev/null)"`
+# followed by `assert_eq "" "$v"`. Every failure mode of the probe — env file
+# never written, unreadable, syntactically broken, bash missing — produces
+# EMPTY stdout, which is precisely the success condition, so the assertion
+# passes having tested nothing. Two changes fix it:
+#   * the source's failure becomes exit status 3 instead of silence, and
+#   * the value is prefixed with a fixed "VAL:" sentinel, so "the variable is
+#     empty" (VAL:) and "the probe never ran" ("") stop looking identical.
+# Callers therefore assert a POSITIVE string and a zero exit status; there is
+# no longer any assertion whose passing condition is "nothing came back".
+# stderr is left ALONE (not redirected to /dev/null): a broken probe should be
+# loud in the run log.
+b5_probe() {   # <env-file> <var-name>  ->  "VAL:<value>" on stdout; rc 3 if unsourceable
+  bash -c '. "$1" || exit 3; eval "printf \"VAL:%s\" \"\${$2-}\""' _ "$1" "$2"
+}
+
 it "cma_provider_write_env (B5): context_limit/max_output round-trip through source"
 cma_provider_write_env "b5lim" "TESTKEY" "native" "https://api.test/v1" "model-x" "" "$HOME/.claude-b5" "262144" "32768"
-b5_ctx="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_CONTEXT_LIMIT"' _ "$_b5_tmpdir/b5lim.env" 2>/dev/null)"
-b5_max="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MAX_OUTPUT"' _ "$_b5_tmpdir/b5lim.env" 2>/dev/null)"
-assert_eq "262144" "$b5_ctx" "CMA_PROVIDER_CONTEXT_LIMIT round-trips through source"
-assert_eq "32768"  "$b5_max" "CMA_PROVIDER_MAX_OUTPUT round-trips through source"
+b5_ctx="$(b5_probe "$_b5_tmpdir/b5lim.env" CMA_PROVIDER_CONTEXT_LIMIT)"; b5_ctx_rc=$?
+b5_max="$(b5_probe "$_b5_tmpdir/b5lim.env" CMA_PROVIDER_MAX_OUTPUT)"; b5_max_rc=$?
+assert_eq 0 "$b5_ctx_rc" "b5lim.env sources cleanly (the probe really ran)"
+assert_eq 0 "$b5_max_rc" "b5lim.env sources cleanly for max_output too"
+assert_eq "VAL:262144" "$b5_ctx" "CMA_PROVIDER_CONTEXT_LIMIT round-trips through source"
+assert_eq "VAL:32768"  "$b5_max" "CMA_PROVIDER_MAX_OUTPUT round-trips through source"
 
 it "cma_provider_write_env (B5): literal \"null\" normalizes to empty"
 cma_provider_write_env "b5null" "TESTKEY" "native" "https://api.test/v1" "model-x" "" "$HOME/.claude-b5" "null" "null"
-b5_ctxn="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_CONTEXT_LIMIT"' _ "$_b5_tmpdir/b5null.env" 2>/dev/null)"
-b5_maxn="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MAX_OUTPUT"' _ "$_b5_tmpdir/b5null.env" 2>/dev/null)"
-assert_eq "" "$b5_ctxn" "context_limit 'null' -> empty (no bogus value leaks into wrapper)"
-assert_eq "" "$b5_maxn" "max_output 'null' -> empty (no bogus value leaks into wrapper)"
+b5_ctxn="$(b5_probe "$_b5_tmpdir/b5null.env" CMA_PROVIDER_CONTEXT_LIMIT)"; b5_ctxn_rc=$?
+b5_maxn="$(b5_probe "$_b5_tmpdir/b5null.env" CMA_PROVIDER_MAX_OUTPUT)"; b5_maxn_rc=$?
+assert_eq 0 "$b5_ctxn_rc" "b5null.env sources cleanly (the probe really ran)"
+assert_eq 0 "$b5_maxn_rc" "b5null.env sources cleanly for max_output too"
+assert_eq "VAL:" "$b5_ctxn" "context_limit 'null' -> empty (no bogus value leaks into wrapper)"
+assert_eq "VAL:" "$b5_maxn" "max_output 'null' -> empty (no bogus value leaks into wrapper)"
 
 it "cma_provider_write_env (B5): omitted limits stay empty (7-arg back-compat)"
 cma_provider_write_env "b5omit" "TESTKEY" "native" "https://api.test/v1" "model-x" "" "$HOME/.claude-b5"
-b5_maxo="$(bash -c '. "$1"; printf "%s" "$CMA_PROVIDER_MAX_OUTPUT"' _ "$_b5_tmpdir/b5omit.env" 2>/dev/null)"
-assert_eq "" "$b5_maxo" "omitted max_output stays empty"
+b5_maxo="$(b5_probe "$_b5_tmpdir/b5omit.env" CMA_PROVIDER_MAX_OUTPUT)"; b5_maxo_rc=$?
+assert_eq 0 "$b5_maxo_rc" "b5omit.env sources cleanly (the probe really ran)"
+assert_eq "VAL:" "$b5_maxo" "omitted max_output stays empty"
 
 it "cma_run_provider (B5): emitted wrapper exports CLAUDE_CODE_MAX_OUTPUT_TOKENS"
 ALIAS_FILE="$_b5_tmpdir/aliases5.sh"
@@ -503,13 +527,21 @@ assert_eq 0 "$b9" "cma_run_provider calls apply-color"
 # This really happened: test_providers.sh lacked `summary` and hid 5 real
 # failures behind a green "27/27 ALL GREEN" run.
 it "every test file ends by calling summary (else run-all.sh cannot see its failures)"
-_missing_summary=""
+# Count what was swept as well as what was wrong. "No file is missing summary"
+# is also the answer you get when the glob matched NOTHING (wrong TESTS_DIR, a
+# renamed convention), so the emptiness of _missing_summary only means anything
+# next to a positive _summary_seen.
+_missing_summary=""; _summary_seen=0
 for _tf in "$TESTS_DIR"/test_*.sh; do
+  [[ -f "$_tf" ]] || continue
+  _summary_seen=$((_summary_seen + 1))
   # `summary` must appear as a standalone command, not only in a comment.
   if ! grep -qE '^[[:space:]]*summary[[:space:]]*$' "$_tf"; then
     _missing_summary="$_missing_summary $(basename "$_tf")"
   fi
 done
+cond=1; (( _summary_seen >= 10 )) && cond=0
+assert_eq 0 "$cond" "the summary sweep actually examined files ($_summary_seen test_*.sh)"
 assert_eq "" "$_missing_summary" "no test file is missing its summary call"
 
 # --- harness integrity: no SIGPIPE-prone `printf | grep -q` before an assert -
@@ -522,13 +554,19 @@ assert_eq "" "$_missing_summary" "no test file is missing its summary call"
 it "no assertion reads \$? from a printf|grep pipeline (SIGPIPE gives 141, not 0)"
 # grep -v '^[[:space:]]*#' first: this file documents the bad pattern in a
 # comment above, and the guard must not match its own explanation.
-_sigpipe_hits=""
+_sigpipe_hits=""; _sigpipe_seen=0
 for _tf in "$TESTS_DIR"/test_*.sh; do
+  [[ -f "$_tf" ]] || continue
+  _sigpipe_seen=$((_sigpipe_seen + 1))
   if grep -vE '^[[:space:]]*#' "$_tf" \
      | grep -qE "printf[^|]*\|[[:space:]]*grep[^;]*;[[:space:]]*assert"; then
     _sigpipe_hits="$_sigpipe_hits $(basename "$_tf")"
   fi
 done
+# Same reasoning as the summary sweep: prove the sweep had input before
+# treating "no hits" as good news.
+cond=1; (( _sigpipe_seen >= 10 )) && cond=0
+assert_eq 0 "$cond" "the SIGPIPE sweep actually examined files ($_sigpipe_seen test_*.sh)"
 assert_eq "" "$_sigpipe_hits" "no SIGPIPE-prone assert pipelines remain"
 
 summary

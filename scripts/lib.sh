@@ -37,6 +37,11 @@ cma_resolve_claude_bin() {
   done
   printf '%s\n' "$HOME/.local/bin/claude"   # fallback (created by install/symlink)
 }
+# Resolved once at source time for callers that want the default without paying
+# for a re-probe. The alias renderer does NOT use it — it prefers the value
+# already recorded in the alias file when that still resolves (see
+# _cma_alias_claude_bin), so a working per-host path is never clobbered.
+# shellcheck disable=SC2034  # part of lib.sh's public surface for sourcing scripts
 CLAUDE_BIN_DEFAULT="$(cma_resolve_claude_bin)"
 
 cma_log()  { printf '\033[36m[cma]\033[0m %s\n' "$*" >&2; }
@@ -193,6 +198,16 @@ cma_detect_accounts() {
     # The claude-code-router config dir and any *.lock dir are not accounts.
     [[ "$(basename "$d")" == "${ACCOUNT_PREFIX}code-router" ]] && continue
     [[ "$(basename "$d")" == *.lock ]] && continue
+    # Archived removals (claude-remove-account's DEFAULT mode renames the dir to
+    # `<dir>.removed.<timestamp>`) are NOT accounts. They keep their `projects/`
+    # marker, so without this they kept counting forever — and the alias-commit
+    # floor at _cma_alias_gate arms only while `src_acct >= n_acct`, so one
+    # ordinary removal (2 aliases vs 3 "detected") silently disarmed that floor
+    # PERMANENTLY on that host. It failed open rather than wrong, but a guard
+    # that quietly stops guarding is not a guard.
+    [[ "$(basename "$d")" == *.removed.* ]] && continue
+    # Same reasoning for the pre-unify backups `backup_and_remove` leaves behind.
+    [[ "$(basename "$d")" == *.preunify.* ]] && continue
     # Empty dirs always count (a brand-new account before any claude run).
     if [[ -z "$(ls -A "$d" 2>/dev/null)" ]]; then
       echo "$d"
@@ -241,22 +256,170 @@ cma_validate_alias() {
 # never match. Used by the prune + dedup helpers below.
 CMA_ALIAS_SRC_RE='^[[:space:]]*(source|\.)[[:space:]]+"?([^"[:space:]]*aliases\.sh)"?[[:space:]]*$'
 
+# The one managed header that heads the `source "<alias-file>"` block in every
+# rc file. Spelled once here so the writer (append) and the reader (prune) agree
+# on exactly what a "managed block" is — the bug that lost the operator's
+# ~/.bashrc was the two disagreeing: the append wrote this header, the prune did
+# not know to remove it, so every dropped source line left the header ORPHANED.
+CMA_ALIAS_RC_HEADER='# Claude multi-account aliases'
+
+# True if $1 is an `aliases.sh` source line (source|. form). Sets BASH_REMATCH.
+_cma_is_alias_src_line() { [[ "$1" =~ $CMA_ALIAS_SRC_RE ]]; }
+# Echo the resolved target path an alias-source line ($1) points at, or nothing.
+_cma_alias_src_target() {
+  [[ "$1" =~ $CMA_ALIAS_SRC_RE ]] || return 1
+  local t="${BASH_REMATCH[2]}"; t="${t/#\$HOME/$HOME}"; t="${t/#\~/$HOME}"
+  printf '%s' "$t"
+}
+
+# Portable mtime (epoch seconds). GNU `stat -c %Y`; BSD/macOS `stat -f %m`
+# (which has no `-c`). Deliberately NOT `date -r <path>`: on BSD `date -r` reads
+# its argument as epoch seconds rather than a file, silently returning 0 for
+# every path — the macOS breakage that made this a §11.4.68 / §11.4.81 finding.
+_cma_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0; }
+
+# Newest existing rolling backup for $rc, by mtime (empty if none).
+cma_newest_rc_backup() {
+  local rc="$1" f newest="" ntime=-1 t
+  for f in "$rc".cma-backup.*; do
+    [[ -e "$f" ]] || continue
+    t="$(_cma_mtime "$f")"
+    if (( t >= ntime )); then ntime="$t"; newest="$f"; fi
+  done
+  printf '%s' "$newest"
+}
+
+# cma_backup_rc_file <rc>
+# Protect a user rc file BEFORE the toolkit modifies it. Two backups:
+#   * <rc>.cma-orig — the PRISTINE original, written exactly ONCE and NEVER
+#     overwritten. This is the load-bearing recovery point: once a corrupted
+#     state exists on disk it can never bury the true original.
+#   * <rc>.cma-backup.<epoch> — a rolling snapshot of recent state, RATE-LIMITED:
+#     skipped when byte-identical to the newest existing rolling backup. Without
+#     this, BASH_ENV=~/.bashrc firing the prune->ensure cycle on every
+#     non-interactive bash would spray hundreds of identical copies.
+# Returns 0 when the rc is protected (or does not exist yet, so a fresh create
+# loses nothing). Returns 1 when the PRISTINE backup could not be taken — the
+# caller MUST then refuse to modify rather than proceed unprotected.
+cma_backup_rc_file() {
+  local rc="$1" orig="$1.cma-orig" newest ts cand i=0
+  [[ -f "$rc" ]] || return 0                 # nothing on disk => nothing to lose
+
+  # 1. Pristine original: create once, never overwrite. A failure here is fatal
+  #    to the modification — an unwritable dir can still allow an append (which
+  #    needs only file-write), so refusing here is what actually prevents an
+  #    unprotected write.
+  if [[ ! -e "$orig" ]]; then
+    if ! cp -p -- "$rc" "$orig" 2>/dev/null; then
+      cma_warn "cannot write pristine backup $orig — refusing to modify $rc"
+      return 1
+    fi
+  fi
+
+  # 2. Rolling snapshot, rate-limited. Best-effort: the pristine copy above is
+  #    the guarantee; a rolling-backup failure does not block the modification
+  #    (the recovery point already exists).
+  newest="$(cma_newest_rc_backup "$rc")"
+  if [[ -n "$newest" ]] && cmp -s -- "$rc" "$newest"; then
+    return 0
+  fi
+  ts="$(date +%s)"
+  cand="$rc.cma-backup.$ts"
+  while [[ -e "$cand" ]]; do i=$((i+1)); cand="$rc.cma-backup.$ts.$i"; done
+  cp -p -- "$rc" "$cand" 2>/dev/null || true
+  return 0
+}
+
+# _cma_rc_rewrite_ok <rc> <candidate> <intended_removed_lines>
+# Sanity gate for any rc rewrite, mirroring cma_alias_commit's alias-file gate.
+# Refuse to publish a candidate that: is empty while it was meant to keep lines;
+# fails a shell syntax parse (bash -n for a .bashrc, zsh -n for a .zshrc when zsh
+# is present); or lost more lines than the operation intended to remove.
+_cma_rc_rewrite_ok() {
+  local rc="$1" cand="$2" removed="$3" src_lines cand_lines expected
+  src_lines="$(grep -c '' "$rc"   2>/dev/null || echo 0)"
+  cand_lines="$(grep -c '' "$cand" 2>/dev/null || echo 0)"
+  expected=$(( src_lines - removed ))
+  (( expected < 0 )) && expected=0
+
+  # 1. Empty candidate that was supposed to preserve content = truncation.
+  if [[ ! -s "$cand" ]] && (( expected > 0 )); then
+    cma_warn "rc rewrite rejected: empty candidate for $rc would drop $expected intended line(s)"
+    return 1
+  fi
+  # 2. Must still parse in the target shell.
+  case "$rc" in
+    *.zshrc)
+      if command -v zsh >/dev/null 2>&1; then
+        zsh -n "$cand" 2>/dev/null || { cma_warn "rc rewrite rejected: zsh -n failed on candidate for $rc"; return 1; }
+      fi ;;
+    *)
+      bash -n "$cand" 2>/dev/null || { cma_warn "rc rewrite rejected: bash -n failed on candidate for $rc"; return 1; } ;;
+  esac
+  # 3. Must not have lost lines the operation did not intend to remove.
+  if (( cand_lines < expected )); then
+    cma_warn "rc rewrite rejected: candidate for $rc lost $(( expected - cand_lines )) unintended line(s)"
+    return 1
+  fi
+  return 0
+}
+
 # Remove rc-file lines that source an aliases.sh whose target no longer exists
 # (a stale path from a moved install, or a transient ALIAS_FILE used in testing).
 # Without this, a deleted alias file leaves a dangling line that errors
 # "-bash: …/aliases.sh: No such file or directory" on every new login shell.
+#
+# The managed `# Claude multi-account aliases` header and its source line are
+# treated as ONE block: a dead block drops both (never orphaning the header), and
+# a header that no longer heads a live source line is collapsed away (self-heal
+# for the orphans a pre-fix toolkit already accumulated). A bare source line with
+# no managed header is still pruned when its target is gone. Every rewrite is
+# guarded by the sanity gate + a mandatory backup: a bad candidate is parked as
+# <rc>.rejected.<ts> and the live rc is left untouched; if the backup cannot be
+# taken the rc is not modified at all.
 cma_prune_stale_alias_sources() {
-  local rc="$1" tmp line target changed=0
+  local rc="$1" tmp removed=0 n i line target
   [[ -f "$rc" ]] || return 0
+
+  local lines=()
+  while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done < "$rc"
+  n=${#lines[@]}
+
   tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")" || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" =~ $CMA_ALIAS_SRC_RE ]]; then
-      target="${BASH_REMATCH[2]}"; target="${target/#\$HOME/$HOME}"; target="${target/#\~/$HOME}"
-      if [[ ! -f "$target" ]]; then changed=1; continue; fi
+  i=0
+  while (( i < n )); do
+    line="${lines[$i]}"
+    if [[ "$line" == "$CMA_ALIAS_RC_HEADER" ]]; then
+      if (( i + 1 < n )) && _cma_is_alias_src_line "${lines[$((i+1))]}"; then
+        target="$(_cma_alias_src_target "${lines[$((i+1))]}")"
+        if [[ -f "$target" ]]; then
+          printf '%s\n' "$line" >> "$tmp"                 # live block: keep header
+          printf '%s\n' "${lines[$((i+1))]}" >> "$tmp"    # ...and its source line
+        else
+          removed=$((removed + 2))                        # dead block: drop both
+        fi
+        i=$((i + 2)); continue
+      fi
+      removed=$((removed + 1)); i=$((i + 1)); continue     # orphan header: collapse
+    fi
+    if _cma_is_alias_src_line "$line"; then
+      target="$(_cma_alias_src_target "$line")"
+      if [[ ! -f "$target" ]]; then removed=$((removed + 1)); i=$((i + 1)); continue; fi
     fi
     printf '%s\n' "$line" >> "$tmp"
-  done < "$rc"
-  if (( changed )); then command mv -f "$tmp" "$rc"; cma_log "pruned stale aliases.sh source line(s) from $rc"; else rm -f "$tmp"; fi
+    i=$((i + 1))
+  done
+
+  if (( removed == 0 )); then rm -f "$tmp"; return 0; fi
+
+  if ! _cma_rc_rewrite_ok "$rc" "$tmp" "$removed"; then
+    command mv -f "$tmp" "$rc.rejected.$(date +%s)" 2>/dev/null || rm -f "$tmp"
+    cma_warn "$rc left untouched; pruned candidate kept as $rc.rejected.*"
+    return 1
+  fi
+  if ! cma_backup_rc_file "$rc"; then rm -f "$tmp"; return 1; fi
+  command mv -f "$tmp" "$rc"
+  cma_log "pruned stale/orphaned managed alias block(s) from $rc"
 }
 
 # True if $rc already sources a file resolving to $2 (across `.`/`source` and
@@ -274,116 +437,371 @@ cma_rc_sources_alias_file() {
   return 1
 }
 
-# Ensure $ALIAS_FILE exists with the header sentinel and is sourced from
-# the user's rc files. Idempotent — safe to call repeatedly.
-cma_ensure_alias_file() {
-  mkdir -p "$(dirname "$ALIAS_FILE")"
-  if [[ ! -f "$ALIAS_FILE" ]]; then
-    cat > "$ALIAS_FILE" <<EOF
-# Managed by claude-multi-account. Do not edit by hand; use
-# ~/.local/bin/claude-add-account to add accounts.
-export CLAUDE_BIN="${CLAUDE_BIN_DEFAULT}"
-EOF
-  fi
-  # Migration: rewrite any pre-wrapper alias lines that invoke $CLAUDE_BIN
-  # directly so they go through cma_run instead. Pre-existing installs need
-  # this on the first re-run of install.sh after the runtime-sync feature
-  # landed; idempotent (a line already using cma_run is left alone).
-  # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the regex/sed pattern, not a shell expansion
-  if grep -qE '^alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=[^ ]+[[:space:]]+\\?\$CLAUDE_BIN"$' "$ALIAS_FILE"; then
-    local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-    # shellcheck disable=SC2016  # $CLAUDE_BIN is a literal in the sed pattern, matching alias file content
-    sed -E 's|(^alias[[:space:]]+[^=]+=)"(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN"$|\1"\2 cma_run"|' "$ALIAS_FILE" > "$tmp"
-    command mv -f "$tmp" "$ALIAS_FILE"
-    cma_log "migrated existing aliases in $ALIAS_FILE to use cma_run wrapper"
-  fi
-  # Migration: an existing alias file may carry a stale CLAUDE_BIN pointing at a
-  # path that does not exist on THIS host (e.g. ~/.local/bin/claude when npm put
-  # claude in ~/.npm-global/bin — the amber.local case). If the recorded
-  # CLAUDE_BIN is not executable, rewrite it to a resolved one so every alias
-  # launch finds claude without a manual symlink.
-  local _cur_cb _cur_cb_exp _new_cb
-  # `|| _cur_cb=""` is LOAD-BEARING: under `set -euo pipefail` a no-match grep
-  # (an older/hand-edited alias file with no `export CLAUDE_BIN=` line) would
-  # abort cma_ensure_alias_file mid-run.
-  _cur_cb="$(grep -m1 '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null)" || _cur_cb=""
-  _cur_cb="${_cur_cb#export CLAUDE_BIN=}"; _cur_cb="${_cur_cb#\"}"; _cur_cb="${_cur_cb%\"}"
-  _cur_cb_exp="${_cur_cb/#\$HOME/$HOME}"; _cur_cb_exp="${_cur_cb_exp/#\~/$HOME}"
-  if [[ -n "$_cur_cb" && ! -x "$_cur_cb_exp" ]]; then
-    _new_cb="$(cma_resolve_claude_bin)"
-    if [[ "$_new_cb" != "$_cur_cb" && -x "${_new_cb/#\$HOME/$HOME}" ]]; then
-      local tmp_cb; tmp_cb="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-      sed "s|^export CLAUDE_BIN=.*|export CLAUDE_BIN=\"$_new_cb\"|" "$ALIAS_FILE" > "$tmp_cb"
-      command mv -f "$tmp_cb" "$ALIAS_FILE"
-      cma_log "migrated stale CLAUDE_BIN -> $_new_cb"
-    fi
-  fi
-  # Migration: the 'export CLAUDE_BIN=' header line is entirely missing (corrupted
-  # alias file -- every alias launches an empty command). Prepend it so the
-  # inline self-heal in cma_run/cma_run_provider does not have to fire on every
-  # single invocation. Idempotent: does nothing when the line is already present.
-  if ! grep -q '^export CLAUDE_BIN=' "$ALIAS_FILE" 2>/dev/null; then
-    local _cb_new; _cb_new="$(cma_resolve_claude_bin)"
-    local _cb_tmp; _cb_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-    {
-      printf '# Managed by claude-multi-account. Do not edit by hand; use\n'
-      printf '# ~/.local/bin/claude-add-account to add accounts.\n'
-      printf 'export CLAUDE_BIN="%s"\n' "$_cb_new"
-      cat "$ALIAS_FILE"
-    } > "$_cb_tmp" && command mv -f "$_cb_tmp" "$ALIAS_FILE"
-    cma_log "restored missing export CLAUDE_BIN line -> $_cb_new"
-  fi
-  # Migration: regenerate an outdated cma_run that lacks the provider-env
-  # isolation guard (the 'unset ANTHROPIC_' marker). Without it, a native
-  # claudeN launched in a shell that previously ran a provider alias would
-  # INHERIT that provider's exported ANTHROPIC_BASE_URL/AUTH_TOKEN/MODEL and
-  # talk to the wrong API (e.g. claude1 hitting xiaomi's endpoint). Drop only
-  # the function block; the correct version is re-appended below.
-  # NOTE: match with LITERAL parens `^cma_run()` — NOT `^cma_run\(\)`. In both
-  # grep BRE and awk ERE, `\(\)` is an *empty capture group* that matches the
-  # empty string, so `^cma_run\(\)` matches any line starting with "cma_run",
-  # INCLUDING "cma_run_provider()". That false match made the re-append guard
-  # below think cma_run still existed after it was stripped, dropping the
-  # function entirely. Literal `()` matches only the real cma_run() header.
-  # Regenerate cma_run if its body is missing ANY current marker:
-  #   * 'unset ANTHROPIC_' — provider-env isolation (native must not inherit a
-  #     provider endpoint left exported in the shell),
-  #   * 'claude-session'   — the per-project auto-session naming integration,
-  #   * 'CLAUDE_CODE_MAX_OUTPUT_TOKENS' — token-guard isolation (native must not
-  #     inherit a provider's clamped output cap / auto-compact window), and
-  #   * 'claude-cwd-hook'  — the optional project-agnostic pre-launch working-dir
-  #     hook (lets a consuming project bind each alias to its own checkout).
-  # A stale wrapper lacking ANY would silently misbehave (wrong endpoint,
-  # unnamed sessions, or no per-alias cwd) and must self-heal on the next
-  # install/ensure. The earlier bug checked only the first marker, so wrappers
-  # predating auto-session never regained it.
-  local _cma_run_body
-  _cma_run_body="$(awk '/^cma_run\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE" 2>/dev/null)"
-  if grep -q '^cma_run()' "$ALIAS_FILE" \
-     && { [[ "$_cma_run_body" != *'unset ANTHROPIC_'* ]] \
-          || [[ "$_cma_run_body" != *'claude-session'* ]] \
-          || [[ "$_cma_run_body" != *'claude-cwd-hook'* ]] \
-          || [[ "$_cma_run_body" != *'_cma_hook_root'* ]] \
-	          || [[ "$_cma_run_body" != *'! git rev-parse --show-toplevel >/dev/null 2>&1'* ]] \
-          || [[ "$_cma_run_body" != *'apply-color'* ]] \
-          || [[ "$_cma_run_body" != *'command -v "\${CLAUDE_BIN:-}"'* ]] \
-          || [[ "$_cma_run_body" != *'ANTHROPIC_DEFAULT_OPUS_MODEL'* ]] \
-          || [[ "$_cma_run_body" != *'CLAUDE_CODE_MAX_OUTPUT_TOKENS'* ]]; }; then
-    local tmp_run; tmp_run="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-    awk '
-      /^cma_run\(\) ?\{/ { skip=1 }
-      skip && /^}/    { skip=0; next }
-      !skip           { print }
-    ' "$ALIAS_FILE" > "$tmp_run"
-    command mv -f "$tmp_run" "$ALIAS_FILE"
-    cma_log "migrated outdated cma_run (claude-bin-self-heal + provider-env isolation + tier-default-model isolation + token-guard isolation (CLAUDE_CODE_MAX_OUTPUT_TOKENS/AUTO_COMPACT_WINDOW) + auto-session + project-scoped cwd-hook)"
-  fi
-  # Ensure the cma_run wrapper is present in the alias file. This is the
-  # runtime hook that keeps .claude.json projects/session state synchronized
-  # across every account: pull merged state before launch, push back after exit.
-  if ! grep -q '^cma_run()' "$ALIAS_FILE"; then
-    cat >> "$ALIAS_FILE" <<'EOF'
+# ===========================================================================
+# Alias file: one renderer, one lock, one rename.
+# ===========================================================================
+# WHY THIS SHAPE — forensics of the 2026-07-20 alias-file destruction. The live
+# aliases.sh collapsed 37288 -> 282 -> 32112 -> 974 -> 909 -> 25682 -> 130 bytes
+# inside four seconds, losing the header, BOTH wrapper functions and every
+# `alias claudeN=` line. No single writer was buggy: `cma_ensure_alias_file`
+# performed SIX sequential whole-file read-modify-write migrations plus two
+# direct `cat >> "$ALIAS_FILE"` appends, while `claude-providers list
+# --refresh-aliases` — fired by the session hook on EVERY shell start —
+# performed 21 more whole-file rewrites. Each was atomic and content-preserving
+# in isolation; together, with no lock anywhere on the file, one writer's stale
+# snapshot silently overwrote another writer's committed result (lost update).
+# The corruption timestamp preceded the incidental SIGTERM by ~14 minutes, so
+# this is clean-run reachable, not an interrupt-only hazard.
+#
+# The three properties that fix it, in order of leverage:
+#
+#   1. RENDER ONCE. The complete file (managed block + carried lines + the
+#      session-hook block) is built in ONE temp and committed with a SINGLE
+#      rename. There is no intermediate on-disk state for a concurrent reader
+#      or writer to snapshot, and the drop-then-re-append migrations disappear
+#      entirely — the wrappers are always emitted at their current version, so
+#      there is nothing to "migrate". That also kills the orphaned `# Wrapper:`
+#      comment leak: the old drop-awk started at the `cma_run() {` line and left
+#      the 4-line comment above it behind while the re-append put the function
+#      at the end, leaking 5 dead lines and reordering the file on every firing
+#      (~15 orphans had accumulated on the live host).
+#
+#   2. NO-OP GUARD. If the render is byte-identical to what is on disk, nothing
+#      is written and the lock is never even taken. On a steady-state host this
+#      turns 21 renames per shell start into zero writes, so the common path
+#      cannot enter the race at all. This is the highest-leverage part.
+#
+#   3. EXCLUSIVE LOCK. The remaining read-render-rename is still a
+#      read-modify-write, so it runs under an $ALIAS_FILE-scoped exclusive lock.
+#      Contention policy is caller-set via CMA_ALIAS_LOCK_WAIT: the session hook
+#      uses 0 (give up instantly — a shell start must NEVER block, and a skipped
+#      refresh is harmless because the next writer re-renders from the file).
+#
+# Plus a sanity gate (never commit a file missing the header, either wrapper, or
+# any alias it did not explicitly drop).
+#
+# What protects WHAT, stated precisely, INCLUDING what the test suite does and
+# does not cover. Two earlier versions of this comment overclaimed here; both
+# corrections below were established by deleting the mechanism and re-running.
+#
+#   * No half-file can be published because of RENDER-ONCE + a single mv(2).
+#     That property holds with the signal mask removed, and a 15-iteration
+#     SIGTERM test cannot tell the difference. The mask is not what earns it.
+#
+#   * The INT/TERM mask is DEFENCE IN DEPTH WITH NO TEST-VISIBLE EFFECT, and
+#     saying otherwise was the second overclaim. The narrow thing it was
+#     credited with — stopping a signal between the rename and the lock release
+#     from leaking the lock — is not, in fact, a hazard either backend suffers:
+#       - flock: the lock is an fd. Process death releases it in the kernel,
+#         mask or no mask. There is nothing to leak.
+#       - mkdir: a leaked lock dir names a dead pid, and the very next acquire
+#         reclaims it via _cma_alias_lock_break_stale — inside the SAME call,
+#         at any wait including 0. It does not make later writers skip.
+#     So deleting `trap '' INT TERM` leaves the suite green, and no honest test
+#     distinguishes it. What it genuinely buys is that the saved INT/TERM traps
+#     are restored rather than left disarmed for the caller. It is kept for
+#     that and for the narrow interrupt-safety it costs nothing to have — NOT
+#     because anything here proves it necessary. Do not cite it as tested.
+#
+#   * MUTUAL EXCLUSION is the lock's job and nothing else's. The storm in
+#     test_alias_file_concurrency.sh section 1 does NOT measure it: its writers
+#     all write the SAME content, so a lost update is re-derived on the next
+#     iteration, and deleting the lock acquire outright leaves that section
+#     passing 3/3. Section 1b is what measures it — N one-shot DISTINCT writes,
+#     nothing to re-derive a loss — and that is the case which found the mkdir
+#     backend was not excluding at all (see _cma_alias_lock_break_stale).
 
+# Sentinels bracketing the machine-owned region. Everything between them is
+# regenerated verbatim on every write; everything outside is carried over
+# untouched (user additions survive — see the "unrelated user line preserved"
+# coverage test). Pre-sentinel files are recognised by content instead, once,
+# by _cma_alias_carryover's legacy rules.
+CMA_ALIAS_MANAGED_BEGIN='# cma-managed BEGIN — regenerated by claude-multi-account; do not edit inside'
+CMA_ALIAS_MANAGED_END='# cma-managed END'
+CMA_ALIAS_HOOK_BEGIN='# cma-providers-session-refresh BEGIN'
+CMA_ALIAS_HOOK_END='# cma-providers-session-refresh END'
+
+# --- exclusive lock on the alias file ---------------------------------------
+# This deliberately MIRRORS scripts/tests/lib/suite-lock.sh (flock(1) where
+# present, otherwise an atomic mkdir(2) lock with rename-verified stale
+# breaking — macOS ships no flock) rather than sourcing it. suite-lock.sh is
+# test infrastructure: its acquire() `exit 75`s the process on contention and
+# installs its own EXIT/INT/TERM traps. Both are unacceptable in a library that
+# runs inside install scripts and, transitively, shell startup — so the same
+# primitive is re-implemented here with a returns-a-status contract, no process
+# exit, and no trap hijacking.
+#
+# KNOBS
+#   CMA_ALIAS_LOCK_WAIT        seconds to wait on contention (default 30);
+#                              0 = fail fast, used by the session hook
+#   CMA_ALIAS_LOCK_NO_FLOCK=1  force the portable fallback (tests exercise the
+#                              macOS path on Linux)
+#   CMA_ALIAS_LOCK_STALE_GRACE seconds a pid-less lock dir may exist before it
+#                              is treated as stale (default 10)
+CMA_ALIAS_LOCK_WAIT="${CMA_ALIAS_LOCK_WAIT:-30}"
+CMA_ALIAS_LOCK_STALE_GRACE="${CMA_ALIAS_LOCK_STALE_GRACE:-10}"
+_cma_alias_lock_depth=0
+_cma_alias_lock_mode=""
+_cma_alias_lock_file=""
+
+# Sanitised wait, in seconds. A junk value must not abort the caller under
+# `set -e` when it reaches an arithmetic test.
+_cma_alias_lock_wait() {
+  case "${CMA_ALIAS_LOCK_WAIT:-}" in
+    ''|*[!0-9]*) printf '30\n' ;;
+    *)           printf '%s\n' "$CMA_ALIAS_LOCK_WAIT" ;;
+  esac
+}
+
+_cma_alias_lock_pid() {
+  local p=""
+  if [[ "$_cma_alias_lock_mode" == "mkdir" ]]; then
+    p="$(head -1 "$_cma_alias_lock_file/pid" 2>/dev/null || true)"
+  else
+    p="$(head -1 "$_cma_alias_lock_file" 2>/dev/null || true)"
+  fi
+  printf '%s' "$p" | tr -d '[:space:]'
+}
+
+# Discard a lock whose owner is gone.
+#
+# WHY THIS IS NOT THE OBVIOUS "rename it aside and look at it".
+# It used to be. That version renamed the lock directory to a private path,
+# read the pid inside, and renamed it BACK when the pid was not the one it had
+# judged dead. Two flaws compounded, and together they cost the mkdir backend
+# mutual exclusion outright — measured, not theorised: 12 one-shot concurrent
+# writers each adding a DIFFERENT alias lost at least one COMMITTED alias in
+# roughly 40% of runs, with the caller told rc 0. That is a lost update, the
+# very failure that destroyed the live alias file.
+#
+#   1. TOCTOU on the holder's identity. The caller samples the pid, then tests
+#      liveness. A holder that RELEASED NORMALLY and then exited is
+#      indistinguishable from one that died holding the lock: by the time
+#      `kill -0` runs the pid is gone, while the directory has already been
+#      re-created by a different, LIVE writer. The audit trace for this bug
+#      shows the judged holder exiting 1ms before the test that condemned it.
+#   2. The restore was not atomic. Between `mv lock aside` and `mv aside lock`
+#      the lock DOES NOT EXIST, so any contender's `mkdir` succeeds there. The
+#      displaced holder never learns it lost the lock, and two processes enter
+#      the critical section together. Every double-hold in the audit is
+#      preceded, within ~15ms, by exactly this restore.
+#
+# So the directory is never moved. It is inspected IN PLACE and removed only
+# once proven stale, under a short-lived breaker lock that makes
+# inspect-then-remove exclusive among breakers. That closes the window: a
+# directory whose recorded pid is dead cannot be released by its owner (it is
+# dead) and cannot be removed by another breaker (we hold the breaker lock), so
+# nothing can re-create it under a LIVE owner between the check and the removal.
+#
+# NOTE: tests/lib/suite-lock.sh carries the older shape. It is deliberately NOT
+# converged with this one — it is global-by-design test infrastructure with a
+# different contract (it exits the process on contention) — but it has the same
+# hazard, at far lower stakes (one suite run per checkout).
+_cma_alias_lock_break_stale() {
+  local observed="${1:-}" brk="${_cma_alias_lock_file}.breaker" bpid got
+  # Breaker exclusivity: mkdir(2) is the atomic claim. Losing it is not an
+  # error — someone else is already breaking, so we simply retry the acquire.
+  if ! mkdir "$brk" 2>/dev/null; then
+    # A breaker that died mid-break would wedge every later one, so a breaker
+    # lock whose owner is gone is reaped. This is the ONLY thing this branch
+    # may remove; it never touches the alias lock itself.
+    bpid="$(head -1 "$brk/pid" 2>/dev/null || true)"
+    bpid="$(printf '%s' "$bpid" | tr -d '[:space:]')"
+    if [[ -n "$bpid" ]] && ! kill -0 "$bpid" 2>/dev/null; then
+      rm -rf "$brk" 2>/dev/null || true
+    fi
+    return 0
+  fi
+  printf '%s\n' "$$" > "$brk/pid" 2>/dev/null || true
+
+  # Re-read the evidence as late as possible and grade the directory we are
+  # about to delete, never a pid the caller sampled an iteration ago.
+  got="$(_cma_alias_lock_pid)"
+  if [[ -n "$observed" ]]; then
+    # Still the same holder we judged, and still gone.
+    if [[ "$got" == "$observed" ]] && ! kill -0 "$got" 2>/dev/null; then
+      rm -rf "$_cma_alias_lock_file" 2>/dev/null || true
+    fi
+  elif [[ -z "$got" ]]; then
+    # Pid-less. The caller only asks for this after CMA_ALIAS_LOCK_STALE_GRACE
+    # seconds of CONTINUOUS emptiness, which is what separates "the winner has
+    # not written its pid yet" (microseconds) from "the winner died in between".
+    # That grace, not this re-read, is the guard for the empty case.
+    rm -rf "$_cma_alias_lock_file" 2>/dev/null || true
+  fi
+
+  rm -rf "$brk" 2>/dev/null || true
+  return 0
+}
+
+# Acquire (or re-enter) the alias-file lock. Returns 1 on contention timeout —
+# never exits, never blocks longer than CMA_ALIAS_LOCK_WAIT.
+_cma_alias_lock_acquire() {
+  _cma_alias_lock_depth=$(( _cma_alias_lock_depth + 1 ))
+  if (( _cma_alias_lock_depth > 1 )); then return 0; fi   # re-entrant
+
+  local dir wait_s deadline holder empty_since=""
+  dir="$(dirname "$ALIAS_FILE")"
+  mkdir -p "$dir" 2>/dev/null || true
+  wait_s="$(_cma_alias_lock_wait)"
+
+  if command -v flock >/dev/null 2>&1 && [[ -z "${CMA_ALIAS_LOCK_NO_FLOCK:-}" ]]; then
+    _cma_alias_lock_mode="flock"
+    _cma_alias_lock_file="$dir/.aliases.lock"
+    # APPEND mode on purpose: `exec 8>file` truncates at open, erasing a live
+    # holder's PID record before we even contend.
+    if ! exec 8>>"$_cma_alias_lock_file"; then
+      _cma_alias_lock_depth=0; return 1
+    fi
+    if ! flock -n 8; then
+      if (( wait_s <= 0 )) || ! flock -w "$wait_s" 8; then
+        # BRACES ARE LOAD-BEARING. `exec 8>&- 2>/dev/null` is NOT "close fd 8,
+        # quietly": a command-less `exec` applies EVERY redirection on the line
+        # to the shell PERMANENTLY, so the `2>/dev/null` silences this
+        # process's stderr for the rest of its life. That fired here on every
+        # contended acquire — precisely when the caller has something to say —
+        # and it swallowed claude-add-account's whole "here is how to finish
+        # the job" message, leaving a user with a config dir, no alias, and no
+        # explanation. Scoping the redirection to a group closes the fd and
+        # leaves stderr alone.
+        { exec 8>&-; } 2>/dev/null || true
+        _cma_alias_lock_depth=0
+        return 1
+      fi
+    fi
+    printf '%s\n' "$$" > "$_cma_alias_lock_file" 2>/dev/null || true
+    return 0
+  fi
+
+  _cma_alias_lock_mode="mkdir"
+  _cma_alias_lock_file="$dir/.aliases.lockdir"
+  deadline=$(( $(date +%s) + wait_s ))
+  while :; do
+    if mkdir "$_cma_alias_lock_file" 2>/dev/null; then
+      printf '%s\n' "$$" > "$_cma_alias_lock_file/pid" 2>/dev/null || true
+      # A contender mid stale-break could have swapped the dir out from under
+      # us; the recorded PID is the tiebreaker.
+      if [[ "$(_cma_alias_lock_pid)" != "$$" ]]; then continue; fi
+      return 0
+    fi
+    holder="$(_cma_alias_lock_pid)"
+    if [[ -z "$holder" ]]; then
+      # mkdir won but the pid write has not landed yet — or the winner died in
+      # between. Give it a grace window before declaring the lock stale.
+      [[ -n "$empty_since" ]] || empty_since="$(date +%s)"
+      if (( $(date +%s) - empty_since >= CMA_ALIAS_LOCK_STALE_GRACE )); then
+        _cma_alias_lock_break_stale ""
+        empty_since=""
+        continue
+      fi
+    else
+      empty_since=""
+      if ! kill -0 "$holder" 2>/dev/null; then
+        _cma_alias_lock_break_stale "$holder"
+        continue
+      fi
+    fi
+    if (( $(date +%s) >= deadline )); then
+      _cma_alias_lock_depth=0
+      return 1
+    fi
+    sleep 0.1 2>/dev/null || sleep 1
+  done
+}
+
+_cma_alias_lock_release() {
+  (( _cma_alias_lock_depth > 0 )) || return 0
+  _cma_alias_lock_depth=$(( _cma_alias_lock_depth - 1 ))
+  if (( _cma_alias_lock_depth > 0 )); then return 0; fi
+  if [[ "$_cma_alias_lock_mode" == "mkdir" ]]; then
+    # Only remove a lock we still own — after a stale break the directory may
+    # belong to someone else.
+    if [[ "$(_cma_alias_lock_pid)" == "$$" ]]; then
+      rm -rf "$_cma_alias_lock_file" 2>/dev/null || true
+    fi
+  else
+    # The file is deliberately NOT unlinked: unlinking a flock target races a
+    # contender who already opened the old inode.
+    flock -u 8 2>/dev/null || true
+    # Braces, for the reason spelled out in _cma_alias_lock_acquire. This site
+    # was the worse of the two: it is on the SUCCESS path, so every process
+    # that committed an alias — install.sh, claude-add-account,
+    # claude-providers sync — ran the rest of its life with stderr pointed at
+    # /dev/null and lost every warning and error it later tried to report.
+    { exec 8>&-; } 2>/dev/null || true
+  fi
+  return 0
+}
+
+# --- the managed block -------------------------------------------------------
+# One emitter per piece. These are the ONLY definitions of the wrappers; the
+# renderer always emits the current text, which is why no drop/re-append
+# migration (and no orphan-comment leak) exists any more.
+
+# The ccr-self-reference test, as ONE definition serving THREE call sites:
+# cma_run_provider (which lives inside the emitted alias file and therefore has
+# no access to lib.sh's functions), providers-verify.sh, and lib.sh itself. The
+# emitter below is the single source of the text; the alias file gets it via
+# _cma_emit_managed, and this shell gets it via the `eval` immediately after, so
+# the two copies cannot drift. The previous arrangement — a `case` duplicated at
+# lib.sh's launch gate and providers-verify.sh's Gate 0 — under-matched every
+# spelling except the four it literally listed, so `127.0.1.1:3456` (Debian's
+# DEFAULT loopback for the local hostname), any other 127/8 address, the
+# v4-mapped and fully-expanded IPv6 loopbacks, `LOCALHOST`, a `user@` prefix and
+# a `?query`/`#fragment` suffix all sailed through the guard and re-armed the
+# exact helixagent hazard the guard exists to stop.
+_cma_emit_ccr_gateway_guard() {
+  cat <<'CMA_CCRGW_EOF'
+# True when $1 is a URL pointing at the LOCAL ccr gateway (port $2, default
+# $CMA_CCR_PORT or 3456). Such a base_url has no upstream: routing through it
+# means serving whatever provider ccr last routed to, with no error anywhere.
+# Matches the whole 127/8 range, 0.0.0.0, `localhost` in any case, and IPv6
+# loopback in every spelling (::1, 0:0:0:0:0:0:0:1, ::ffff:127.0.0.1, …),
+# tolerating userinfo, path, query and fragment. A different port, a
+# non-loopback host, or a remote https base is NOT a match.
+_cma_is_ccr_gateway() {
+  local url="${1:-}" want="${2:-${CMA_CCR_PORT:-3456}}" hp host port v4 squash
+  [[ -n "$url" ]] || return 1
+  hp="${url#*://}"          # drop the scheme
+  hp="${hp%%/*}"            # drop the path
+  hp="${hp%%\?*}"           # drop a query that followed no path
+  hp="${hp%%#*}"            # drop a fragment that followed no path
+  hp="${hp##*@}"            # drop userinfo (greedy: the LAST '@' wins)
+  case "$hp" in
+    \[*\]:*) host="${hp%]:*}"; host="${host#[}"; port="${hp##*]:}" ;;
+    *:*)     host="${hp%%:*}"; port="${hp##*:}" ;;
+    *)       return 1 ;;    # no explicit port -> not the gateway
+  esac
+  [[ "$port" == "$want" ]] || return 1
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  case "$host" in
+    localhost|localhost.localdomain) return 0 ;;
+    0.0.0.0) return 0 ;;
+    # 127/8, but only as a real dotted quad: `127.example.com` is a hostname.
+    127.*) case "$host" in *[!0-9.]*) return 1 ;; *) return 0 ;; esac ;;
+    # IPv4-mapped/compatible IPv6 (::ffff:127.0.0.1): grade the embedded v4.
+    *:*.*.*.*)
+      v4="${host##*:}"
+      case "$v4" in
+        *[!0-9.]*) return 1 ;;
+        127.*|0.0.0.0) return 0 ;;
+        *) return 1 ;;
+      esac ;;
+    # Pure IPv6: loopback (::1) and unspecified (::) in any zero-compression.
+    *:*)
+      squash="${host//:/}"; squash="${squash//0/}"
+      [[ -z "$squash" || "$squash" == "1" ]] && return 0
+      return 1 ;;
+  esac
+  return 1
+}
+CMA_CCRGW_EOF
+}
+# Define it in THIS shell from the exact same bytes the alias file receives.
+eval "$(_cma_emit_ccr_gateway_guard)"
+
+_cma_emit_cma_run() {
+  cat <<'CMA_RUN_BODY_EOF'
 # Wrapper: keeps .claude.json projects/session index synced across every
 # logged-in account. Pulls merged state from every account into the launching
 # one before claude runs; pushes the post-session state back out after exit.
@@ -485,87 +903,11 @@ cma_run() {
     "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$_cma_label" 2>/dev/null || true
   return $rc
 }
-EOF
-  fi
-  # Ensure the cma_run_provider wrapper is present. This launches Claude Code
-  # against a non-Anthropic provider: it reads the per-provider non-secret env
-  # file, injects the API key from the keys file at launch (the toolkit never
-  # persists secrets itself), then runs claude directly (native transport) or
-  # via claude-code-router (router transport). Self-contained: the user's shell
-  # sources only this alias file, not lib.sh.
-  #
-  # Migration: if cma_run_provider exists but its body is missing the
-  # sync-state call, it's an outdated version that breaks cross-provider
-  # /resume. Remove ONLY the function block (keeping any alias lines that
-  # follow it) so the correct version gets re-appended below.
-  #
-  # The detection MUST be scoped to the function body and match the real
-  # on-disk text. Two prior bugs lived here:
-  #   1. cma_run also contains a sync-state call, so a whole-file grep can
-  #      never tell an outdated provider wrapper from a current one.
-  #   2. The emitted text is `…/claude-sync-state" pull` — a quote precedes
-  #      the space — so grepping for "claude-sync-state pull" (with a space)
-  #      never matched, making the migration mis-fire on EVERY alias write.
-  #      That chopped previously-written aliases (and claudeN aliases that
-  #      come after the functions), corrupting the alias file.
-  # We now extract the function body (cma_run_provider() .. its closing
-  # brace) and match the bare command name, which is quote/space agnostic.
-  # Regenerate when the installed function predates ANY of these: the
-  # cross-provider sync-state calls ('claude-sync-state'), the nounset-safe
-  # keys sourcing ('set -a +u'), the per-project auto-session integration
-  # ('claude-session'), the input-context token-limit guard
-  # ('CLAUDE_CODE_AUTO_COMPACT_WINDOW'), the SHARED_DIR-based proxy resolution
-  # ('_cma_proxy_dir', replacing a broken $LIB_DIR that disabled all proxies),
-  # the family proxy discovery ('_family_id', kimi_proxy for all kimi-*), the
-  # Kimi OAuth launch-time token freshness block
-  # ('kimi-code/credentials/kimi-code.json'), the both-transports session flags
-  # ('_cma_session_flags'), or the both-transports output cap
-  # ('_cma_out_guard' — clamped <=128000, so the marker is the clamped export
-  # 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"', distinct from the bare token
-  # already present in the pre-clamp unset/raw-export body).
-  # Each marker lives only in the current heredoc, so once regenerated the
-  # function stops re-triggering.
-  if grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
-    local _prov_body
-    _prov_body="$(awk '/^cma_run_provider\(\) ?\{/{f=1} f{print} f&&/^}/{exit}' "$ALIAS_FILE")"
-    # shellcheck disable=SC2016  # '>| "$tmp"' is a literal code marker grepped for, not a var to expand
-    if [[ "$_prov_body" != *'claude-sync-state'* ]] || \
-       [[ "$_prov_body" != *'set -a +u'* ]] || \
-       [[ "$_prov_body" != *'claude-session'* ]] || \
-       [[ "$_prov_body" != *'apply-color'* ]] || \
-       [[ "$_prov_body" != *'_cma_compact_cap'* ]] || \
-       [[ "$_prov_body" != *'_cma_proxy_dir'* ]] || \
-       [[ "$_prov_body" != *'_family_id'* ]] || \
-       [[ "$_prov_body" != *'kimi-code/credentials/kimi-code.json'* ]] || \
-       [[ "$_prov_body" != *'_cma_out_guard'* ]] || \
-       [[ "$_prov_body" != *'_cma_session_flags'* ]] || \
-       [[ "$_prov_body" != *'command -v cma_log'* ]] || \
-       [[ "$_prov_body" != *'_cma_force'* ]] || \
-       [[ "$_prov_body" != *'>| "$tmp"'* ]] || \
-       [[ "$_prov_body" != *'unset ANTHROPIC_BASE_URL'* ]] || \
-       [[ "$_prov_body" != *'! git rev-parse --show-toplevel >/dev/null 2>&1'* ]] || \
-       [[ "$_prov_body" != *'command -v "${CLAUDE_BIN:-}"'* ]] || \
-       [[ "$_prov_body" != *'ANTHROPIC_DEFAULT_OPUS_MODEL'* ]] || \
-       [[ "$_prov_body" != *'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"'* ]] || \
-       [[ "$_prov_body" != *'_cma_ccr_self'* ]] || \
-       [[ "$_prov_body" != *'ccr default-claude-code -- "$@"'* ]] || \
-       [[ "$_prov_body" != *'ccr --help'* ]] || \
-       [[ "$_prov_body" != *'not the bundled claude-code-router'* ]] || \
-       [[ "$_prov_body" != *'_pp_try'* ]]; then
-      local tmp_prov; tmp_prov="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-      # Drop only the function block; preserve everything before and after it.
-      awk '
-        /^cma_run_provider\(\) ?\{/ { skip=1 }
-        skip && /^}/            { skip=0; next }
-        !skip                   { print }
-      ' "$ALIAS_FILE" >| "$tmp_prov"
-      command mv -f "$tmp_prov" "$ALIAS_FILE"
-      cma_log "migrated outdated cma_run_provider (claude-bin-self-heal + sync-state + nounset keys + noclobber-safe >| write + auto-compact-window-cap-200k + activation-gate + env-isolation + tier-default-model map+isolation + output-token-clamp-128k-both-transports + kimi-oauth-freshness + family-proxy-discovery + session-flags-both-transports + cwd-hook-gated + ccr-self-loop-guard + ccr-launch-grammar-fix + ccr-identity-help + proxy-port-squatter-guard + go-router-canonical-messages)"
-    fi
-  fi
-  if ! grep -q '^cma_run_provider()' "$ALIAS_FILE"; then
-    cat >> "$ALIAS_FILE" <<'EOF'
+CMA_RUN_BODY_EOF
+}
 
+_cma_emit_cma_run_provider() {
+  cat <<'CMA_PROV_BODY_EOF'
 cma_run_provider() {
   # Self-heal CLAUDE_BIN (same as cma_run — §11.4.185). Prevents "-bash: : command
   # not found" when the alias-file header export line is missing. Also resolves
@@ -711,13 +1053,24 @@ cma_run_provider() {
   # below, before the transport branch, BOTH transports, clamped <=128000)
   # caps OUTPUT — the two are independent halves of the guard.
   # Auto-compact cap: only lower the window; never raise it above ~200K.
-  # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need this
-  # guard — exporting their full window disables auto-compaction until ~987K,
-  # filling the session before compacting. CMA_AUTO_COMPACT_CAP overrides.
+  # Providers with >200K context (DeepSeek 1M, Xiaomi 1M) do not need the full
+  # window — exporting it disables auto-compaction until ~987K, filling the
+  # session before compacting. CMA_AUTO_COMPACT_CAP overrides.
+  #
+  # _cma_in_guard (v1.24.0): the input guard is exported for EVERY provider
+  # with a known context, CLAMPED — never skipped. The previous gate
+  # ("export only when CONTEXT_LIMIT <= cap") was FAIL-OPEN and backwards: a
+  # provider whose context was LARGER than the cap got no input guard at all,
+  # which is precisely the case that needs one. openrouter (catalog context
+  # 1000000) therefore ran unguarded on the input side while the output side
+  # reserved 128000, and the request overshot the endpoint's real 262144
+  # window: 33796 + 103687 + 128000 = 265483. See _cma_out_guard below for the
+  # matching output half; the window is computed AFTER it, from ctx - out, so
+  # the two halves cannot sum past the context.
+  # --- cma-token-guards:begin --- (extracted verbatim by test_providers.sh;
+  # the guards are pure arithmetic over CMA_PROVIDER_{CONTEXT_LIMIT,MAX_OUTPUT},
+  # so the suite can exercise the SHIPPED source without launching anything.)
   local _cma_compact_cap="${CMA_AUTO_COMPACT_CAP:-200000}"
-  if [[ -n "${CMA_PROVIDER_CONTEXT_LIMIT:-}" && "${CMA_PROVIDER_CONTEXT_LIMIT}" -le "$_cma_compact_cap" ]]; then
-    export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$CMA_PROVIDER_CONTEXT_LIMIT"
-  fi
   # _cma_out_guard (v1.16.0) + <=128000 clamp (§11.4.108/§11.4.111): output-
   # token cap for BOTH transports, not just native. Without it, router
   # providers run with Claude Code's generic default output cap (128000 for
@@ -774,15 +1127,55 @@ cma_run_provider() {
   case "$_cma_out" in
     ''|*[!0-9]*) _cma_out="" ;;
     *) if [ "${#_cma_out}" -gt 18 ]; then
+         # Past intmax no test/(( )) arithmetic is safe. With a known context
+         # the carve-out below supplies the cap; with none, fall back to the
+         # CLI ceiling WITHOUT arithmetic on the raw value (F2: never leak it
+         # unclamped).
          if [ -n "$_cma_octx" ]; then _cma_out=""; else _cma_out=128000; fi
        elif [ "$_cma_out" -lt 1 ]; then _cma_out=""
        elif [ -n "$_cma_octx" ] && [ "$_cma_out" -ge "$_cma_octx" ]; then _cma_out=""
-       elif [ "$_cma_out" -gt 128000 ]; then _cma_out=128000
        fi ;;
   esac
+  # Carve the output cap OUT of the context instead of trusting it alongside
+  # the context (v1.24.0). Leaving it unset is NOT the safe fallback it looks
+  # like: Claude Code's own default for an unknown model is 128000, so "no
+  # export" IS a request for 128000 output tokens. kilo proves the point — its
+  # catalog row is the impossible ctx==out==262144, the mislabel branch above
+  # blanks the value, and the CLI default then reserves 128000 against a 262144
+  # window that must also carry Claude Code's ~137K system-prompt + tool-schema
+  # floor. Whenever the context is known we therefore always emit a cap that
+  # provably fits: min(catalog output, context - input floor), bounded by the
+  # CLI's own 128000 ceiling and floored at 8192.
+  # Keep this in lockstep with CLAUDE_CODE_INPUT_FLOOR / MIN_SAFE_OUTPUT /
+  # CLI_MAX_OUTPUT_TOKENS in providers_resolve.py: the resolver bakes these
+  # numbers into the .env, and this block is the last line of defence for a
+  # stale or hand-edited one.
+  local _cma_in_floor="${CMA_INPUT_FLOOR:-160000}" _cma_cap=""
+  if [ -n "$_cma_octx" ]; then
+    _cma_cap=$(( _cma_octx - _cma_in_floor ))
+    if [ "$_cma_cap" -gt 128000 ]; then _cma_cap=128000; fi
+    if [ "$_cma_cap" -lt 8192 ]; then _cma_cap=8192; fi
+    if [ -z "$_cma_out" ] || [ "$_cma_out" -gt "$_cma_cap" ]; then _cma_out="$_cma_cap"; fi
+  elif [ -n "$_cma_out" ] && [ "$_cma_out" -gt 128000 ]; then
+    _cma_out=128000
+  fi
   if [ -n "$_cma_out" ]; then
     export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$_cma_out"
   fi
+  # Input half, computed from what the output half actually reserved so the two
+  # can never sum past the context. Clamped to the auto-compact cap, and
+  # exported for every known context — including the >cap ones the old gate
+  # silently skipped. This also closes the 200K-270K "dead zone", where a real
+  # window sat above the cap yet below cap+output and so got no guard at all.
+  if [ -n "$_cma_octx" ]; then
+    local _cma_win="$_cma_octx"
+    if [ -n "$_cma_out" ]; then _cma_win=$(( _cma_octx - _cma_out )); fi
+    if [ "$_cma_win" -gt "$_cma_compact_cap" ]; then _cma_win="$_cma_compact_cap"; fi
+    if [ "$_cma_win" -gt 0 ]; then
+      export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$_cma_win"
+    fi
+  fi
+  # --- cma-token-guards:end ---
   # Sync .claude.json projects/session index across ALL accounts and providers
   # so sessions created under any alias are visible from every other alias.
   # Pull merged state before launch; push post-session state after exit.
@@ -847,16 +1240,45 @@ cma_run_provider() {
     # route, then launch through ccr.
     local cfg="$HOME/.claude-code-router/config.json" base="$CMA_PROVIDER_BASE_URL"
     # Self-reference guard: when THIS provider's base_url IS the ccr gateway
-    # itself (the HelixAgent/HelixLLM facade -> http://127.0.0.1:3456), upserting a
-    # provider whose api_base_url is ccr registers a ccr->ccr self-loop and
-    # rewrites .Router.default to point at it. Under ccr v3.0.6 the live route is
-    # app_config (config.json is not re-imported on restart), so the write is
-    # inert-for-routing AND a latent re-onboarding hazard. Skip the upsert+restart
-    # for a ccr-self base; `ccr default-claude-code` then uses ccr's existing (app_config) route.
-    local _cma_ccr_self=0
-    case "${base#*://}" in
-      127.0.0.1:3456|127.0.0.1:3456/*|localhost:3456|localhost:3456/*) _cma_ccr_self=1 ;;
-    esac
+    # itself, there is no upstream to route to — upserting a provider whose
+    # api_base_url is ccr registers a ccr->ccr self-loop.
+    #
+    # This used to SKIP the upsert+restart and launch anyway, justified by
+    # "under ccr v3.0.6 the live route is app_config (config.json is not
+    # re-imported on restart), so the write is inert-for-routing". That claim
+    # described the RETIRED JS router and is INVERTED for the Go router that now
+    # serves every alias. The Go source documents the opposite —
+    # submodules/claude-code-router/cmd/ccr/service.go, cmdRestart: the toolkit
+    # "rewrites ~/.claude-code-router/config.json before every provider-alias
+    # launch and then runs `ccr restart` to make that rewrite take effect:
+    # serve.go's hot-reload validates a changed config and keeps it as the
+    # latest known-good, but the RUNNING gateway keeps serving the config it
+    # started with, so only a process bounce actually applies it. Without this
+    # subcommand that call silently did nothing ... leaving every alias routed
+    # to whichever provider the daemon first started with — the wrong model,
+    # with no error anywhere."
+    #
+    # So config.json IS the live route (once restarted), and skipping the
+    # rewrite does not make the launch inert — it makes it INHERIT whichever
+    # provider the gateway last served. That is exactly how `helixagent` earned
+    # a `verified` badge on a turn served by `deepseek`: 157,419 tokens through
+    # a nominally 24,576-token alias, with no `helixagent` provider present in
+    # ccr's config at all. The verdict measured whoever ran last.
+    #
+    # There is no honest third state, so REFUSE. A ccr-self base cannot be
+    # routed, and inheriting a foreign route is a silent wrong-model launch.
+    # The provider must be pointed at its REAL backing endpoint (for the
+    # HelixAgent facade that is the HelixLLM server itself, not the ccr gateway
+    # standing in front of it).
+    # _cma_is_ccr_gateway is emitted into this same alias file (see
+    # _cma_emit_ccr_gateway_guard) — ONE definition shared with lib.sh and
+    # providers-verify.sh, so the launch gate and the verify gate cannot drift.
+    if _cma_is_ccr_gateway "$base"; then
+      printf 'claude-providers: refusing to launch %s — its base_url (%s) IS the ccr gateway itself.\n' "$id" "$base" >&2
+      printf '  A provider cannot route through the router it *is*. Skipping the route write (the old behaviour)\n  silently inherited whatever provider the gateway last served: the wrong model, with no error.\n' >&2
+      printf '  Repoint %s at its real backing endpoint (its pins file / CMA_PROVIDER_BASE_URL) and re-run:\n    claude-providers sync\n' "$id" >&2
+      return 78
+    fi
     # Create the dir + config with restrictive perms from the start: this file
     # will hold the live API key, so it must never be group/world readable,
     # even transiently or if a later jq rewrite fails.
@@ -928,7 +1350,20 @@ cma_run_provider() {
       # every proxied launch.
       command -v cma_log >/dev/null 2>&1 && cma_log "started proxy for $CMA_PROVIDER_ID on port $_proxy_port (pid=$_proxy_pid)" || true
     fi
-    if (( ! _cma_ccr_self )) && command -v jq >/dev/null 2>&1; then
+    # Route write + apply. EVERY failure here is FATAL, because the failure mode
+    # is silent-and-wrong: the launch below serves whatever route the gateway
+    # currently holds. The old code hid both halves — the jq/mv write ran under
+    # `2>/dev/null` with a bare `else rm -f` (a failed write was
+    # indistinguishable from a successful one) and `ccr restart` ran under
+    # `|| true` (a config written but never applied still launched, serving the
+    # PREVIOUS provider's model). That is what made the helixagent facade
+    # invisible for a whole release. A route we cannot prove we set is a route
+    # we must not launch against.
+    local _route_err=0 _route_msg=""
+    if ! command -v jq >/dev/null 2>&1; then
+      _route_err=1
+      _route_msg="jq is not on PATH, so the ccr route cannot be written"
+    else
       local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"; chmod 600 "$tmp" 2>/dev/null || true
       # Pass the secret through the environment ($ENV.tok), never as a jq argv
       # argument — argv is visible in ps/proc to other local users.
@@ -936,19 +1371,56 @@ cma_run_provider() {
       # interactive shell, which may have `set -o noclobber`. Plain `>` onto the
       # just-created mktemp file fails there ("cannot overwrite existing file"),
       # silently dropping the router-config update so EVERY router provider breaks.
-      if CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
+      local _jq_err _jq_rc _mv_err _mv_rc _rst_out _rst_rc
+      _jq_err="$(CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
             --arg s "$CMA_PROVIDER_MODEL" --arg f "${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}" '
           .Providers = ([ .Providers[]? | select(.name != $n) ]
             + [{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f],
                 transformer:{use:["cleancache","streamoptions"]}}])
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
-        ' "$cfg" >| "$tmp" 2>/dev/null; then
-        command mv -f "$tmp" "$cfg"; chmod 600 "$cfg" 2>/dev/null || true
-        ccr restart >/dev/null 2>&1 || true
-      else
+        ' "$cfg" 2>&1 >| "$tmp")"
+      _jq_rc=$?
+      if (( _jq_rc != 0 )) || [[ ! -s "$tmp" ]]; then
+        # An empty output file is a failed rewrite too: mv-ing it would leave an
+        # unparseable config behind and the gateway would keep the old route.
         rm -f "$tmp"
+        _route_err=1
+        _route_msg="the jq rewrite of $cfg failed (rc=$_jq_rc)${_jq_err:+: $_jq_err}"
+      else
+        _mv_err="$(command mv -f "$tmp" "$cfg" 2>&1)"; _mv_rc=$?
+        if (( _mv_rc != 0 )); then
+          rm -f "$tmp"
+          _route_err=1
+          _route_msg="installing the rewritten $cfg failed (mv rc=$_mv_rc)${_mv_err:+: $_mv_err}"
+        else
+          chmod 600 "$cfg" 2>/dev/null || true
+          # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
+          # Its failure means the file is right and the gateway is still wrong —
+          # the most dangerous state of all, and the one `|| true` used to hide.
+          _rst_out="$(ccr restart 2>&1)"; _rst_rc=$?
+          if (( _rst_rc != 0 )); then
+            _route_err=1
+            # Single quotes, not backticks: test_ccr_conformance.sh scans lib.sh
+            # for `ccr <subcommand>` invocations by splitting on shell command
+            # separators — a backtick here reads as a command substitution and
+            # the scanner extracts the bogus subcommand 'restart\'.
+            _route_msg="'ccr restart' failed (rc=$_rst_rc), so the new route was written but never applied${_rst_out:+: $_rst_out}"
+          fi
+        fi
       fi
+    fi
+    if (( _route_err )); then
+      # Defensive scrub: diagnostics are echoed from tool stderr, which must
+      # never be allowed to carry the live key back to the terminal.
+      [[ -n "$token" ]] && _route_msg="${_route_msg//"$token"/<redacted>}"
+      printf 'claude-providers: refusing to launch %s — its ccr route was NOT applied.\n  %s\n' "$id" "$_route_msg" >&2
+      printf '  Launching anyway would serve whichever provider the gateway last routed to (wrong model, no error).\n' >&2
+      if [[ -n "$_proxy_pid" ]]; then
+        kill "$_proxy_pid" 2>/dev/null || true
+        command -v cma_log >/dev/null 2>&1 && cma_log "stopped proxy for $CMA_PROVIDER_ID (pid=$_proxy_pid) after route failure" || true
+      fi
+      return 78
     fi
     ccr default-claude-code -- "$@"; rc=$?
     # Stop proxy if we started one
@@ -988,8 +1460,454 @@ cma_run_provider() {
     "$HOME/.local/bin/claude-session" apply-color "$CLAUDE_CONFIG_DIR" "$CMA_PROVIDER_ID" 2>/dev/null || true
   return $rc
 }
-EOF
+CMA_PROV_BODY_EOF
+}
+
+# The provider session-refresh hook: on every interactive shell start it
+# re-writes provider aliases from cache (NO network) and, when the status cache
+# is older than CMA_PROVIDERS_SYNC_TTL (default 24h), kicks a detached full sync.
+#
+# CMA_ALIAS_LOCK_WAIT=0 is LOAD-BEARING: this runs on every shell start, so it
+# must never wait on another writer. On contention each alias write is skipped
+# silently and the file is left exactly as the other writer leaves it.
+_cma_emit_session_hook() {
+  printf '%s\n' "$CMA_ALIAS_HOOK_BEGIN"
+  cat <<'HOOK'
+cma_providers_session_refresh() {
+  command -v claude-providers >/dev/null 2>&1 || return 0
+  # No-network: re-write alias functions from the cached env files. The
+  # alias-file lock is taken with a ZERO wait so a shell start can never block
+  # behind a concurrent sync; a skipped refresh is harmless.
+  # CMA_ALIAS_SKIP_ON_CONTENTION=1 is the ONLY opt-in to "a contended write
+  # reports success". It belongs here and nowhere else: a shell start must not
+  # block, and a skipped refresh is genuinely harmless because the next writer
+  # re-renders the same delta from the file. Every other caller gets rc 75.
+  CMA_ALIAS_LOCK_WAIT=0 CMA_ALIAS_SKIP_ON_CONTENTION=1 claude-providers list --quiet --refresh-aliases >/dev/null 2>&1 || true
+  # TTL-triggered background full sync (detached; never blocks the shell).
+  local ttl="${CMA_PROVIDERS_SYNC_TTL:-86400}"
+  local sf="$HOME/.local/share/claude-multi-account/providers/status.json"
+  if [ -f "$sf" ]; then
+    local now mtime age
+    now="$(date +%s)"
+    mtime="$(stat -c %Y "$sf" 2>/dev/null || stat -f %m "$sf" 2>/dev/null || echo "$now")"
+    age=$(( now - mtime ))
+    if [ "$age" -gt "$ttl" ]; then
+      ( nohup claude-providers sync >/dev/null 2>&1 & disown ) 2>/dev/null || true
+    fi
   fi
+}
+cma_providers_session_refresh
+HOOK
+  printf '%s\n' "$CMA_ALIAS_HOOK_END"
+}
+
+# Which CLAUDE_BIN the render should record. Keeps the value already on disk
+# when it still resolves to an executable; otherwise re-resolves (an alias file
+# carrying a stale path from another host makes EVERY alias launch an empty
+# command). Only replaces when the replacement is actually executable.
+_cma_alias_claude_bin() {
+  local src="${1:-}" cur="" exp new
+  if [[ -f "$src" ]]; then
+    cur="$(grep -m1 '^export CLAUDE_BIN=' "$src" 2>/dev/null || true)"
+    cur="${cur#export CLAUDE_BIN=}"; cur="${cur#\"}"; cur="${cur%\"}"
+  fi
+  exp="${cur/#\$HOME/$HOME}"; exp="${exp/#\~/$HOME}"
+  if [[ -n "$cur" && -x "$exp" ]]; then printf '%s\n' "$cur"; return 0; fi
+  new="$(cma_resolve_claude_bin)"
+  if [[ -n "$cur" && ! -x "${new/#\$HOME/$HOME}" ]]; then printf '%s\n' "$cur"; return 0; fi
+  printf '%s\n' "$new"
+}
+
+_cma_emit_managed() {
+  local cb="$1"
+  printf '%s\n' "$CMA_ALIAS_MANAGED_BEGIN"
+  printf '# Managed by claude-multi-account. Do not edit by hand; use\n'
+  printf '# ~/.local/bin/claude-add-account to add accounts.\n'
+  printf 'export CLAUDE_BIN="%s"\n' "$cb"
+  printf '\n'
+  _cma_emit_ccr_gateway_guard
+  printf '\n'
+  _cma_emit_cma_run
+  printf '\n'
+  _cma_emit_cma_run_provider
+  printf '%s\n' "$CMA_ALIAS_MANAGED_END"
+}
+
+# Everything the toolkit does NOT own, in original order: alias lines plus any
+# user-added content. Strips the managed block, the hook block, and — for files
+# written before the sentinels existed — the legacy header/wrapper text by
+# content, including the orphaned `# Wrapper:` comment copies the old
+# drop/re-append migration left behind.
+_cma_alias_carryover() {
+  local src="$1" region=0 hookr=0 mtrunc=0 htrunc=0
+  [[ -f "$src" ]] || return 0
+  # A block is only treated as a block when BOTH of its sentinels are present.
+  # An unterminated BEGIN (a file truncated by something outside this toolkit)
+  # would otherwise swallow every alias below it.
+  if grep -qxF "$CMA_ALIAS_MANAGED_BEGIN" "$src"; then
+    if grep -qxF "$CMA_ALIAS_MANAGED_END" "$src"; then region=1; else mtrunc=1; fi
+  fi
+  if grep -qxF "$CMA_ALIAS_HOOK_BEGIN" "$src"; then
+    if grep -qxF "$CMA_ALIAS_HOOK_END" "$src"; then hookr=1; else htrunc=1; fi
+  fi
+  # TRUNCATION RECOVERY, stated as a property of the block rather than of its
+  # current contents. A BEGIN with no END means the file was cut INSIDE the
+  # block, so what survives is a PREFIX of machine-owned text — an unterminated
+  # function, a half-written `case`, whatever the emitters happened to open.
+  # Carrying that prefix over as "user content" re-emits it above the alias
+  # lines and makes the whole file unparseable: `bash -n` fails, so the rc file
+  # sourcing it aborts and EVERY alias in it is dead. That is strictly worse
+  # than the truncation itself.
+  #
+  # The end of the salvage window is derived, not enumerated: no emitted
+  # managed/hook line is an `alias` at column 0, and no emitted managed line is
+  # the hook's BEGIN sentinel, so the first of those is provably outside the
+  # truncated block. Everything before it goes; everything from it on is kept.
+  #
+  # Deriving it this way is the point. The by-content legacy rules below list
+  # the wrapper functions by name, and that list SILENTLY went stale when
+  # _cma_emit_ccr_gateway_guard was added to the managed block: a file cut
+  # inside the new guard (the block's first function, so the likeliest cut of
+  # all) carried an unterminated `case` straight into the rebuilt file. A rule
+  # phrased over the block's boundary cannot go stale that way.
+  awk -v mb="$CMA_ALIAS_MANAGED_BEGIN" -v me="$CMA_ALIAS_MANAGED_END" \
+      -v hb="$CMA_ALIAS_HOOK_BEGIN" -v he="$CMA_ALIAS_HOOK_END" \
+      -v region="$region" -v hookr="$hookr" \
+      -v mtrunc="$mtrunc" -v htrunc="$htrunc" '
+    $0 == mb { if (region) { m = 1 } else if (mtrunc) { t = 1 }; next }
+    $0 == me { m = 0; next }
+    m        { next }
+    # Salvage window ends at the first line that cannot be block content.
+    t && /^alias[[:space:]]/ { t = 0 }
+    t && $0 == hb            { t = 0 }
+    t        { next }
+    $0 == hb { if (hookr) { h = 1 } else if (htrunc) { t = 1 }; next }
+    $0 == he { h = 0; next }
+    h        { next }
+    # --- legacy (pre-sentinel) managed content -------------------------------
+    # NOTE: the parens are escaped for awk ERE, where \( is a LITERAL paren, so
+    # /^cma_run\(\) ?\{/ cannot match "cma_run_provider() {". (The same spelling
+    # in grep BRE would be an empty capture group and WOULD match it — that bug
+    # once dropped the function entirely.)
+    /^cma_run\(\) ?\{/          { f = 1 }
+    /^cma_run_provider\(\) ?\{/ { f = 1 }
+    # An `alias` at column 0 always ends the skip: no emitted wrapper body
+    # contains such a line, so this cannot swallow one, and it means a wrapper
+    # left UNTERMINATED by an external truncation can never eat the alias lines
+    # below it. Without this the recovery path drops exactly the data the
+    # recovery exists to save.
+    f && /^alias[[:space:]]/    { f = 0 }
+    f { if ($0 ~ /^\}/) f = 0; next }
+    /^# Managed by claude-multi-account/            { next }
+    /^# ~\/\.local\/bin\/claude-add-account to add/ { next }
+    /^export CLAUDE_BIN=/                           { next }
+    /^# Wrapper: keeps \.claude\.json/              { next }
+    /^# logged-in account\. Pulls merged state/     { next }
+    /^# one before claude runs; pushes the post/    { next }
+    /^# Cheap \(jq deep-merge of one/               { next }
+    { print }
+  ' "$src"
+}
+
+# The existing hook block, verbatim (first one only). Requires BOTH sentinels:
+# an unterminated BEGIN would otherwise copy the rest of the file into the hook
+# position, duplicating every alias below it.
+_cma_alias_extract_hook() {
+  local src="$1"
+  [[ -f "$src" ]] || return 0
+  grep -qxF "$CMA_ALIAS_HOOK_BEGIN" "$src" || return 0
+  grep -qxF "$CMA_ALIAS_HOOK_END" "$src"   || return 0
+  awk -v b="$CMA_ALIAS_HOOK_BEGIN" -v e="$CMA_ALIAS_HOOK_END" '
+    $0 == b && !seen { h = 1; seen = 1 }
+    h { print }
+    $0 == e { h = 0 }
+  ' "$src"
+}
+
+# Alias names defined in a file, sorted and unique.
+_cma_alias_names() {
+  [[ -f "$1" ]] || return 0
+  awk -F'[ =]+' '/^[[:space:]]*alias[[:space:]]+/{print $2}' "$1" | LC_ALL=C sort -u
+}
+
+# Names of the account aliases (the `CLAUDE_CONFIG_DIR=` form) in a file,
+# sorted and unique — the input to the gate's account-alias floor.
+_cma_alias_account_names() {
+  [[ -f "$1" ]] || return 0
+  grep '^alias[[:space:]][^=]*="CLAUDE_CONFIG_DIR=' "$1" 2>/dev/null \
+    | awk -F'[ =]+' '{print $2}' | LC_ALL=C sort -u || true
+}
+
+# Count of account aliases (the `CLAUDE_CONFIG_DIR=` form) in a file.
+_cma_alias_account_count() {
+  local n=0
+  if [[ -f "$1" ]]; then
+    # `grep -c` prints 0 AND exits 1 on no-match, so the || must not print too.
+    n="$(grep -c '^alias[[:space:]][^=]*="CLAUDE_CONFIG_DIR=' "$1" 2>/dev/null || true)"
+    [[ -n "$n" ]] || n=0
+  fi
+  printf '%s\n' "$n"
+}
+
+_cma_alias_mktemp() {
+  local dir; dir="$(dirname "$ALIAS_FILE")"
+  # Same directory as the target on purpose: the commit is a rename, which is
+  # only atomic within one filesystem, and a leaked temp is then visible where
+  # it matters instead of accumulating invisibly in $TMPDIR (7743 leaked
+  # $TMPDIR/cma.* snapshots were found during the incident).
+  mktemp "$dir/.aliases.render.XXXXXX" 2>/dev/null
+}
+
+# _cma_alias_render <src> <drop_name> <add_line> <hook_mode> <out>
+#   drop_name  alias to remove ("" = none)
+#   add_line   full alias line to add ("" = none); replaces an existing
+#              definition of the same name IN PLACE, else is appended
+#   hook_mode  keep | install
+# Emits the COMPLETE file. This is the only place the file's shape is decided.
+_cma_alias_render() {
+  local src="$1" drop="$2" add="$3" hook="$4" out="$5"
+  local carry cb
+  carry="$(_cma_alias_mktemp)" || return 1
+
+  # 1. carry over everything we do not own
+  _cma_alias_carryover "$src" > "$carry"
+
+  # 2. legacy alias migration: pre-wrapper lines invoking $CLAUDE_BIN directly
+  #    are rewritten to go through cma_run (idempotent — a line already using
+  #    cma_run is left alone).
+  # shellcheck disable=SC2016  # $CLAUDE_BIN is literal alias-file text here
+  if grep -qE '^alias[[:space:]]+[^=]+=.*CLAUDE_CONFIG_DIR=[^ ]+[[:space:]]+\\?\$CLAUDE_BIN"$' "$carry" 2>/dev/null; then
+    # shellcheck disable=SC2016
+    sed -E 's|(^alias[[:space:]]+[^=]+=)"(CLAUDE_CONFIG_DIR=[^ ]+)[[:space:]]+\\?\$CLAUDE_BIN"$|\1"\2 cma_run"|' \
+      "$carry" > "$carry.mig" && command mv -f "$carry.mig" "$carry"
+  fi
+
+  # 3. removal delta. Skipped when the SAME name is being rewritten: that case
+  #    is a replace-in-place below, which is what keeps a repeated write
+  #    byte-identical instead of permuting the file's alias order (drop+append
+  #    would move the rewritten alias to the end on every call, so a repeat of
+  #    the same two writes never converged and the no-op guard could never fire).
+  local addname=""
+  if [[ -n "$add" ]]; then
+    addname="$(printf '%s\n' "$add" | awk -F'[ =]+' '{print $2}')"
+  fi
+  if [[ -n "$drop" && "$drop" != "$addname" ]]; then
+    grep -v -E "^alias[[:space:]]+${drop}=" "$carry" > "$carry.d" || true
+    command mv -f "$carry.d" "$carry"
+  fi
+
+  # 4. de-duplicate alias definitions (last one wins) and apply the add delta:
+  #    an existing definition of the same name is replaced at its original
+  #    position; a genuinely new alias is appended. Two passes over one file.
+  #    The add text goes through ENVIRON, not -v, because -v applies backslash
+  #    escape processing to the value.
+  CMA_ADD_NAME="$addname" CMA_ADD_LINE="$add" awk -F'[ =]+' '
+    NR == FNR { if ($0 ~ /^alias[[:space:]]+/) last[$2] = FNR; next }
+    {
+      if ($0 ~ /^alias[[:space:]]+/) {
+        if (FNR != last[$2]) next
+        if (ENVIRON["CMA_ADD_NAME"] != "" && $2 == ENVIRON["CMA_ADD_NAME"]) {
+          print ENVIRON["CMA_ADD_LINE"]; added = 1; next
+        }
+      }
+      print
+    }
+    END { if (ENVIRON["CMA_ADD_NAME"] != "" && !added) print ENVIRON["CMA_ADD_LINE"] }
+  ' "$carry" "$carry" > "$carry.u" && command mv -f "$carry.u" "$carry"
+
+  cb="$(_cma_alias_claude_bin "$src")"
+
+  # The write status is PROPAGATED, and the stages are &&-chained so a failure
+  # in any of them (not merely the last) is seen. Discarding it meant a
+  # candidate truncated by ENOSPC — or one whose output file could not be opened
+  # at all — was returned as a successful render. Against a zero-alias source
+  # such a stump also clears the sanity gate, which only requires the header and
+  # the two wrapper opening lines and has no aliases left to miss. A render we
+  # cannot prove we wrote is a render we must not offer for commit.
+  #
+  # The open is probed SEPARATELY, with a simple command, because the two
+  # failure modes reach us through different channels and the group form only
+  # reports one of them:
+  #   * ENOSPC  — the open SUCCEEDS, the writes fail; the group's own exit
+  #               status carries it, and the &&-chain below sees it.
+  #   * ENOENT/EACCES on the output path — the redirection fails BEFORE the
+  #               group runs, and bash leaves the compound command's status at
+  #               0 (verified on bash 5.2: `if ! { :; } > /nope/x` takes the
+  #               else branch). A simple command with the same failed
+  #               redirection does return 1, so that is what grades the open.
+  # Without this probe an unwritable output path was reported as a successful
+  # render of a file that does not exist.
+  if ! : > "$out" 2>/dev/null; then
+    rm -f "$carry" "$carry.mig" "$carry.d" "$carry.u" 2>/dev/null || true
+    cma_warn "alias render: cannot open $out for writing (missing directory? permissions?)"
+    return 1
+  fi
+  if ! { _cma_emit_managed "$cb" \
+         && cat "$carry" \
+         && if [[ "$hook" == "install" ]]; then
+              _cma_emit_session_hook
+            else
+              _cma_alias_extract_hook "$src"
+            fi
+       } > "$out"; then
+    rm -f "$carry" "$carry.mig" "$carry.d" "$carry.u" 2>/dev/null || true
+    cma_warn "alias render: writing the candidate to $out failed (out of space? unwritable path?)"
+    return 1
+  fi
+
+  rm -f "$carry" "$carry.mig" "$carry.d" "$carry.u" 2>/dev/null || true
+  return 0
+}
+
+# Refuse to publish a candidate that lost something. Structural floor: the
+# header and BOTH wrappers must be present. Content floor: the candidate's set
+# of alias names must be exactly the source's set, minus an explicit drop, plus
+# an explicit add — the incident's signature was account aliases silently
+# vanishing from a file nobody asked to change. Account aliases are additionally
+# floored against cma_detect_accounts, as far as the source file already
+# satisfied it (a fresh install legitimately has fewer).
+_cma_alias_gate() {
+  local cand="$1" src="$2" drop="$3" add="$4"
+  local want got n_acct src_acct cand_acct rc=0
+
+  grep -q '^export CLAUDE_BIN=' "$cand"   || { cma_warn "alias render rejected: no CLAUDE_BIN header"; return 1; }
+  grep -q '^cma_run() {' "$cand"          || { cma_warn "alias render rejected: no cma_run()"; return 1; }
+  grep -q '^cma_run_provider() {' "$cand" || { cma_warn "alias render rejected: no cma_run_provider()"; return 1; }
+
+  want="$(_cma_alias_mktemp)" || return 1
+  got="$(_cma_alias_mktemp)"  || { rm -f "$want"; return 1; }
+  {
+    if [[ -n "$drop" ]]; then
+      _cma_alias_names "$src" | grep -v -x -F -- "$drop" || true
+    else
+      _cma_alias_names "$src"
+    fi
+    if [[ -n "$add" ]]; then printf '%s\n' "$add" | awk -F'[ =]+' '{print $2}'; fi
+  } | LC_ALL=C sort -u > "$want"
+  _cma_alias_names "$cand" > "$got"
+  if ! cmp -s "$want" "$got"; then
+    cma_warn "alias render rejected: alias set changed unexpectedly ($(wc -l < "$want" | tr -d ' ') wanted, $(wc -l < "$got" | tr -d ' ') rendered)"
+    rc=1
+  fi
+  rm -f "$want" "$got"
+  (( rc == 0 )) || return 1
+
+  # Account aliases specifically: every `CLAUDE_CONFIG_DIR=` alias the source
+  # had must still be there, minus one the caller explicitly dropped. The
+  # incident's signature was exactly these disappearing from a file nobody
+  # asked to change.
+  want="$(_cma_alias_mktemp)" || return 1
+  got="$(_cma_alias_mktemp)"  || { rm -f "$want"; return 1; }
+  if [[ -n "$drop" ]]; then
+    _cma_alias_account_names "$src" | grep -v -x -F -- "$drop" > "$want" || true
+  else
+    _cma_alias_account_names "$src" > "$want"
+  fi
+  _cma_alias_account_names "$cand" > "$got"
+  if [[ -n "$(LC_ALL=C comm -23 "$want" "$got")" ]]; then
+    cma_warn "alias render rejected: account alias(es) lost: $(LC_ALL=C comm -23 "$want" "$got" | tr '\n' ' ')"
+    rc=1
+  fi
+  rm -f "$want" "$got"
+  (( rc == 0 )) || return 1
+
+  # Secondary floor: cma_detect_accounts. Only meaningful when the source
+  # already satisfied it AND no account is being removed — claude-remove-account
+  # drops the alias BEFORE the directory, so the detected count legitimately
+  # leads the alias count by one for the duration of that call.
+  src_acct="$(_cma_alias_account_count "$src")"
+  cand_acct="$(_cma_alias_account_count "$cand")"
+  n_acct="$(cma_detect_accounts | wc -l | tr -d ' ')"
+  if [[ -z "$drop" ]] && (( src_acct >= n_acct && cand_acct < n_acct )); then
+    cma_warn "alias render rejected: $cand_acct account aliases < $n_acct detected accounts"
+    return 1
+  fi
+  return 0
+}
+
+# cma_alias_commit [drop_name] [add_line] [hook_mode]
+# THE single committer. Every mutation of $ALIAS_FILE in this toolkit goes
+# through here; nothing else may write, append to, or rename onto the file.
+cma_alias_commit() {
+  local drop="${1:-}" add="${2:-}" hook="${3:-keep}"
+  local dir cand rc=0 prev_int prev_term
+  dir="$(dirname "$ALIAS_FILE")"
+  mkdir -p "$dir" 2>/dev/null || true
+
+  # (F3) No-op guard, taken WITHOUT the lock: render against the current file
+  # and, if nothing would change, do nothing at all. Steady-state shell starts
+  # perform zero writes and never contend.
+  cand="$(_cma_alias_mktemp)" || { cma_warn "cannot create temp next to $ALIAS_FILE"; return 1; }
+  if _cma_alias_render "$ALIAS_FILE" "$drop" "$add" "$hook" "$cand" \
+     && [[ -f "$ALIAS_FILE" ]] && cmp -s "$cand" "$ALIAS_FILE"; then
+    rm -f "$cand"
+    return 0
+  fi
+  rm -f "$cand"
+
+  if ! _cma_alias_lock_acquire; then
+    # CONTENTION. The write did NOT happen: the file is byte-unchanged and the
+    # caller's delta is not in it.
+    #
+    # Skipping is the right policy for exactly one caller — the session-refresh
+    # hook, which runs on every shell start with CMA_ALIAS_LOCK_WAIT=0 and whose
+    # delta the next writer re-derives from the file anyway. It is the WRONG
+    # policy for everybody else, and reporting 0 to everybody else is how it
+    # became a data-integrity bug: claude-add-account created the config dir,
+    # linked the shared items, got 0 from cma_write_alias and announced success
+    # for an account with NO alias (whose retry then dies on "config dir already
+    # exists"), and claude-remove-account got 0 from cma_remove_alias and went on
+    # to ARCHIVE the directory out from under a still-live alias.
+    #
+    # So the skip is now an explicit opt-in (CMA_ALIAS_SKIP_ON_CONTENTION=1, set
+    # by _cma_emit_session_hook and nothing else). Every other caller gets 75
+    # (EX_TEMPFAIL — "try again", as distinct from rc 1 "this render is bad") so
+    # it can react instead of being told a lie.
+    cma_warn "alias file busy — skipped update of $(basename "$ALIAS_FILE")"
+    [[ "${CMA_ALIAS_SKIP_ON_CONTENTION:-}" == 1 ]] && return 0
+    return 75
+  fi
+
+  # (F4) Mask INT/TERM across the critical section. NOT what makes the commit
+  # atomic — render-once + a single mv(2) does that, with or without this mask
+  # — and NOT what keeps the lock from leaking either: flock is released by the
+  # kernel on death, and a leaked mkdir lock is reclaimed by the next acquire's
+  # stale-breaker. Deleting these three lines leaves the suite green. They are
+  # kept so the caller's own INT/TERM traps are restored rather than left
+  # disarmed, and as cheap interrupt hygiene — not on the strength of any test.
+  # See the "What protects WHAT" note above. Saved/restored, never clobbered.
+  prev_int="$(trap -p INT || true)"
+  prev_term="$(trap -p TERM || true)"
+  trap '' INT TERM
+
+  cand="$(_cma_alias_mktemp)" || cand=""
+  if [[ -z "$cand" ]]; then
+    rc=1
+  elif ! _cma_alias_render "$ALIAS_FILE" "$drop" "$add" "$hook" "$cand"; then
+    rm -f "$cand"; cma_warn "alias render failed — $ALIAS_FILE left untouched"; rc=1
+  elif [[ -f "$ALIAS_FILE" ]] && cmp -s "$cand" "$ALIAS_FILE"; then
+    rm -f "$cand"                                   # raced to identical; nothing to do
+  elif ! _cma_alias_gate "$cand" "$ALIAS_FILE" "$drop" "$add"; then
+    command mv -f "$cand" "$ALIAS_FILE.rejected.$(date +%s)" 2>/dev/null || rm -f "$cand"
+    cma_warn "$ALIAS_FILE left untouched; candidate kept as $ALIAS_FILE.rejected.*"
+    rc=1
+  else
+    command mv -f "$cand" "$ALIAS_FILE" || { rm -f "$cand"; rc=1; }
+  fi
+
+  trap - INT TERM
+  if [[ -n "$prev_int" ]]; then eval "$prev_int"; fi
+  if [[ -n "$prev_term" ]]; then eval "$prev_term"; fi
+  _cma_alias_lock_release
+  return $rc
+}
+
+# Ensure $ALIAS_FILE exists, is current, and is sourced from the user's rc
+# files. Idempotent — safe to call repeatedly, and a no-op on disk when the
+# rendered content already matches.
+cma_ensure_alias_file() {
+  mkdir -p "$(dirname "$ALIAS_FILE")"
+  cma_alias_commit "" "" keep || return 1
   local rc src_line="source \"$ALIAS_FILE\""
   # ${arr[@]+"${arr[@]}"} (not bare "${arr[@]}") so an EMPTY CMA_RC_FILES does not
   # trip "unbound variable" under `set -u` on bash 3.2 (macOS ships 3.2; it errors
@@ -1000,9 +1918,14 @@ EOF
     # Add the canonical source line only if no existing line already sources THIS
     # alias file (matched across .|source and $HOME/~/absolute forms) — prevents
     # duplicate source lines accumulating across re-installs with differing forms.
+    # Back up BEFORE the append; refuse the write if the rc cannot be protected.
     if ! cma_rc_sources_alias_file "$rc" "$ALIAS_FILE"; then
-      printf '\n# Claude multi-account aliases\n%s\n' "$src_line" >> "$rc"
-      cma_log "added source line to $rc"
+      if cma_backup_rc_file "$rc"; then
+        printf '\n%s\n%s\n' "$CMA_ALIAS_RC_HEADER" "$src_line" >> "$rc"
+        cma_log "added source line to $rc"
+      else
+        cma_warn "skipped adding source line to $rc (could not back it up)"
+      fi
     fi
   done
 }
@@ -1031,24 +1954,19 @@ cma_write_alias() {
     return 1 ;;
   esac
   cma_ensure_alias_file
-  # Strip any prior line for this alias, then append the new one.
-  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-  grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
-  # Note: bash aliases can't take args, so we use a quoted CLAUDE_CONFIG_DIR= prefix
-  # plus a wrapped invocation. The wrapper is a shell function reference (cma_run)
-  # defined alongside in the alias file (added once by cma_ensure_alias_file).
-  printf 'alias %s="CLAUDE_CONFIG_DIR=%s cma_run"\n' \
-    "$alias_name" "$config_dir" >> "$tmp"
-  command mv -f "$tmp" "$ALIAS_FILE"
+  # Note: bash aliases can't take args, so we use a quoted CLAUDE_CONFIG_DIR=
+  # prefix plus a wrapped invocation. The wrapper is a shell function reference
+  # (cma_run) emitted in the managed block by the renderer.
+  # One delta, one render, one rename — see cma_alias_commit.
+  cma_alias_commit "$alias_name" \
+    "$(printf 'alias %s="CLAUDE_CONFIG_DIR=%s cma_run"' "$alias_name" "$config_dir")" keep
 }
 
 # Remove an alias line. Idempotent.
 cma_remove_alias() {
   local alias_name="$1"
   [[ -f "$ALIAS_FILE" ]] || return 0
-  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-  grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
-  command mv -f "$tmp" "$ALIAS_FILE"
+  cma_alias_commit "$alias_name" "" keep
 }
 
 # ===========================================================================
@@ -1371,19 +2289,15 @@ cma_provider_write_alias() {
       cma_warn "refusing to write alias '$alias_name': unsafe provider id"
       return 1 ;;
   esac
-  # Only BOOTSTRAP the alias file when it is absent — do NOT re-run the full
-  # cma_ensure_alias_file (header + self-heal migrations) on every alias write.
-  # Those migrations are install/invocation-time concerns; running them per
-  # alias line made `--refresh-aliases` non-idempotent — a migration could
-  # reposition the cma_run_provider function relative to the alias lines
-  # (body byte-identical, only its position moved), so a second refresh no
-  # longer produced an identical file (§ idempotence; see test_providers.sh
-  # "--refresh-aliases is idempotent"). Existence is all this function needs.
-  [[ -f "$ALIAS_FILE" ]] || cma_ensure_alias_file
-  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-  grep -v -E "^alias[[:space:]]+${alias_name}=" "$ALIAS_FILE" > "$tmp" || true
-  printf 'alias %s="cma_run_provider %s"\n' "$alias_name" "$id" >> "$tmp"
-  command mv -f "$tmp" "$ALIAS_FILE"
+  # One delta, one render, one rename. This used to bootstrap-only (never
+  # calling cma_ensure_alias_file on an existing file) because the old
+  # drop/re-append migrations could reposition cma_run_provider relative to the
+  # alias lines, making `--refresh-aliases` non-idempotent (see test_providers.sh
+  # "--refresh-aliases is idempotent"). The renderer emits a fixed canonical
+  # order, so position is now invariant and that hazard is gone — which is why
+  # this path can safely render the managed block like every other writer.
+  cma_alias_commit "$alias_name" \
+    "$(printf 'alias %s="cma_run_provider %s"' "$alias_name" "$id")" keep
 }
 
 # Install (idempotently) the provider session-refresh hook into $ALIAS_FILE. On
@@ -1394,37 +2308,10 @@ cma_provider_write_alias() {
 # (no duplication across re-installs).
 cma_install_session_hook() {
   cma_ensure_alias_file
-  local begin='# cma-providers-session-refresh BEGIN'
-  local end='# cma-providers-session-refresh END'
-  local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"
-  # Drop any existing block (BEGIN..END inclusive), then append the fresh one.
-  awk -v b="$begin" -v e="$end" '
-    $0==b{skip=1} !skip{print} $0==e{skip=0}' "$ALIAS_FILE" > "$tmp"
-  {
-    printf '%s\n' "$begin"
-    cat <<'HOOK'
-cma_providers_session_refresh() {
-  command -v claude-providers >/dev/null 2>&1 || return 0
-  # No-network: re-write alias functions from the cached env files.
-  claude-providers list --quiet --refresh-aliases >/dev/null 2>&1 || true
-  # TTL-triggered background full sync (detached; never blocks the shell).
-  local ttl="${CMA_PROVIDERS_SYNC_TTL:-86400}"
-  local sf="$HOME/.local/share/claude-multi-account/providers/status.json"
-  if [ -f "$sf" ]; then
-    local now mtime age
-    now="$(date +%s)"
-    mtime="$(date -r "$sf" +%s 2>/dev/null || stat -c %Y "$sf" 2>/dev/null || echo "$now")"
-    age=$(( now - mtime ))
-    if [ "$age" -gt "$ttl" ]; then
-      ( nohup claude-providers sync >/dev/null 2>&1 & disown ) 2>/dev/null || true
-    fi
-  fi
-}
-cma_providers_session_refresh
-HOOK
-    printf '%s\n' "$end"
-  } >> "$tmp"
-  command mv -f "$tmp" "$ALIAS_FILE"
+  # The hook text itself lives in _cma_emit_session_hook (next to the other
+  # emitters); "install" tells the renderer to emit the current version instead
+  # of carrying the existing block over.
+  cma_alias_commit "" "" install
 }
 
 # True only when the toolkit may prompt the user interactively. Scripts read

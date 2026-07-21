@@ -132,10 +132,21 @@ if (( HAVE_PY )); then
   it "enrich_from_catalog adds context window, free bonus, and prunes tiny models"
   assert_eq "200000 True True" \
     "$(pyval 'm=[{"model_id":"big","score":25,"capabilities":{}}]
-c={"big":{"limit":{"context":200000,"output":8000},"cost":{"input":0}}}
+c={"big":{"limit":{"context":200000,"output":8000},"cost":{"input":0,"output":0}}}
 mv.enrich_from_catalog(m,c)
 print(m[0]["capabilities"]["context_window"], m[0]["capabilities"].get("is_free"), m[0]["score"]>25)')" \
-    "big free model enriched + scored up"
+    "genuinely-free model (input AND output cost 0) enriched + scored up"
+  # Reconciled to the v1.24.0 credit-aware classification (§11.4.120): a model is
+  # free ONLY when input AND output cost are both 0. PARTIAL pricing (input:0 with
+  # no output cost) is tier 'unknown', never free — so a subscription/plan-gated
+  # {input:0} entry is never mistaken for a free model. The context-window bonus
+  # still applies; only the free bonus + is_free flag do not.
+  assert_eq "None unknown" \
+    "$(pyval 'm=[{"model_id":"p","score":25,"capabilities":{}}]
+c={"p":{"limit":{"context":200000,"output":8000},"cost":{"input":0}}}
+mv.enrich_from_catalog(m,c)
+print(m[0]["capabilities"].get("is_free"), m[0].get("credit_tier"))')" \
+    "partial pricing (input:0 only) is unknown, never free"
   assert_eq "False True" \
     "$(pyval 'm=[{"model_id":"t","score":25,"capabilities":{},"verified":True}]
 c={"t":{"limit":{"context":1000,"output":500},"cost":{"input":1}}}

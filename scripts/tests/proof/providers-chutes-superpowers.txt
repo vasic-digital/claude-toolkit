@@ -1,2 +1,7 @@
-Profile "default-claude-code" was not found or is disabled.
-# FAIL: no-engagement
+# ROUTE-INTENDED: chutes/zai-org/GLM-5.2-TEE (transport=router)
+# ROUTE-INTENDED-BACKGROUND: chutes/Qwen/Qwen3.6-27B-TEE
+{"type":"result","subtype":"success","is_error":false,"api_error_status":null,"duration_ms":50367,"duration_api_ms":49539,"ttft_ms":49912,"ttft_stream_ms":49853,"time_to_request_ms":384,"num_turns":1,"result":"Skills evolve. Read current version.","stop_reason":"end_turn","session_id":"3056aa52-e64f-4365-9c0c-0e74e13d7f42","total_cost_usd":0.345875,"usage":{"input_tokens":66800,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":475,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"","iterations":[],"speed":"standard"},"modelUsage":{"claude-opus-4-8[1m]":{"inputTokens":66800,"outputTokens":475,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.345875,"contextWindow":1000000,"maxOutputTokens":64000}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","uuid":"44298dd9-3f5b-4520-a3df-10453416417a"}
+# ROUTE-RESOLVED: chutes/zai-org/GLM-5.2-TEE
+# ROUTE-RESOLVED-BACKGROUND: chutes/Qwen/Qwen3.6-27B-TEE
+# ROUTE-APPLIED: service.log: new 'gateway listening on' past byte 785768
+# PASS

@@ -30,6 +30,18 @@ done
 LIB_DIR="$(cd "$(dirname "$_cma_src")" && pwd)"
 unset _cma_src _cma_tgt
 
+# Gate 0 below needs the ccr-gateway test. lib.sh OWNS it (_cma_is_ccr_gateway,
+# emitted from _cma_emit_ccr_gateway_guard) and the launch gate in
+# cma_run_provider uses the very same bytes — sourcing here is what keeps the
+# verify gate and the launch gate from drifting apart, which is exactly how the
+# duplicated `case` statements came to disagree. lib.sh turns on `set -e`; this
+# script's contract is non-zero-tolerant (probes are graded, not fatal), so its
+# own flags are restored immediately.
+# shellcheck source=lib.sh
+. "$LIB_DIR/lib.sh"
+set -uo pipefail
+set +e
+
 PROVIDER="" MODEL="" KEYVAR="" BASEURL="" OFFLINE=0
 while (( $# )); do
   case "$1" in
@@ -45,6 +57,28 @@ done
 VERIFIER_BIN="$LIB_DIR/../submodules/LLMsVerifier/bin/model-verification"
 
 emit() { echo "$1"; [[ -n "${2:-}" ]] && echo "providers-verify[$PROVIDER]: $2" >&2; }
+
+# --- Gate 0: a base_url that IS the ccr gateway is not verifiable -----------
+# Every probe below targets $BASEURL. When that URL is the local ccr gateway,
+# the answer comes from whatever provider ccr's .Router.default currently names
+# — NOT from the provider under test. That is how `helixagent` (base_url
+# http://127.0.0.1:3456/v1, no `helixagent` provider in ccr's config at all)
+# collected a `verified` badge for a turn served by `deepseek`. A sentinel that
+# some OTHER backend echoed proves nothing about this alias, so refuse to grade
+# it rather than record an unattributable pass. cma_run_provider (lib.sh)
+# refuses to launch the same shape for the same reason.
+#
+# The test itself is _cma_is_ccr_gateway, sourced from lib.sh above — NOT a
+# copy. What stood here was a `case` listing four literal spellings, duplicated
+# from lib.sh's launch gate, and the two copies had already drifted: neither
+# matched `127.0.1.1:3456` (Debian's default loopback for the local hostname,
+# i.e. the gateway on a stock install), any other 127/8 address, the v4-mapped
+# or fully-expanded IPv6 loopbacks, `LOCALHOST`, or a `user@`/`?query`/`#frag`
+# spelling. One definition, three call sites, no drift.
+if _cma_is_ccr_gateway "$BASEURL"; then
+  emit failed "base_url ($BASEURL) is the ccr gateway itself — any probe is answered by whichever provider ccr routes to, so no verdict is attributable to this alias. Repoint it at its real backing endpoint."
+  exit 1
+fi
 
 # --- Strategy 1: LLMsVerifier binary ---------------------------------------
 if [[ -x "$VERIFIER_BIN" ]]; then

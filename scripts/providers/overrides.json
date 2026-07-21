@@ -47,8 +47,8 @@
     "fast_model": "nvidia/nemotron-3-ultra-550b-a55b:free"
   },
   "nvidia": {
-    "strong_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-    "fast_model": "nvidia/nemotron-3-ultra-550b-a55b"
+    "strong_model": "nvidia/nemotron-3-ultra-550b-a55b",
+    "fast_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
   },
   "inference": {
     "base_url": "https://api.inference.net/v1",

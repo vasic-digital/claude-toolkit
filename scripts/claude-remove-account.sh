@@ -77,7 +77,15 @@ if (( ! NONINTERACTIVE )); then
   [[ "$ans" =~ ^[Yy]$ ]] || cma_die "aborted"
 fi
 
-cma_remove_alias "$ALIAS_NAME"
+# The status is CHECKED, and the directory move below is gated on it. This used
+# to report success even when the write was skipped on lock contention, so the
+# script logged "alias removed", then archived/deleted the config dir anyway —
+# leaving a LIVE alias pointing at a directory that no longer exists. Removing
+# nothing is recoverable; a dangling alias over a moved dir is not.
+if ! cma_remove_alias "$ALIAS_NAME"; then
+  cma_warn "the alias '$ALIAS_NAME' was NOT removed from $ALIAS_FILE"
+  cma_die  "$CONFIG_DIR left in place on purpose — a live alias must never point at a moved dir. Re-run to retry."
+fi
 cma_log "alias removed from $ALIAS_FILE"
 
 if [[ -d "$CONFIG_DIR" ]]; then

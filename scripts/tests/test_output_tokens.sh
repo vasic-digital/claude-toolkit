@@ -28,26 +28,44 @@ EOF
 chmod +x "$recorder"
 mkdir -p "$HOME/.local/bin"
 for stub in claude-sync-state claude-session; do
-  printf '#!/usr/bin/env bash\nexit 0\n' > "$HOME/.local/bin/$stub"
-  chmod +x "$HOME/.local/bin/$stub"
+  # sandbox_stub, not a bare redirect: in a real $HOME these names are symlinks
+  # into the repo and `>` would write THROUGH the link into the production script.
+  sandbox_stub "$HOME/.local/bin/$stub" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
 done
 # Fake ccr: answers `--help` with the router banner (the identity guard checks
-# it for "ccr start"), records the environment on a launch subcommand — BOTH the legacy
-# `ccr code` grammar AND the v3.0.6 `ccr default-claude-code` grammar the
-# wrapper now uses — no-ops everything else.
+# it for "ccr start"), records the environment on a launch subcommand — BOTH the
+# legacy `ccr code` grammar AND the `ccr default-claude-code` grammar the
+# wrapper now uses.
+#
+# The accepted set MIRRORS the bundled Go router's dispatch
+# (submodules/claude-code-router/cmd/ccr/main.go). The catch-all FAILS LOUDLY
+# instead of `exit 0`: a silently-succeeding stub is what certified the v1.23.0
+# Go-router swap against a launch grammar the real binary rejected. Grammar
+# drift must now break this test. See test_ccr_conformance.sh for the static
+# check that the toolkit's required subcommands really exist in the router.
 FAKEBIN="$HOME/fakebin"; mkdir -p "$FAKEBIN"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
-  --help) echo "Usage: ccr start [--host <host>] [--port <port>]"; echo "  ccr serve [--host <host>] [--port <port>]"; exit 0 ;;
+  --help|-h|help) echo "Usage: ccr start [--host <host>] [--port <port>]"; echo "  ccr serve [--host <host>] [--port <port>]"; exit 0 ;;
   code|default-claude-code) shift; env | grep -E '^CLAUDE_CODE_MAX_OUTPUT_TOKENS=' > "$REC_ENV_OUT" || true; exit 0 ;;
-  *) exit 0 ;;
+  start|ui|serve|web|stop|restart|config) exit 0 ;;
+  *) printf 'fake-ccr: unexpected subcommand %s — not implemented by the bundled Go router\n' "${1:-<none>}" >&2; exit 2 ;;
 esac
 EOF
 chmod +x "$FAKEBIN/ccr"
 
 # shellcheck source=/dev/null
 source "$ALIAS_FILE"
+# PROVENANCE GATE. Every cma_run_provider call below must exercise the SANDBOX
+# body. The host profile (BASH_ENV -> ~/.bashrc -> production alias file) has
+# already defined cma_run_provider in this shell, so a silently-failed source
+# above would leave the launches grading host code and still pass.
+it "HYGIENE: the cma_run_provider under test comes from the sandbox alias file"
+assert_fn_from cma_run_provider "$ALIAS_FILE" "wrapper loaded from the sandbox, not the host"
 
 # ===========================================================================
 # Section 1 — the cap is exported for BOTH transports
@@ -62,9 +80,11 @@ run_native() {
 }
 run_native
 # 131072 < 262144 (real output budget) BUT > the CLI's 128000 custom-model
-# ceiling -> the merged guard exports it CLAMPED to 128000 (the xiaomi-class
-# ">128000" fatal fix), not raw.
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000" "$(cat "$rec_env")" "native path exports the catalog output cap (clamped <=128000)"
+# ceiling. v1.24.0 carves the cap out of the context rather than clamping to a
+# flat ceiling: min(131072, 262144 - the 160000 input floor) = 102144. The old
+# flat 128000 did not fit — 262144 must also hold Claude Code's ~137K
+# system-prompt + tool-schema floor, and 137483 + 128000 overflows it.
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "native path exports the cap carved out of the context"
 
 it "router launch: the SAME cap reaches the router (ccr) path (the v1.16.0 fix)"
 cma_provider_write_env acmerouter ACME_KEY router https://api.test/v1 acme-big acme-fast "$HOME/.claude-prov-acmerouter" 262144 131072 acmerouter
@@ -72,27 +92,33 @@ cma_provider_write_alias acmerouter acmerouter
 cma_status_write acmerouter verified acme-big ""
 : > "$rec_env"
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" PATH="$FAKEBIN:/usr/bin:/bin" cma_run_provider acmerouter </dev/null >/dev/null 2>&1 )
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000" "$(cat "$rec_env")" "router path exports the cap, clamped <=128000 (was the 128000-default bug)"
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "router path exports the same carved cap (was the 128000-default bug)"
 
-it "no export when CMA_PROVIDER_MAX_OUTPUT is empty (provider limit unknown)"
+it "an unknown output limit still gets a cap carved from the known context"
 cma_provider_write_env acmeempty ACME_KEY native https://api.test/anthropic acme-big "" "$HOME/.claude-prov-acmeempty" 262144 "" acmeempty
 cma_provider_write_alias acmeempty acmeempty
 cma_status_write acmeempty verified acme-big ""
 : > "$rec_env"
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" CLAUDE_BIN="$recorder" cma_run_provider acmeempty </dev/null >/dev/null 2>&1 )
-assert_eq "" "$(cat "$rec_env" 2>/dev/null)" "empty provider limit leaves the var unset (Claude Code default)"
+# Pre-v1.24.0 this exported nothing, which is NOT neutral: Claude Code then
+# applies its own 128000 default for an unknown model. With a known 262144
+# context that default overflows, so the guard supplies 262144-160000=102144.
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "empty provider limit still yields a cap that fits the context"
 
-it "no export when limit.output >= limit.context (catalog conflation — the nvidia5 400 case)"
+it "limit.output >= limit.context is discarded, then a cap is carved (nvidia5 400 case)"
 # nvidia5 (meta/llama-3.2-11b-vision-instruct): catalog gives context=131072
 # AND output=131072, which is not a real output budget. Exporting it made
 # Claude Code request 128000 completion tokens; 39k input + 128k output >
-# 131k context -> provider 400. The guard must skip this case.
+# 131k context -> provider 400. The bogus value must be discarded — and since
+# v1.24.0 replaced by a cap carved from the context, because leaving it unset
+# just hands the same 128000 back via the CLI's own default. A 131072 window
+# cannot host the 160000 input floor at all, so the cap floors at 8192.
 cma_provider_write_env acmeconfl ACME_KEY native https://api.test/anthropic acme-big "" "$HOME/.claude-prov-acmeconfl" 131072 131072 acmeconfl
 cma_provider_write_alias acmeconfl acmeconfl
 cma_status_write acmeconfl verified acme-big ""
 : > "$rec_env"
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" CLAUDE_BIN="$recorder" cma_run_provider acmeconfl </dev/null >/dev/null 2>&1 )
-assert_eq "" "$(cat "$rec_env" 2>/dev/null)" "output==context (bogus catalog) leaves the var unset"
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192" "$(cat "$rec_env")" "output==context (bogus catalog) discarded, floored cap exported"
 
 # ===========================================================================
 # Section 2 — structure + migration
@@ -168,8 +194,10 @@ cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--help" ]]; then echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; exit 0; fi
 case "${1:-}" in
+  -h|help) exit 0 ;;
   code|default-claude-code) shift; env | grep -E '^CLAUDE_CODE_MAX_OUTPUT_TOKENS=' > "$REC_ENV_OUT" || true; exit 0 ;;
-  *) exit 0 ;;
+  start|ui|serve|web|stop|restart|config) exit 0 ;;
+  *) printf 'fake-ccr: unexpected subcommand %s — not implemented by the bundled Go router\n' "${1:-<none>}" >&2; exit 2 ;;
 esac
 EOF
 chmod +x "$FAKEBIN/ccr"
@@ -177,6 +205,6 @@ chmod +x "$FAKEBIN/ccr"
 ( set +eu; ACME_KEY=sk-test REC_ENV_OUT="$rec_env" PATH="$FAKEBIN:/usr/bin:/bin" cma_run_provider acmemv </dev/null >/dev/null 2>&1 )
 launch_rc=$?
 assert_eq 0 "$launch_rc" "real ccr launches fine"
-assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000" "$(cat "$rec_env")" "cap (clamped <=128000) still exported through the guarded router path"
+assert_eq "CLAUDE_CODE_MAX_OUTPUT_TOKENS=102144" "$(cat "$rec_env")" "carved cap still exported through the guarded router path"
 
 summary

@@ -12,3 +12,6 @@ scratch_*.log
 # cached by claude-verify-providers.sh (LV_BIN default $REPO_ROOT/.local-cache/…).
 # Regenerable from source (§11.4.53 — never version build artifacts).
 /.local-cache/
+
+# Agent scratch/progress ledger — never commit
+.superpowers/

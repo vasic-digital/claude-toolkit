@@ -82,17 +82,147 @@ SUMMARY="$PROOF_DIR/providers-summary.json"
 printf '{}\n' > "$SUMMARY"
 KEYS_FILE="${CMA_KEYS_FILE:-$HOME/api_keys.sh}"
 
-# Strip anything resembling a leaked bearer/sk- secret out of captured evidence
-# before it lands in $PROOF_DIR. Defense in depth: the drivers are not
-# supposed to print keys, but evidence files are read by humans and must never
-# carry one, even by accident.
+# Strip anything resembling a leaked credential out of captured evidence before
+# it lands in $PROOF_DIR. Defense in depth: the drivers are not supposed to
+# print keys, but evidence files are read by humans, committed to the repo, and
+# must never carry one, even by accident.
+#
+# The previous version covered exactly two shapes — `sk-` and `Bearer <tok>` —
+# which is far narrower than this repo's ~20 provider key families. This widening
+# is a defense-in-depth measure against a FUTURE capture, not a response to a
+# known leak: the committed proof/ corpus contains no credentials, and the old
+# redactor's behaviour on it was correct. Every credential-shaped field in it
+# holds either a literal `REDACTED`/`[REDACTED]`/`PLACEHOLDER` marker, a
+# `${VAR}` reference, or an empty string. Do not let a redaction firing be read
+# as evidence that a secret was present — those are different claims, and
+# conflating them raises a false security alarm, which in this repo means
+# proposing vendor key rotation and a four-mirror history rewrite over nothing.
+#
+# Patterns are derived from key shapes that ACTUALLY occur on this host, not
+# from imagination — prefixed families (`sk-`/`sk_`, `csk-`, `gsk_`, `cpk_`,
+# `hf_`, `fw_`, `nk_`, `up_`, `r8_`, `vck_`, `nvapi-`, `zpka_`, `tvly-`,
+# `glpat-`, `github_pat_`, `VENICE_ADMIN_KEY_`, `inference-`, `perm-`, `ak-`,
+# `as-`), dot-separated JWTs, and a generic lowercase-prefix net for families
+# not yet seen.
+#
+# Three constraints shape the regexes, and each is load-bearing:
+#
+#  1. **The gate must survive redaction.** This leg greps `^# (PASS|FAIL:|SKIP)`
+#     and the `# ROUTE-INTENDED:`/`# ROUTE-RESOLVED:` markers out of the very
+#     files it redacts, and the proof sweep greps `# FAIL:`. A pattern that
+#     mangled a verdict or route line would silently disable the gate — a worse
+#     defect than the leak. Every rule is therefore anchored on a credential
+#     shape, never on a bare token: the tail-length floors (20/24) and the
+#     quoted-JSON / `x-api-key:` / `<NAME>KEY=` context requirements exist
+#     precisely so ordinary evidence prose cannot trip them. An earlier draft
+#     matched unquoted `..._API_KEY:` and ate assertion text out of a suite log.
+#  2. **A redacted marker and a variable reference are not secrets.** Every
+#     value class below is `[A-Za-z0-9._~+/=-]`, which deliberately excludes
+#     `$ { } [ ] < > *`. That single choice makes `${VAR}`, `$VAR`,
+#     `[REDACTED]`, `<REDACTED>` and `***REDACTED***` unmatchable, because each
+#     begins with an excluded character. It is the fix for a real defect: an
+#     earlier draft used `[^"]{8,}` for the quoted-JSON rule, which matches ANY
+#     8+ characters — so it fired on `REDACTED` (exactly 8) and on
+#     `${PINECONE_API_KEY}` (19), rewrote five evidence files, and was then
+#     misreported as having found six live credentials. It had found none. A
+#     `${VAR}` reference is load-bearing evidence in its own right: it documents
+#     that a config uses env-var indirection instead of an inline secret, which
+#     is precisely what a reviewer needs to see. The residue is the bare word
+#     case (`REDACTED`, `PLACEHOLDER` — the vocabulary actually present in the
+#     corpus, derived not assumed), which is pure alnum and so cannot be
+#     excluded by character class; those are protected by a marker before the
+#     rules run and restored after. Net effect: `_redact` is IDEMPOTENT, and
+#     the committed corpus is a fixed point of it. Both are tested.
+#  3. **Bare unprefixed keys are context-gated, not shape-matched.** Several
+#     families (32/39/40/41-char bare alnum, and UUID-shaped ones) are
+#     indistinguishable from a git SHA, a session id, or a content hash — all of
+#     which are legitimate, load-bearing evidence content. Those are redacted
+#     only where they appear as a value: `Bearer`, an `Authorization:` /
+#     `x-api-key:` header, a quoted `"…api[-_]key": "…"` JSON field, a
+#     `<NAME>(KEY|TOKEN|SECRET|PASSWORD)=` assignment, or `ApiKey_<Name>=`.
+#     Shape-matching them globally would destroy more evidence than it protects.
+#  4. **POSIX/BSD-safe.** BSD `sed -E` is the floor (macOS ships no GNU sed): no
+#     `\+`, no `\d`/`\w`/`\b`, no `I` case-insensitivity flag — hence the
+#     explicit `[Aa]` classes. Alternations rely on POSIX leftmost-longest so
+#     `gsk_`/`csk-` win over the `sk` alternative and keep their own prefix.
+#
+# Measured two ways over the proof/ corpus:
+#   * Over the files _redact is ACTUALLY applied to in production — the 99
+#     `*-semantic.txt` / `*-superpowers.txt` evidence files ($sem_ev, $tui_ev,
+#     $neg_ev; see the three call sites) — 99 byte-identical, 0 changed. That
+#     subset is a fixed point: nothing in it is a credential.
+#   * As a worst-case stress test, over ALL 128 files including ones _redact
+#     never touches: 127 identical, 1 changed. The one is
+#     `62-precommit-hygiene-audit.txt`, a DIFFERENT leg's evidence carrying a
+#     deliberately-planted `sk-`-shaped fixture string (`CMA_FAKE_SECRET=`); the
+#     old two-pattern redactor scrubbed it too, so this is neither new nor a
+#     credential, and production never feeds this file to _redact anyway.
+# Zero verdict lines, route markers or `# FAIL:` markers altered either way. The
+# synthetic-fixture and mutation tests in scripts/tests/test_redact.sh are what
+# prove the rules still fire; a quiet run over the real evidence is the correct
+# result, not an absence of coverage.
 _redact() {
   [[ -f "$1" ]] || return 0
-  sed -E 's/sk-[A-Za-z0-9_-]{8,}/sk-***REDACTED***/g; s/([Bb]earer[[:space:]]+)[A-Za-z0-9._-]{8,}/\1***REDACTED***/g' \
+  # PROTECT: two classes of non-secret token are pure alnum after their prefix
+  # and so cannot be excluded by character class. Park them behind a marker
+  # containing '@' — a character in no value class below — then restore verbatim
+  # at the end. This is what makes re-redacting an already-redacted file a no-op
+  # instead of churn, and it is why `_redact` is idempotent.
+  #
+  #   (a) bare placeholder words: `REDACTED`, `PLACEHOLDER`. Both are the actual
+  #       vocabulary in the corpus (derived by scanning it, not assumed); the
+  #       bracketed/starred spellings need no protection because they begin with
+  #       an excluded character.
+  #   (b) tool/message identifiers. Sweeping the corpus for everything the
+  #       generic lowercase-prefix net matches returns exactly ONE construct —
+  #       `"tool_use_id":"call_<24 alnum>"`, 3 occurrences. An identifier is not
+  #       a credential, and redacting it is pure evidence damage. `call` is the
+  #       derived one; `toolu`/`msg`/`chatcmpl` are its siblings in the same two
+  #       transcript formats (Anthropic `toolu_`/`msg_`, OpenAI `chatcmpl_`/
+  #       `call_`) and are excluded for the same reason. This narrows the net to
+  #       the unknown KEY families it exists for; it does not weaken it, which
+  #       test_redact.sh pins by keeping an unknown-family fixture redacted.
+  sed -E \
+    -e 's/REDACTED/@@CMA-PH-R@@/g' \
+    -e 's/PLACEHOLDER/@@CMA-PH-P@@/g' \
+    -e 's/(call|toolu|msg|chatcmpl)_([A-Za-z0-9]{20,})/@@CMA-ID-\1@@\2/g' \
+    -e 's/ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/ey***REDACTED-JWT***/g' \
+    -e 's/(sk|csk|gsk|cpk|nvapi|zpka|tvly|glpat|perm)([-_])[A-Za-z0-9._-]{24,}/\1\2***REDACTED***/g' \
+    -e 's/(github_pat|VENICE_ADMIN_KEY|inference)([-_])[A-Za-z0-9]{24,}/\1\2***REDACTED***/g' \
+    -e 's/(hf|fw|nk|up|r8|vck|ak|as)([-_])[A-Za-z0-9]{20,}/\1\2***REDACTED***/g' \
+    -e 's/([a-z][a-z0-9]{1,9})_[A-Za-z0-9]{24,}/\1_***REDACTED***/g' \
+    -e 's/([Bb]earer[[:space:]]+)[A-Za-z0-9._~+\/=-]{8,}/\1***REDACTED***/g' \
+    -e 's/("[A-Za-z0-9_.-]*[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]"[[:space:]]*:[[:space:]]*")[A-Za-z0-9._~+\/=-]{8,}"/\1***REDACTED***"/g' \
+    -e 's/([Xx]-[Aa][Pp][Ii][-_]?[Kk][Ee][Yy][[:space:]]*:[[:space:]]*)[A-Za-z0-9._~+\/=-]{8,}/\1***REDACTED***/g' \
+    -e 's/([Aa]uthorization["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?)[A-Za-z0-9._~+\/=-]{8,}/\1***REDACTED***/g' \
+    -e 's/([A-Za-z_][A-Za-z0-9_]*([Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])=["'"'"']?)[A-Za-z0-9._~+\/=-]{8,}/\1***REDACTED***/g' \
+    -e 's/(ApiKey_[A-Za-z0-9_]*=["'"'"']?)[A-Za-z0-9._~+\/=-]{8,}/\1***REDACTED***/g' \
+    -e 's/@@CMA-ID-([a-z]+)@@/\1_/g' \
+    -e 's/@@CMA-PH-R@@/REDACTED/g' \
+    -e 's/@@CMA-PH-P@@/PLACEHOLDER/g' \
     "$1" > "$1.redacted" 2>/dev/null && mv "$1.redacted" "$1"
 }
 
+# gate_for_status echoes 1 when a layers-3/4 failure for a provider in this
+# status MUST fail the suite, else 0. Extracted as a function purely so it can
+# be unit-tested (scripts/tests/test_providers_gate.sh) — the whole value of
+# this scoping rests on `verified` still failing, and an untested gate could
+# silently degrade into "never fail", which is the exact bluff class this leg
+# was just repaired for.
+gate_for_status() {
+  if [[ "${1:-}" == "verified" ]]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
 first_id=""
+RUN_TUI_EV=()   # layer-4 evidence files written by THIS run — scopes the sweep below
+# Every layer-4 evidence file from this run, gated or NOT. Route attribution is
+# status-independent (see the FAIL branch below), so its sweep needs the full
+# set rather than the account-health-filtered one.
+ALL_TUI_EV=()
 for f in "$PDIR"/*.env; do
   # shellcheck source=/dev/null  # runtime provider env file, path only known at execution
   IFS=$'\t' read -r id model keyvar baseurl < <(
@@ -104,6 +234,26 @@ for f in "$PDIR"/*.env; do
   exists=0
   grep -qE "cma_run_provider $id(\"| )" "$ALIASES" 2>/dev/null && exists=1
 
+  # Does a layers-3/4 failure for THIS provider count as a suite failure?
+  #
+  # Only if the provider independently reached status=verified — i.e. it already
+  # passed the existence + tool-calling probes against its real endpoint. Such a
+  # provider IS expected to work end to end, so a layer-3/4 failure is genuine
+  # breakage and must fail the run.
+  #
+  # A provider already classified failed / unverified / orphaned is known-broken
+  # for ACCOUNT reasons (rejected key, no funds, exhausted quota). It cannot pass
+  # a live launch no matter how correct the toolkit is. Counting it as a suite
+  # failure restates known account state as new breakage and pins the run
+  # permanently red — which destroys the signal entirely, since a genuinely NEW
+  # regression becomes indistinguishable from the standing noise.
+  #
+  # Crucially this is NOT circular and NOT a way to hide failures: `status` is
+  # set by INDEPENDENT live HTTP probes (layers 1-2), never by layers 3-4. And
+  # these providers are reported EXPLICITLY on their own line below — never
+  # silently skipped, never counted as a pass.
+  gated="$(gate_for_status "$status")"
+
   it "semantic (layer 3) for '$id' — PASS/SKIP, never a faked pass"
   sem_ev="$PROOF_DIR/providers-${id}-semantic.txt"
   sem="$( ( [[ -f "$KEYS_FILE" ]] && { set -a +u; . "$KEYS_FILE"; set +a; }
@@ -113,17 +263,99 @@ for f in "$PDIR"/*.env; do
   _redact "$sem_ev"
   case "$sem" in
     verified)   _pass "layer-3 semantic PASS for $id" ;;
-    unverified) _pass "layer-3 semantic ran (verdict: unverified) for $id" ;;  # a real verdict, not a test failure
+    # 'unverified' is NOT a transient/inconclusive outcome here: providers-semantic.sh
+    # emits it ONLY on driver exit 1 — "layer-3 FAIL (cannot see code / bluffed)".
+    # Every genuinely transient condition (transport/infra error, missing
+    # key/judge/go/network) is routed to `skip` (exit 2/3) and lands in the
+    # SKIP branch below. So this branch is a DEFINITIVE failure and must fail.
+    unverified)
+      if (( gated )); then
+        _fail "layer-3 semantic" "verdict: unverified for $id — definitive layer-3 failure (alias cannot genuinely see code / bluffed); evidence: $sem_ev"
+      else
+        echo "KNOWN-NON-WORKING: layer-3 unverified for '$id' (provider status=$status — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: $sem_ev"
+      fi ;;
     *)          echo "SKIP: layer-3 preconditions absent for $id" ;;
   esac
 
   it "superpowers-TUI (layer 4) for '$id' — PASS/SKIP"
   tui_ev="$PROOF_DIR/providers-${id}-superpowers.txt"
+  # The sweep below asserts on evidence from providers that are SUPPOSED to
+  # work; an account-dead provider's FAIL marker is expected, not a finding.
+  (( gated )) && RUN_TUI_EV+=("$tui_ev")
+  ALL_TUI_EV+=("$tui_ev")
   tui_out="$(bash "$SCRIPTS_DIR/verify_superpowers_tui.sh" --alias "$id" --out "$tui_ev" --timeout 180 2>&1)"
   _redact "$tui_ev"
   case "$tui_out" in
     PASS:*) tui_label=verified;   _pass "layer-4 superpowers-TUI PASS for $id" ;;
-    FAIL:*) tui_label=unverified; _pass "layer-4 superpowers-TUI ran (verdict: FAIL — not verified) for $id" ;;
+    FAIL:*)
+      tui_label=unverified
+      # TWO DIFFERENT KINDS OF FAILURE, and only one of them is excusable by
+      # provider status.
+      #
+      # An account-side failure (rejected key, no funds, exhausted quota) says
+      # the PROVIDER cannot answer. `status` already records that independently,
+      # so re-counting it would pin the run permanently red — the reasoning
+      # behind gate_for_status.
+      #
+      # A route-attribution failure says something categorically different: the
+      # turn was served by, or cannot be shown to have been served by, the
+      # backend we are testing. That is OUR VERIFICATION MACHINERY EMITTING A
+      # FALSE STATEMENT, and an unfunded key does not explain or excuse it — the
+      # helixagent bluff was recorded against an alias whose own status was
+      # never the problem. Evidence that lies is a failure at every status, so
+      # this branch is deliberately NOT gated.
+      #
+      # 'launch-refused-route-integrity' joins it: that is rc 78 from
+      # cma_run_provider — lib.sh REFUSING to launch because the ccr route could
+      # not be applied, or because the alias' base_url is the gateway itself.
+      # Nothing ran, so it is not a route ATTRIBUTION failure and never wears a
+      # 'route-' marker (those are reserved for turns that actually ran), but it
+      # is a toolkit/config-side condition rather than an account-side one, so
+      # no key/quota/balance state excuses it. Un-gated for that reason.
+      #
+      # HONEST BOUNDARY on that rc-78 claim, corrected 2026-07-20. It is often
+      # stated as "a genuine toolkit/config defect that no account state
+      # explains". That is true of the whole set only in the sense that ACCOUNT
+      # state never explains it — it is NOT true that every rc-78 is a defect.
+      # There are two `return 78` sites in lib.sh, and the second is reachable
+      # from five distinct conditions (lib.sh:1131-1192):
+      #   * base_url IS the ccr gateway (self-reference)   — config defect;
+      #   * the jq rewrite of config.json failed           — config defect;
+      #   * jq is not on PATH                              — ENVIRONMENTAL;
+      #   * `mv -f` failed: disk full / read-only / immutable — ENVIRONMENTAL;
+      #   * `ccr restart` failed, incl. transient port contention — TRANSIENT.
+      # So three of the five are environmental or transient rather than defects,
+      # and the jq case is a real inconsistency with this script's own
+      # conventions, where an absent binary is an honest SKIP
+      # (verify_superpowers_tui.sh:123,126). Un-gating is still the right call —
+      # every one of the five leaves the operator with an alias that cannot
+      # launch, and none is excused by the provider's account — but the verdict
+      # should be read as "this alias could not be launched for a
+      # non-account reason", NOT as proof of a toolkit bug. Distinguishing the
+      # environmental subset would require lib.sh to report WHICH condition
+      # fired (it already composes that text in $_route_msg but folds it all
+      # into rc 78); that is a lib.sh change and is deliberately not made here.
+      #
+      # 'launch-impossible-no-wrapper' (rc 96) and 'launch-refused-unclassified'
+      # join for the same non-account reason. The first means the alias file
+      # exists but defines no cma_run_provider — a broken installation in which
+      # NO alias on the host can launch, so gating it behind provider status
+      # would let a wholly broken install report green on any host whose
+      # providers are not all 'verified'. The second means the driver's own
+      # detection and verdict code sets have drifted apart.
+      #
+      # Deliberately NOT in this set: 'launch-refused-unverified' (rc 3). That
+      # refusal IS the provider's account status being enforced, so it belongs
+      # to the gated fallback below — counting it here would fail the suite once
+      # per non-verified alias, forever.
+      if grep -qE '^# FAIL: (route-|launch-refused-route-integrity|launch-refused-unclassified|launch-impossible-no-wrapper)' "$tui_ev" 2>/dev/null; then
+        _fail "layer-4 route attribution (verification integrity)" \
+          "live launch through '$id' produced NON-ATTRIBUTABLE evidence: $(grep -m1 -E '^# FAIL: (route-|launch-refused-route-integrity|launch-refused-unclassified|launch-impossible-no-wrapper)' "$tui_ev"). This is a verification-integrity failure, not an account-side one, so it counts at provider status=$status; evidence: $tui_ev"
+      elif (( gated )); then
+        _fail "layer-4 superpowers-TUI" "live launch through '$id' FAILED (${tui_out}); evidence: $tui_ev"
+      else
+        echo "KNOWN-NON-WORKING: layer-4 FAIL for '$id' (provider status=$status — account-side: key rejected / unfunded / quota). Not counted as a suite failure; evidence: $tui_ev"
+      fi ;;
     *)      tui_label=skip;       echo "SKIP: ${tui_out:-layer-4 preconditions absent for $id}" ;;
   esac
 
@@ -139,6 +371,66 @@ for f in "$PDIR"/*.env; do
 done
 echo "aggregate: $SUMMARY" >> "$EV"
 
+it "proof sweep: no layer-4 evidence file from THIS run carries a '# FAIL:' marker"
+# Defense in depth, independent of the stdout classification above: re-read the
+# markers the driver itself wrote to disk. Scoped to $RUN_TUI_EV — $PROOF_DIR
+# also holds artifacts from earlier runs and from aliases no longer installed,
+# and those are not this run's verdict to report.
+# Only the LAST marker line counts: verify_superpowers_tui.sh truncates the
+# evidence file on a real launch, but on a precondition SKIP it merely APPENDS
+# '# SKIP' — so an older '# FAIL:' can still sit above a current '# SKIP'.
+marked=()
+for ev in ${RUN_TUI_EV+"${RUN_TUI_EV[@]}"}; do
+  [[ -f "$ev" ]] || continue
+  last="$(grep -E '^# (PASS|FAIL:|SKIP)' "$ev" 2>/dev/null | tail -n 1)"
+  case "$last" in
+    '# FAIL:'*) marked+=("$(basename "$ev") -> $last") ;;
+  esac
+done
+if (( ${#marked[@]} == 0 )); then
+  _pass "no '# FAIL:' marker in ${#RUN_TUI_EV[@]} layer-4 evidence file(s) from this run"
+else
+  _fail "layer-4 evidence carries '# FAIL:' markers" "${#marked[@]} of ${#RUN_TUI_EV[@]}: $(printf '%s; ' "${marked[@]}")"
+fi
+
+it "route-attribution sweep: NO layer-4 evidence file from this run is non-attributable (status-independent)"
+# Deliberately swept over ALL_TUI_EV, not RUN_TUI_EV: the gate above is scoped
+# to providers whose account is known-good, because an account-dead provider's
+# FAIL is expected noise. A route-* marker is never that kind of noise — it
+# means the evidence names, or cannot name, the backend that served the turn.
+# Scoping THAT to `verified` providers would reproduce the original bluff on
+# every non-verified alias, which is where it was found in the first place.
+#
+# The set swept here MUST match the un-gated set of the per-provider classifier
+# above, and for the same reason: route-* (a turn that ran but is not
+# attributable) plus the three non-account launch failures —
+# launch-refused-route-integrity (rc 78 — lib.sh refused because the route could
+# not be applied; see the honest boundary on that claim at the classifier),
+# launch-impossible-no-wrapper (rc 96 — the alias file defines no
+# cma_run_provider, so NO alias on this host can launch) and
+# launch-refused-unclassified (the driver's detection and verdict code sets have
+# drifted). It must NOT include launch-refused-unverified (rc 3): that refusal is
+# the provider's own account status being enforced, nothing ran, no false
+# statement was made, and sweeping it here status-independently would pin the run
+# red on every non-verified alias — which is precisely the regression this sweep
+# was almost the vehicle for.
+route_marked=()
+for ev in ${ALL_TUI_EV+"${ALL_TUI_EV[@]}"}; do
+  [[ -f "$ev" ]] || continue
+  last="$(grep -E '^# (PASS|FAIL:|SKIP)' "$ev" 2>/dev/null | tail -n 1)"
+  case "$last" in
+    '# FAIL: route-'*|'# FAIL: launch-refused-route-integrity'*|\
+    '# FAIL: launch-refused-unclassified'*|'# FAIL: launch-impossible-no-wrapper'*)
+      route_marked+=("$(basename "$ev") -> $last") ;;
+  esac
+done
+if (( ${#route_marked[@]} == 0 )); then
+  _pass "all ${#ALL_TUI_EV[@]} layer-4 evidence file(s) from this run are route-attributable"
+else
+  _fail "layer-4 evidence is NON-ATTRIBUTABLE (verification integrity)" \
+    "${#route_marked[@]} of ${#ALL_TUI_EV[@]}: $(printf '%s; ' "${route_marked[@]}")"
+fi
+
 it "layer-4 classifier honesty: a neutral, non-superpowers response must NOT verify (negative-case, Task-3 review)"
 CB="${CLAUDE_BIN:-$(command -v claude || true)}"
 if [[ -n "$first_id" && -n "$CB" && "$CB" != "/usr/bin/true" && "$(basename "$CB")" == claude* && -f "$ALIASES" ]]; then
@@ -147,10 +439,19 @@ if [[ -n "$first_id" && -n "$CB" && "$CB" != "/usr/bin/true" && "$(basename "$CB
   # not-yet-verified activation gate: the point here is validating the
   # ENGAGEMENT-MARKER REGEX itself never false-matches on ordinary model
   # output, independent of any one alias's current verified/pending status.
+  # -u BASH_ENV is LOAD-BEARING here for the same reason as in
+  # verify_superpowers_tui.sh, and its absence was a real hole (found
+  # 2026-07-20): this launch has the identical shape — a non-interactive
+  # `bash -c` that sources "$ALIASES" explicitly — and a non-interactive bash
+  # sources $BASH_ENV FIRST. On this host BASH_ENV points at the operator's
+  # ~/.bashrc, which transitively sources the managed alias file, so with a
+  # broken/empty/stale "$ALIASES" this check received a WORKING cma_run_provider
+  # from somewhere else entirely and _pass'ed "classifier honesty" having
+  # measured the host's real installation rather than the file it names.
   NEG_SCRUB=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_ENTRYPOINT \
              -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_EXECPATH -u CLAUDE_EFFORT \
              -u CLAUDE_CONFIG_DIR -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL \
-             -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN)
+             -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u BASH_ENV)
   neg_ev="$PROOF_DIR/providers-negative-case-superpowers.txt"
   neg_tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-neg.XXXXXX")"
   neg_out="$( timeout 60 "${NEG_SCRUB[@]}" bash -c '

@@ -87,7 +87,15 @@ assert_file_not_contains "$ALIAS_FILE" "alias claude3=" "alias line removed"
 it "claude-remove-account --delete actually deletes"
 run_remove_account --alias mywork --delete --yes >/dev/null 2>&1
 cond=1; [[ ! -d "$HOME/.claude-mywork" ]] && cond=0; assert_eq 0 "$cond" "dir deleted"
-cond=1; [[ -z "$(find "$HOME" -maxdepth 1 -name '.claude-mywork.removed.*' 2>/dev/null)" ]] && cond=0; assert_eq 0 "$cond" "no archive sibling"
+# "find printed nothing" is also what a find that never ran prints, so pin the
+# find down at both ends: it must exit 0, and the same sweep without the
+# .removed filter must still see the sandbox's other account dirs. Only then
+# does an empty archive list mean "--delete really deleted".
+_ar_all="$(find "$HOME" -maxdepth 1 -name '.claude-*' | grep -c . || true)"
+_ar_hits="$(find "$HOME" -maxdepth 1 -name '.claude-mywork.removed.*')"; _ar_rc=$?
+assert_eq 0 "$_ar_rc" "the archive-sibling find ran (exit 0)"
+cond=1; [[ "${_ar_all:-0}" -ge 1 ]] && cond=0; assert_eq 0 "$cond" "the sweep can see \$HOME's account dirs ($_ar_all found)"
+cond=1; [[ -z "$_ar_hits" ]] && cond=0; assert_eq 0 "$cond" "no archive sibling"
 
 it "claude-remove-account rejects unknown alias"
 ( run_remove_account --alias nonexistent --yes >/dev/null 2>&1 )

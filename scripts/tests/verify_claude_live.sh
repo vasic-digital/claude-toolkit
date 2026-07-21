@@ -49,10 +49,23 @@ mkdir -p "$PROOF_DIR"
 
 [[ -f "$ALIASES_FILE" ]] || { echo "no aliases file ($ALIASES_FILE) — run install.sh"; exit 2; }
 
+# BASH_ENV is scrubbed for the same reason as in verify_superpowers_tui.sh (see
+# the long note there), and this file's launch has the identical shape: a
+# non-interactive `bash -c` that sources "$ALIASES_FILE" explicitly. A
+# non-interactive bash ALSO sources $BASH_ENV first, and where that points at
+# the operator's ~/.bashrc it transitively loads the managed alias file — so
+# cma_run_provider can come from somewhere other than the alias file this script
+# names, and a broken/empty/stale $ALIASES_FILE is undetectable. Verified on
+# this host: `bash -c 'declare -F cma_run_provider'` succeeds with BASH_ENV set,
+# fails with it unset.
+#
+# The two SCRUB lists are asserted IDENTICAL by test_providers.sh:1716-1719
+# ("SCRUB list mirrors verify_claude_live.sh exactly"), so they must be changed
+# together — that assertion is what caught this one.
 SCRUB=(env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_ENTRYPOINT
        -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_EXECPATH -u CLAUDE_EFFORT
        -u CLAUDE_CONFIG_DIR -u ANTHROPIC_MODEL -u ANTHROPIC_BASE_URL
-       -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN)
+       -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u BASH_ENV)
 
 # Shared classifier lives in lib/classify_live.py so stdin carries the transcript
 # (a heredoc here would occupy stdin and swallow the piped output).
@@ -118,11 +131,19 @@ run_cli() {
   '
 }
 
+# The SCRUB is applied to the launch SHELL, not to python3: pty_drive.py is the
+# harness and needs its own environment, while the thing under test is the bash
+# that sources the alias file — exactly the process run_cli scrubs. Until
+# 2026-07-20 this function applied NO scrub at all (the array was referenced only
+# by run_cli), which made this file's own header claim "Each launch runs in a
+# SCRUBBED env" FALSE for TUI mode: the interactive launch inherited CLAUDECODE /
+# CLAUDE_CODE_* / ANTHROPIC_* from the invoking session, and — via BASH_ENV — a
+# cma_run_provider from an alias file other than the one named above.
 run_tui() {
   local id="$1" tmpd
   tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cma-tui.XXXXXX")"
   timeout "$TIMEOUT" python3 "$TESTS_DIR/lib/pty_drive.py" --prompt "$PROMPT" --boot 24 --run "$(( TIMEOUT>90 ? 70 : 45 ))" -- \
-    bash -c 'cd "'"$tmpd"'" && source "'"$ALIASES_FILE"'" >/dev/null 2>&1; cma_run_provider "'"$id"'"' 2>/dev/null
+    "${SCRUB[@]}" bash -c 'cd "'"$tmpd"'" && source "'"$ALIASES_FILE"'" >/dev/null 2>&1; cma_run_provider "'"$id"'"' 2>/dev/null
   rmdir "$tmpd" 2>/dev/null || true
 }
 
