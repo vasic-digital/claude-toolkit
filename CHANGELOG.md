@@ -548,7 +548,7 @@ adds a new user-facing capability, not only a fix.
 ### Verified
 
 Credit-aware selection (this release's new capability):
-- `scripts/tests/test_providers.sh` **294/0**; `test_provider_credit.sh` **127/0**.
+- `scripts/tests/test_providers.sh` **405/0**; `test_provider_credit.sh` **127/0**.
 - The two rule-encoding branches are **mutation-proven** to have teeth: breaking
   the unknown→free conservative default makes the anti-vacuous guard fire
   (`available` and `unknown` stop differing); breaking the credit→paid branch
