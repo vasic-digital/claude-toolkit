@@ -22,9 +22,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -119,10 +121,34 @@ func decodeValue(dec *json.Decoder) (any, error) {
 	}
 }
 
-// findToonScript mirrors Python find_toon_script(): the first existing candidate
-// wins. CMA_TOON_SCRIPT is an explicit override placed at the front — when
-// unset, the default search order matches the Python wrapper (script dir, then
-// the user share dir). Here "script dir" is the executable's directory.
+// findToonScript mirrors Python find_toon_script() for the shared candidates
+// (script/exe dir, then the user share dir) but is INTENTIONALLY WIDER by two
+// extra walk-up candidates — a deliberate, investigated (§11.4.124) divergence
+// from byte-parity, not an oversight:
+//
+// Python's find_toon_script() anchors on os.path.dirname(os.path.abspath(__file__))
+// — the location of the toon_encode.py SOURCE FILE, which is always
+// scripts/ in this repo and never moves. The Go port has no equivalent stable
+// anchor: os.Executable() returns wherever the OPERATOR chose to `go build -o`
+// the binary, which is arbitrary. In the realistic in-place build layout for
+// this module (`cd scripts/toon && go build .`, producing scripts/toon/toon_encode),
+// the binary's OWN directory is scripts/toon/ — sibling-only resolution
+// (exeDir/toon.mjs) would look for scripts/toon/toon.mjs, which does not
+// exist; the real file is one level up at scripts/toon.mjs. Without the first
+// walk-up candidate, that entirely realistic build would silently ALWAYS take
+// the fallback encoder even though toon.mjs is genuinely available — a
+// functional regression with no Python parity benefit, since Python's
+// resolution has no analogue for "where the interpreter binary happens to
+// live" (it always runs the .py file in place).
+//
+// Caveat (documented per the review, not silently accepted): because this
+// candidate set is a strict SUPERSET of Python's, the two wrappers CAN select
+// a different toon.mjs than each other under an unset CMA_TOON_SCRIPT if a
+// decoy toon.mjs exists at ../toon.mjs or ../../toon.mjs relative to wherever
+// the Go binary was built — a layout Python's finder never even considers.
+// This is narrow (requires an operator-placed decoy file at a specific
+// relative path) and is pinned down by TestFindToonScriptWalkUp in
+// encode_test.go so it cannot silently widen further.
 func findToonScript() string {
 	var candidates []string
 	if env := os.Getenv("CMA_TOON_SCRIPT"); env != "" {
@@ -133,7 +159,8 @@ func findToonScript() string {
 		candidates = append(candidates,
 			filepath.Join(exeDir, "toon.mjs"),
 			// Convenience walk-up so a binary built under scripts/toon/ or
-			// scripts/toon/bin/ still finds the repo's scripts/toon.mjs.
+			// scripts/toon/bin/ still finds the repo's scripts/toon.mjs. See
+			// the function doc comment above — deliberate, non-Python-parity.
 			filepath.Join(exeDir, "..", "toon.mjs"),
 			filepath.Join(exeDir, "..", "..", "toon.mjs"),
 		)
@@ -291,13 +318,148 @@ func isContainer(v any) bool {
 	return false
 }
 
+// isFloatLiteral reports whether a JSON number literal parses as a Python
+// float (it has a fraction and/or exponent part) rather than a Python int.
+// Mirrors the json.loads number grammar: int / int frac / int exp / int frac
+// exp, where frac starts with '.' and exp starts with 'e'/'E'.
+func isFloatLiteral(lit string) bool {
+	return strings.ContainsAny(lit, ".eE")
+}
+
+// pyIntString replicates Python's str(int(<JSON int literal>)) — the literal
+// digit string is already canonical (json.Decoder rejects leading zeros)
+// except for "-0", where Python's arbitrary-precision int normalizes the sign
+// away (int("-0") == 0, str(0) == "0").
+func pyIntString(lit string) string {
+	if lit == "-0" {
+		return "0"
+	}
+	return lit
+}
+
+// pyFloatDigits returns the shortest round-trip decimal digit string for
+// |f| (no sign, no decimal point, no trailing zero — e.g. "15" for 1.5,
+// "1" for 1e20, "0" for 0.0) plus decpt, the power-of-ten exponent such that
+// the value equals 0.<digits> * 10^decpt. This is the same "shortest string
+// that round-trips" contract CPython's dtoa (mode 0) and Go's strconv
+// (shortest 'e' formatting) both implement, so the digit sequences agree —
+// only the fixed-vs-scientific display convention (formatPyFloat) differs
+// and is replicated separately below.
+func pyFloatDigits(f float64) (digits string, decpt int) {
+	f = math.Abs(f)
+	s := strconv.FormatFloat(f, 'e', -1, 64) // e.g. "1.5e+20", "1e+00"
+	eIdx := strings.IndexByte(s, 'e')
+	mantissa := strings.Replace(s[:eIdx], ".", "", 1)
+	exp, err := strconv.Atoi(s[eIdx+1:])
+	if err != nil {
+		// Unreachable for a well-formed 'e'-format string from strconv itself.
+		exp = 0
+	}
+	return mantissa, exp + 1
+}
+
+// formatPyFloat replicates CPython's repr(float) / json.dumps(float) digit
+// formatting for a FINITE value (callers handle Inf/NaN/sign separately).
+// CPython's format_float_short (Python/pystrtod.c, mode 'r') switches to
+// scientific notation exactly when decpt > 16 or decpt <= -4; the exponent is
+// always signed with a minimum of two digits. Verified against real `python3
+// -c "print(repr(x))"` output across the finite range (subnormals through
+// DBL_MAX, both notations, both signs) — see encode_test.go TestPyFloatRepr.
+func formatPyFloat(f float64) string {
+	digits, decpt := pyFloatDigits(f)
+	var out string
+	switch {
+	case decpt > 16 || decpt <= -4:
+		mantissa := digits[:1]
+		if len(digits) > 1 {
+			mantissa += "." + digits[1:]
+		}
+		e := decpt - 1
+		sign := "+"
+		if e < 0 {
+			sign = "-"
+			e = -e
+		}
+		out = fmt.Sprintf("%se%s%02d", mantissa, sign, e)
+	case decpt <= 0:
+		out = "0." + strings.Repeat("0", -decpt) + digits
+	case decpt >= len(digits):
+		out = digits + strings.Repeat("0", decpt-len(digits)) + ".0"
+	default:
+		out = digits[:decpt] + "." + digits[decpt:]
+	}
+	if math.Signbit(f) {
+		out = "-" + out
+	}
+	return out
+}
+
+// pyFloatStr replicates Python str(float)/repr(float) (identical in Python 3)
+// for a parsed json.Number float value, including the non-finite cases as
+// str() renders them: lowercase "inf"/"-inf"/"nan".
+func pyFloatStr(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "nan"
+	case math.IsInf(f, 1):
+		return "inf"
+	case math.IsInf(f, -1):
+		return "-inf"
+	default:
+		return formatPyFloat(f)
+	}
+}
+
+// pyFloatJSON replicates Python json.dumps(float): identical digit formatting
+// to pyFloatStr for finite values, but capitalized non-finite spellings
+// ("Infinity"/"-Infinity"/"NaN") — Python's json.dumps allow_nan default.
+func pyFloatJSON(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	default:
+		return formatPyFloat(f)
+	}
+}
+
+// pyNumberStr renders a decoded json.Number the way Python's str()/repr()
+// would render the equivalent int-or-float value: an int-literal token keeps
+// its (sign-normalized) digit string exactly, a float-literal token is
+// re-parsed to float64 and formatted via CPython's shortest-repr algorithm —
+// closing the divergence where the Go fallback previously echoed the raw
+// JSON literal (e.g. "1.50", "1e10") instead of Python's canonicalized
+// re-serialization of the parsed float ("1.5", "10000000000.0").
+func pyNumberStr(n json.Number) string {
+	lit := n.String()
+	if !isFloatLiteral(lit) {
+		return pyIntString(lit)
+	}
+	f, _ := strconv.ParseFloat(lit, 64) // ErrRange still yields the correctly
+	return pyFloatStr(f)                // saturated ±Inf/±0 value, matching Python.
+}
+
+// pyNumberJSON is pyNumberStr's json.dumps-style counterpart (see pyFloatJSON
+// for the only difference: non-finite capitalization).
+func pyNumberJSON(n json.Number) string {
+	lit := n.String()
+	if !isFloatLiteral(lit) {
+		return pyIntString(lit)
+	}
+	f, _ := strconv.ParseFloat(lit, 64)
+	return pyFloatJSON(f)
+}
+
 // pyStr replicates Python str() for the value types produced by JSON decoding.
 func pyStr(v any) string {
 	switch val := v.(type) {
 	case string:
 		return val
 	case json.Number:
-		return val.String()
+		return pyNumberStr(val)
 	case bool:
 		if val {
 			return "True"
@@ -326,7 +488,7 @@ func jsonDumps(v any) string {
 		}
 		return "false"
 	case json.Number:
-		return val.String()
+		return pyNumberJSON(val)
 	case string:
 		return pyJSONString(val)
 	case []any:
@@ -402,7 +564,7 @@ func pyRepr(v any) string {
 	case string:
 		return pyReprString(val)
 	case json.Number:
-		return val.String()
+		return pyNumberStr(val) // repr(int)==str(int), repr(float)==str(float)
 	case bool:
 		if val {
 			return "True"

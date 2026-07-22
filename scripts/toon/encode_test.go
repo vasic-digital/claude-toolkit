@@ -13,9 +13,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -208,6 +211,12 @@ func TestParityFallbackMode(t *testing.T) {
 	if strings.Contains(probe.stdout, "a[1]{k}:") {
 		t.Fatalf("fallback isolation failed: python still reached toon.mjs (got %q)", probe.stdout)
 	}
+	// Symmetric Go-side probe: prove the Go binary ALSO really took the
+	// fallback path in this environment, not a stray reachable toon.mjs.
+	goProbe := runProc(t, bin, nil, `{"a":[{"k":1}]}`, fallbackEnv)
+	if strings.Contains(goProbe.stdout, "a[1]{k}:") {
+		t.Fatalf("fallback isolation failed: go binary still reached toon.mjs (got %q)", goProbe.stdout)
+	}
 
 	for _, in := range v.Valid {
 		py := runProc(t, "python3", []string{pyScript}, in, fallbackEnv)
@@ -230,6 +239,288 @@ func TestParityFallbackMode(t *testing.T) {
 				in, py.exit, go_.exit)
 		}
 	}
+}
+
+// runViaFile writes jsonStr to a fresh file inside dir and returns the
+// --file invocation args (no stdin needed).
+func runViaFile(t *testing.T, dir, jsonStr string, n int) []string {
+	t.Helper()
+	path := filepath.Join(dir, fmt.Sprintf("input_%d.json", n))
+	if err := os.WriteFile(path, []byte(jsonStr), 0o644); err != nil {
+		t.Fatalf("write input file: %v", err)
+	}
+	return []string{"--file", path}
+}
+
+// TestParityInputPathsFallback closes the review finding that only the stdin
+// path was parity-tested: it proves byte-identical output between the real
+// Python wrapper and the real Go binary via the --file flag AND the
+// positional-argument form, in the fallback (no-toon.mjs) mode — the mode
+// where the review's real python3-vs-Go run found the number-formatting
+// divergence (e.g. {"n":1.50} diverged specifically over --file too).
+func TestParityInputPathsFallback(t *testing.T) {
+	root := repoRoot(t)
+	pyScriptSrc := filepath.Join(root, "scripts", "toon_encode.py")
+	if !haveCmd("python3") {
+		t.Skip("SKIP: python3 not installed")
+	}
+
+	isoHome := t.TempDir()
+	pyDir := t.TempDir()
+	pyScript := filepath.Join(pyDir, "toon_encode.py")
+	src, err := os.ReadFile(pyScriptSrc)
+	if err != nil {
+		t.Fatalf("read python source: %v", err)
+	}
+	if err := os.WriteFile(pyScript, src, 0o644); err != nil {
+		t.Fatalf("copy python source: %v", err)
+	}
+
+	binDir := t.TempDir()
+	bin := buildBinary(t, binDir)
+	fallbackEnv := envWith(envWith(os.Environ(), "HOME", isoHome), "CMA_TOON_SCRIPT", "")
+	v := loadVectors(t)
+	fileDir := t.TempDir()
+
+	for i, in := range v.Valid {
+		// --file path.
+		fileArgs := runViaFile(t, fileDir, in, i)
+		py := runProc(t, "python3", append([]string{pyScript}, fileArgs...), "", fallbackEnv)
+		go_ := runProc(t, bin, fileArgs, "", fallbackEnv)
+		if py.exit != 0 {
+			t.Errorf("python non-zero exit on valid --file input %q (exit=%d)", in, py.exit)
+		} else if py.stdout != go_.stdout || py.exit != go_.exit {
+			t.Errorf("FALLBACK --file MISMATCH\ninput:  %q\npython: exit=%d %q\ngo:     exit=%d %q",
+				in, py.exit, py.stdout, go_.exit, go_.stdout)
+		}
+
+		// Positional-argument path (skip empty string: argparse treats a
+		// positional "" identically to "not given", which is stdin — not
+		// a distinct positional-arg case worth asserting here).
+		if in == "" {
+			continue
+		}
+		py = runProc(t, "python3", []string{pyScript, in}, "", fallbackEnv)
+		go_ = runProc(t, bin, []string{in}, "", fallbackEnv)
+		if py.exit != 0 {
+			t.Errorf("python non-zero exit on valid positional input %q (exit=%d)", in, py.exit)
+		} else if py.stdout != go_.stdout || py.exit != go_.exit {
+			t.Errorf("FALLBACK positional-arg MISMATCH\ninput:  %q\npython: exit=%d %q\ngo:     exit=%d %q",
+				in, py.exit, py.stdout, go_.exit, go_.stdout)
+		}
+	}
+}
+
+// TestParityInputPathsNodeMode is TestParityInputPathsFallback's Node-mode
+// counterpart: proves --file and positional-argument parity when both
+// wrappers drive the real toon.mjs via node.
+func TestParityInputPathsNodeMode(t *testing.T) {
+	root := repoRoot(t)
+	pyScript := filepath.Join(root, "scripts", "toon_encode.py")
+	toonMjs := filepath.Join(root, "scripts", "toon.mjs")
+	if !haveCmd("python3") {
+		t.Skip("SKIP: python3 not installed")
+	}
+	if !haveCmd("node") {
+		t.Skip("SKIP: node not installed")
+	}
+	if _, err := os.Stat(toonMjs); err != nil {
+		t.Skip("SKIP: scripts/toon.mjs not present")
+	}
+	probe := exec.Command("node", toonMjs, "encode", "{}")
+	if err := probe.Run(); err != nil {
+		t.Skip("SKIP: @toon-format/toon package not installed (node probe failed)")
+	}
+
+	binDir := t.TempDir()
+	bin := buildBinary(t, binDir)
+	v := loadVectors(t)
+	fileDir := t.TempDir()
+
+	pyEnv := os.Environ()
+	goEnv := envWith(os.Environ(), "CMA_TOON_SCRIPT", toonMjs)
+
+	for i, in := range v.Valid {
+		fileArgs := runViaFile(t, fileDir, in, i)
+		py := runProc(t, "python3", append([]string{pyScript}, fileArgs...), "", pyEnv)
+		go_ := runProc(t, bin, fileArgs, "", goEnv)
+		if py.exit != 0 {
+			t.Errorf("python non-zero exit on valid --file input %q (exit=%d)", in, py.exit)
+		} else if py.stdout != go_.stdout || py.exit != go_.exit {
+			t.Errorf("NODE-MODE --file MISMATCH\ninput:  %q\npython: exit=%d %q\ngo:     exit=%d %q",
+				in, py.exit, py.stdout, go_.exit, go_.stdout)
+		}
+
+		if in == "" {
+			continue
+		}
+		py = runProc(t, "python3", []string{pyScript, in}, "", pyEnv)
+		go_ = runProc(t, bin, []string{in}, "", goEnv)
+		if py.exit != 0 {
+			t.Errorf("python non-zero exit on valid positional input %q (exit=%d)", in, py.exit)
+		} else if py.stdout != go_.stdout || py.exit != go_.exit {
+			t.Errorf("NODE-MODE positional-arg MISMATCH\ninput:  %q\npython: exit=%d %q\ngo:     exit=%d %q",
+				in, py.exit, py.stdout, go_.exit, go_.stdout)
+		}
+	}
+}
+
+// TestNaNInfinityDocumentedDivergence GATES a known, deliberately-NOT-CLOSED
+// divergence (§11.4.6 honest documentation, not silence): Python's json
+// module accepts the non-standard bare literals NaN/Infinity/-Infinity
+// (json.loads's default parse_constant) and exits 0; Go's encoding/json
+// implements strict JSON grammar and rejects them, exiting 1. Closing this
+// gap would require a bespoke JSON tokenizer accepting these three bare
+// identifiers ONLY in value position (encoding/json's Decoder has no such
+// extension point, and a naive text-substitution pre-pass would be unsafe —
+// it cannot tell a bare NaN token from the literal text "NaN" inside a JSON
+// string without re-implementing the tokenizer regardless). Accepted-lossy
+// per the review's own instruction; this test exists so a future change to
+// EITHER side's behaviour on this exact input set is caught, never silent.
+func TestNaNInfinityDocumentedDivergence(t *testing.T) {
+	root := repoRoot(t)
+	pyScriptSrc := filepath.Join(root, "scripts", "toon_encode.py")
+	if !haveCmd("python3") {
+		t.Skip("SKIP: python3 not installed")
+	}
+	isoHome := t.TempDir()
+	pyDir := t.TempDir()
+	pyScript := filepath.Join(pyDir, "toon_encode.py")
+	src, err := os.ReadFile(pyScriptSrc)
+	if err != nil {
+		t.Fatalf("read python source: %v", err)
+	}
+	if err := os.WriteFile(pyScript, src, 0o644); err != nil {
+		t.Fatalf("copy python source: %v", err)
+	}
+	binDir := t.TempDir()
+	bin := buildBinary(t, binDir)
+	fallbackEnv := envWith(envWith(os.Environ(), "HOME", isoHome), "CMA_TOON_SCRIPT", "")
+
+	cases := []struct {
+		in         string
+		pyWant     string
+		pyWantExit int
+	}{
+		{`{"n":NaN}`, "n: NaN\n", 0},
+		{`{"n":Infinity}`, "n: Infinity\n", 0},
+		{`{"n":-Infinity}`, "n: -Infinity\n", 0},
+		{`NaN`, "nan\n", 0},
+		{`Infinity`, "inf\n", 0},
+		{`-Infinity`, "-inf\n", 0},
+	}
+	for _, c := range cases {
+		py := runProc(t, "python3", []string{pyScript}, c.in, fallbackEnv)
+		if py.exit != c.pyWantExit || py.stdout != c.pyWant {
+			t.Errorf("python behaviour on %q changed — update this documented divergence: exit=%d stdout=%q (want exit=%d stdout=%q)",
+				c.in, py.exit, py.stdout, c.pyWantExit, c.pyWant)
+		}
+		go_ := runProc(t, bin, nil, c.in, fallbackEnv)
+		if go_.exit == 0 {
+			t.Errorf("go now ACCEPTS %q (exit 0, stdout=%q) — the NaN/Infinity gap is closed, update this test to assert parity instead of documenting divergence",
+				c.in, go_.stdout)
+		}
+	}
+}
+
+// TestPyFloatRepr proves formatPyFloat matches CPython's repr(float) across a
+// broad, deterministic sweep of float64 values — structured edge cases
+// (every decpt boundary the fixed/scientific switch depends on, subnormals,
+// DBL_MAX, signed zero) plus a large fixed-seed pseudo-random bit-pattern
+// sample. Values cross to Python via IEEE-754 hex-float literals
+// (float.fromhex), an encoding independent of the decimal formatter under
+// test, so the oracle itself cannot be fooled by a shared formatting bug
+// (§11.4.201 control-needle discipline applied to this test's own bridge).
+// SKIPs (never fake-passes) when python3 is unavailable.
+func TestPyFloatRepr(t *testing.T) {
+	if !haveCmd("python3") {
+		t.Skip("SKIP: python3 not installed")
+	}
+
+	values := pyFloatReprSweepValues()
+
+	var script strings.Builder
+	script.WriteString("import sys\n")
+	script.WriteString("for line in sys.stdin:\n")
+	script.WriteString("    line = line.strip()\n")
+	script.WriteString("    if not line:\n        continue\n")
+	script.WriteString("    print(repr(float.fromhex(line)))\n")
+
+	var hexLines strings.Builder
+	for _, f := range values {
+		hexLines.WriteString(strconv.FormatFloat(f, 'x', -1, 64))
+		hexLines.WriteByte('\n')
+	}
+
+	cmd := exec.Command("python3", "-c", script.String())
+	cmd.Stdin = strings.NewReader(hexLines.String())
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("python3 repr sweep failed: %v\nstderr: %s", err, stderr.String())
+	}
+
+	pyLines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(pyLines) != len(values) {
+		t.Fatalf("python3 produced %d lines for %d inputs", len(pyLines), len(values))
+	}
+
+	mismatches := 0
+	for i, f := range values {
+		got := formatPyFloat(f)
+		want := pyLines[i]
+		if got != want {
+			mismatches++
+			if mismatches <= 20 {
+				t.Errorf("formatPyFloat(%s) = %q, python repr = %q", strconv.FormatFloat(f, 'x', -1, 64), got, want)
+			}
+		}
+	}
+	if mismatches > 20 {
+		t.Errorf("... and %d more mismatches (%d/%d total)", mismatches-20, mismatches, len(values))
+	}
+}
+
+// pyFloatReprSweepValues returns the deterministic value set TestPyFloatRepr
+// checks: every decpt-threshold boundary case, the finite float64 extremes,
+// and a fixed-seed pseudo-random bit-pattern sample (xorshift64, no math/rand
+// dependency needed) spanning the full exponent range.
+func pyFloatReprSweepValues() []float64 {
+	values := []float64{
+		0.0, math.Copysign(0, -1),
+		1.0, -1.0, 9.9, 1.5, 100.0,
+		1e15, 1e16, 1e17, // decpt 16/17/18 boundary (>16 switches to sci)
+		1e-3, 1e-4, 1e-5, 1e-6, // decpt -3/-4 boundary (<=-4 switches to sci)
+		9999999999999998.0, 1234567890123456.0, 12345678901234567.0,
+		math.MaxFloat64, -math.MaxFloat64,
+		4.9406564584124654e-324, // smallest positive subnormal (5e-324 rounds up)
+		math.SmallestNonzeroFloat64,
+		2.2250738585072014e-308, // smallest positive normal
+	}
+	// Structured exponent × mantissa sweep, matching the manual review that
+	// found the original divergence.
+	for _, exp := range []int{-320, -100, -20, -16, -15, -6, -5, -4, -3, 0, 3, 10, 15, 16, 17, 20, 100, 300} {
+		for _, mant := range []float64{1, 1.5, 9.99999, 1.23456789012345, -1, -1.5} {
+			v := mant * math.Pow(10, float64(exp))
+			if !math.IsInf(v, 0) && !math.IsNaN(v) {
+				values = append(values, v)
+			}
+		}
+	}
+	// Fixed-seed xorshift64 bit-pattern sample across the full float64 space,
+	// filtered to finite values.
+	var state uint64 = 0x2545F4914F6CDD1D
+	for i := 0; i < 4000; i++ {
+		state ^= state << 13
+		state ^= state >> 7
+		state ^= state << 17
+		f := math.Float64frombits(state)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			values = append(values, f)
+		}
+	}
+	return values
 }
 
 // TestCLIContract is a hermetic (no external dependency) guard on the CLI
