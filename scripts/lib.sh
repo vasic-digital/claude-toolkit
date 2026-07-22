@@ -1442,21 +1442,71 @@ cma_run_provider() {
     # the router never sees a field it does not model.
     local _real_base="$base" _eph_base=""
     local _eph_marker="$HOME/.claude-code-router/.cma-ephemeral.json"
+    local _eph_lock="${_eph_marker}.lock"
     local _prior_default="" _prior_background=""
     local _wrote_default="" _wrote_background=""
+    # Mutual exclusion for every read-modify-write touching $_eph_marker below
+    # (reap-on-start here, add-on-launch further down, delete-on-exit inside
+    # _cma_ccr_unfossilise). Two CONCURRENT cma_run_provider launches both
+    # touch this one file; without a lock the classic lost update is live:
+    # launch A reads the marker, adds its own key, and mv's the result in;
+    # launch B — already holding a snapshot read from BEFORE A's write —
+    # computes ITS OWN add against that stale snapshot and mv's it in too,
+    # silently overwriting the whole file and dropping A's entry (the entry
+    # A's own exit repair needs to prove, via CAS, that it still owns the
+    # route it wrote). flock is per-open-file-description and released by the
+    # KERNEL the instant the holding process dies (no stale-lock recovery is
+    # needed here the way the mkdir-based _cma_alias_lock_* fallback
+    # elsewhere in this file requires for its non-flock backend); an absent
+    # `flock` binary (no macOS) degrades to the pre-existing UNLOCKED
+    # behaviour rather than blocking a launch — consistent with this whole
+    # section's best-effort discipline (a missing `jq` is handled the same
+    # way, one line below).
+    _cma_eph_lock() {
+      command -v flock >/dev/null 2>&1 || return 0
+      exec 9>>"$_eph_lock" 2>/dev/null || return 0
+      flock -x 9 2>/dev/null || true
+      return 0
+    }
+    _cma_eph_unlock() {
+      flock -u 9 2>/dev/null || true
+      { exec 9>&-; } 2>/dev/null || true
+      return 0
+    }
     if command -v jq >/dev/null 2>&1; then
       _prior_default="$(jq -r '.Router.default // ""' "$cfg" 2>/dev/null || printf '')"
       _prior_background="$(jq -r '.Router.background // ""' "$cfg" 2>/dev/null || printf '')"
       # (2) stale-fossil reap. Entirely best-effort: any failure here must never
       # block a launch, so every step is guarded and the loop simply moves on.
       if [[ -s "$_eph_marker" ]]; then
+        _cma_eph_lock
         local _rv_dead="[]" _rv_n _rv_pid _rv_tmp
-        for _rv_n in $(jq -r 'keys[]?' "$_eph_marker" 2>/dev/null); do
+        # `< <(jq …)` (process substitution) feeding a `while IFS= read -r`,
+        # NOT `for x in $(jq …)` — an unquoted command substitution word-
+        # splits on IFS, so a hypothetical whitespace-bearing provider id
+        # would silently fan out into multiple bogus keys. NOT a trailing
+        # `jq … | while …` pipe either: bash runs the LAST stage of a pipeline
+        # in a subshell, so `_rv_dead` accumulated inside such a loop would
+        # vanish the moment the loop exits and this reap would never see any
+        # dead entry. Process substitution keeps the loop in THIS shell while
+        # still reading one whole line at a time.
+        while IFS= read -r _rv_n; do
+          [[ -n "$_rv_n" ]] || continue
           _rv_pid="$(jq -r --arg k "$_rv_n" '.[$k].pid // 0' "$_eph_marker" 2>/dev/null || printf '0')"
           # Liveness PROVEN, never assumed — a live owner keeps its address.
+          # Conservative-by-construction on PID reuse: if the ORIGINAL owner
+          # died and the kernel later hands its pid to some UNRELATED later
+          # process, `kill -0` reads that pid as alive, so this entry is kept
+          # and NOT reaped this cycle. That is the SAFE direction — the worst
+          # outcome is one stale fossil surviving an extra reap cycle, never a
+          # live owner's address being ripped out from under it — and it
+          # self-heals the next time the SAME provider launches: CAS-1 in
+          # _cma_ccr_unfossilise (`_u_addr_now == _u_eph`) still fires on the
+          # marker's own record, and a later reap catches it once the reused
+          # pid itself is gone too.
           if [[ "$_rv_pid" != "0" ]] && kill -0 "$_rv_pid" 2>/dev/null; then continue; fi
           _rv_dead="$(jq -c --arg k "$_rv_n" '. + [$k]' <<<"$_rv_dead" 2>/dev/null || printf '%s' "$_rv_dead")"
-        done
+        done < <(jq -r 'keys[]?' "$_eph_marker" 2>/dev/null)
         if [[ "$_rv_dead" != "[]" ]]; then
           _rv_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_rv_tmp" 2>/dev/null
           if [[ -n "$_rv_tmp" ]] && jq --argjson dead "$_rv_dead" --slurpfile mk "$_eph_marker" '
@@ -1479,6 +1529,7 @@ cma_run_provider() {
             [[ -n "$_rv_tmp" ]] && rm -f "$_rv_tmp"
           fi
         fi
+        _cma_eph_unlock
       fi
     fi
     # (1) Exit repair. Defined here (indented — a `}` at column 0 would end the
@@ -1532,14 +1583,24 @@ cma_run_provider() {
         rm -f "$_u_tmp"
       fi
       # Drop our marker entry last: until here it is the crash-recovery record.
+      # Locked (§11.4.180/marker-lost-update hardening): _u_marker is derived
+      # from $_eph_marker by the caller and $_eph_lock is visible here via the
+      # SAME bash dynamic-scoping this function already relies on for $_ccr
+      # (see the comment on this function's own definition) — _cma_eph_lock /
+      # _cma_eph_unlock are defined once, before this function's first call
+      # site, alongside $_eph_lock's declaration.
       if [[ -n "$_u_marker" && -s "$_u_marker" ]]; then
-        local _u_mt; _u_mt="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" || return 0
-        chmod 600 "$_u_mt" 2>/dev/null || true
-        if jq --arg k "$_u_n" 'del(.[$k])' "$_u_marker" >| "$_u_mt" 2>/dev/null && [[ -s "$_u_mt" ]]; then
-          command mv -f "$_u_mt" "$_u_marker" 2>/dev/null
-        else
-          rm -f "$_u_mt"
+        _cma_eph_lock
+        local _u_mt; _u_mt="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)"
+        if [[ -n "$_u_mt" ]]; then
+          chmod 600 "$_u_mt" 2>/dev/null || true
+          if jq --arg k "$_u_n" 'del(.[$k])' "$_u_marker" >| "$_u_mt" 2>/dev/null && [[ -s "$_u_mt" ]]; then
+            command mv -f "$_u_mt" "$_u_marker" 2>/dev/null
+          else
+            rm -f "$_u_mt"
+          fi
         fi
+        _cma_eph_unlock
       fi
       return 0
     }
@@ -1655,7 +1716,11 @@ cma_run_provider() {
           # durable, so a launch killed before its exit repair (SIGKILL, reboot)
           # still leaves the next launch enough to reap the fossil. $$ is the
           # owning shell; the next launch reaps only when `kill -0` proves it dead.
+          # Locked (marker-lost-update hardening — see _eph_lock's declaration
+          # above): read-modify-write against $_eph_marker under the same
+          # cross-launch mutual exclusion as the reap loop and the exit repair.
           if [[ -n "$_eph_base" ]] && command -v jq >/dev/null 2>&1; then
+            _cma_eph_lock
             local _mk_tmp
             [[ -f "$_eph_marker" ]] || ( umask 077; printf '{}\n' > "$_eph_marker" )
             _mk_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_mk_tmp" 2>/dev/null
@@ -1667,6 +1732,7 @@ cma_run_provider() {
             else
               [[ -n "$_mk_tmp" ]] && rm -f "$_mk_tmp"
             fi
+            _cma_eph_unlock
           fi
           # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
           # Its failure means the file is right and the gateway is still wrong —
