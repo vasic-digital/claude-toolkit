@@ -49,6 +49,15 @@
 #      "not a router"
 #   H. M1: a dangling symlink at the stable install path is diagnosed as
 #      ITSELF ("not executable"), not misreported via the PATH fallback
+#   I. I3 (review 2026-07-23): a FAST probe read through a COMMAND SUBSTITUTION
+#      returns immediately, never at the budget — the watchdog must not hold
+#      the cmd-subst pipe. Standing regression guard for the pipe-hold class:
+#      any future background job inside the probe that keeps the caller's
+#      stdio re-opens the stall and fails this case.
+#   J. I3 safety: the fd-detached watchdog STILL bounds a wedged probe (rc=124)
+#   K. residual (b): the cma-proxy check is bounded too — a wedged proxy fails
+#      loudly AS a hang (never hangs verify, never conflated with "does not
+#      execute"); a healthy proxy verifies fast end-to-end
 set -uo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "$TESTS_DIR/.." && pwd)"
@@ -332,6 +341,141 @@ case "$outH" in
   *"not executable"*) _pass "the dangling symlink was diagnosed as itself (reachable branch)" ;;
   *) _fail "dangling symlink not diagnosed distinctly" "$outH" ;;
 esac
+rm -f "$HOME/.local/bin/ccr"
+
+# ============================================================================
+# I/J probe the lib.sh function DIRECTLY (unit level), so lib.sh is sourced
+# here the same way test_lib.sh does it. lib.sh enables `set -e`; the harness
+# asserts on non-zero exits, so turn it back off.
+# shellcheck source=../lib.sh
+source "$SCRIPTS_DIR/lib.sh"
+set +e
+
+# ============================================================================
+it "I. I3: fast probe through a COMMAND SUBSTITUTION returns immediately, not at the budget"
+# Review finding I3 (2026-07-23, measured 3-way): the watchdog subshell
+# inherited the caller's command-substitution PIPE; on a fast probe the disarm
+# kill orphaned its `sleep <budget>` child, which held the pipe write-end
+# open, so the $( ) blocked for the FULL budget — +15s on EVERY healthy
+# install/verify (both real call sites, verify:ccr and ccr-build:resident,
+# capture through command substitution). Verdict/rc/output stayed CORRECT —
+# only wall time leaked — which is why no existing assertion saw it. This case
+# is the standing BEHAVIOURAL guard for the class (§11.4.201: assert the real
+# condition — a static "no & inside \$( )" grep would false-positive on
+# properly-detached jobs): any future background helper inside the probe that
+# still holds the caller's stdio re-opens the stall and fails the bound below.
+mkdir -p "$HOME/.probe-stubs"
+FAST="$HOME/.probe-stubs/fast-help"
+sandbox_stub "$FAST" <<'STUB'
+#!/usr/bin/env bash
+echo "fast stub help line"
+STUB
+_t0=$SECONDS
+outI="$(cma_probe_help "$FAST" 8)"; rcI=$?
+_elI=$(( SECONDS - _t0 ))
+assert_eq "0" "$rcI" "fast probe returns the probe's own rc (0)"
+case "$outI" in
+  *"fast stub help line"*) _pass "probe output captured through the command substitution" ;;
+  *) _fail "probe output lost through the command substitution" "$outI" ;;
+esac
+if (( _elI <= 3 )); then
+  _pass "returned in ${_elI}s — decoupled from the 8s budget"
+else
+  _fail "command substitution held for ${_elI}s of an 8s budget — a background arm of the probe still holds the cmd-subst pipe (I3)"
+fi
+
+# ============================================================================
+it "J. I3 safety: WEDGED probe is still bounded at rc=124 after the fd detach"
+# The paired §11.4.201(1) guard for the I3 fix: detaching the watchdog's stdio
+# must not detach its TEETH. A never-answering binary must still be killed at
+# the budget and reported as 124 — through the same command-substitution call
+# shape the real call sites use.
+WEDGE="$HOME/.probe-stubs/wedged-help"
+sandbox_stub "$WEDGE" <<'STUB'
+#!/usr/bin/env bash
+# wedged probe target: never answers anything
+exec sleep 600
+STUB
+_t0=$SECONDS
+outJ="$(cma_probe_help "$WEDGE" 3)"; rcJ=$?
+_elJ=$(( SECONDS - _t0 ))
+assert_eq "124" "$rcJ" "watchdog kill still reports rc=124"
+if [ -z "$outJ" ]; then
+  _pass "no output leaked through the capture from the killed probe"
+else
+  _fail "unexpected output captured from a killed probe" "$outJ"
+fi
+if (( _elJ >= 2 && _elJ <= 10 )); then
+  _pass "bounded at ~budget (${_elJ}s for a 3s budget)"
+else
+  _fail "wedged probe not correctly bounded (${_elJ}s for a 3s budget)"
+fi
+
+# ============================================================================
+it "K1. residual (b): WEDGED cma-proxy must not hang verify — bounded + named AS a hang"
+# Review residual (b) (2026-07-23): the cma-proxy check ran --has-transform /
+# --help UNBOUNDED — the same wedge class as I1, at the same install seam, in
+# a file new in this commit. A wedged proxy binary must (1) never hang verify,
+# (2) FAIL (a broken installed artifact is not 'degraded-absent'), (3) be
+# reported AS a hang — the M2 discipline — never as "does not execute".
+make_bundled_ccr "$HOME/.local/bin/ccr"
+PROXY_DIR="$HOME/.claude-shared/proxy"
+mkdir -p "$PROXY_DIR"
+sandbox_stub "$PROXY_DIR/cma-proxy" <<'STUB'
+#!/usr/bin/env bash
+# wedged proxy: never answers any invocation
+exec sleep 600
+STUB
+# Outer guard so the RED state (pre-fix unbounded proxy probe) cannot hang the
+# suite; after the fix the run finishes in ~CMA_VERIFY_PROBE_BUDGET seconds.
+_outer=()
+command -v timeout >/dev/null 2>&1 && _outer=(timeout 60)
+_t0=$SECONDS
+outK1="$(${_outer[@]+"${_outer[@]}"} env CMA_CCR_BIN='' CMA_VERIFY_PROBE_BUDGET=3 bash "$VERIFY" 2>&1)"; rcK1=$?
+_elK1=$(( SECONDS - _t0 ))
+if (( rcK1 == 124 )); then
+  _fail "verify HUNG past the 60s outer guard — the cma-proxy probe is UNBOUNDED (residual b)"
+else
+  _pass "verify completed with a wedged proxy present (rc=$rcK1 in ${_elK1}s)"
+fi
+assert_eq "1" "$rcK1" "a wedged proxy binary is a FAIL (broken installed artifact), not ok/degraded"
+case "$outK1" in
+  *"cma-proxy"*"did not answer"*) _pass "the proxy hang was reported distinctly (M2 discipline)" ;;
+  *) _fail "wedged proxy not reported as a hang" "$outK1" ;;
+esac
+case "$outK1" in
+  *"exists but does not execute"*) _fail "proxy wedge misclassified as 'does not execute' (the M2 conflation)" "$outK1" ;;
+  *) _pass "no misclassification as 'does not execute'" ;;
+esac
+
+# ============================================================================
+it "K2. I3 end-to-end: HEALTHY host verify completes immediately (was +15s per probe)"
+# The reviewer's end-to-end measurement: with a healthy ccr, verify took 15s
+# (the full default budget) because the ccr probe's watchdog held the cmd-subst
+# pipe. Healthy ccr + healthy proxy at the DEFAULT budget must verify green in
+# seconds — this is what every install step 7 costs on a healthy host.
+sandbox_stub "$PROXY_DIR/cma-proxy" <<'STUB'
+#!/usr/bin/env bash
+# healthy proxy stub: answers --has-transform like the real Go binary (exit 0);
+# --help exits 2 exactly like Go stdlib flag's ErrHelp does on the real proxy.
+[ "${1:-}" = "--has-transform" ] && exit 0
+echo "usage: cma-proxy ..." >&2
+exit 2
+STUB
+_t0=$SECONDS
+outK2="$(${_outer[@]+"${_outer[@]}"} env CMA_CCR_BIN='' bash "$VERIFY" 2>&1)"; rcK2=$?
+_elK2=$(( SECONDS - _t0 ))
+assert_eq "0" "$rcK2" "healthy ccr + healthy proxy -> verify PASSES"
+case "$outK2" in
+  *"compatibility proxy verified"*) _pass "proxy confirmed through the bounded probe" ;;
+  *) _fail "healthy proxy not confirmed" "$outK2" ;;
+esac
+if (( _elK2 <= 8 )); then
+  _pass "end-to-end verify in ${_elK2}s at the default 15s budget — no stall"
+else
+  _fail "healthy-host verify took ${_elK2}s — the I3 stall is back (a probe held to its budget)"
+fi
+rm -rf "$PROXY_DIR" "$HOME/.probe-stubs"
 rm -f "$HOME/.local/bin/ccr"
 
 summary

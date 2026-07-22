@@ -43,8 +43,9 @@
 # Env knobs:
 #   CMA_CCR_BIN              override the router path (same knob cma_run_provider honours)
 #   SHARED_DIR               where cma-proxy lives (default ~/.claude-shared)
-#   CMA_VERIFY_PROBE_BUDGET  seconds before a silent --help probe is declared
-#                            wedged and killed (default 15)
+#   CMA_VERIFY_PROBE_BUDGET  seconds before a silent probe (ccr --help, and
+#                            each cma-proxy arm) is declared wedged and killed
+#                            (default 15)
 set -uo pipefail
 
 _src="${BASH_SOURCE[0]}"
@@ -68,11 +69,13 @@ done
 _fails=0
 _degraded=0
 
-# The --help probe is lib.sh's cma_probe_help: bounded on EVERY host by its own
+# Every binary probe below (ccr --help, both cma-proxy arms) runs through
+# lib.sh's cma_probe_run/cma_probe_help: bounded on EVERY host by its own
 # watchdog (returns 124 on a kill, like coreutils timeout). The previous local
 # probe was bounded only where coreutils `timeout` existed — its fallback
 # branch (macOS without coreutils) ran the binary UNBOUNDED, so a wedged router
-# hung the install forever (review finding I1, 2026-07-22).
+# hung the install forever (review finding I1, 2026-07-22); the cma-proxy check
+# was the same class unbounded until review residual (b), 2026-07-23.
 _PROBE_BUDGET="${CMA_VERIFY_PROBE_BUDGET:-15}"
 
 _ok()   { (( QUIET )) || printf '  [ok]       %s\n' "$1"; }
@@ -152,11 +155,26 @@ fi
 #        (§11.4.69 honest SKIP-with-reason, never a silent pass).
 _proxy_bin="${SHARED_DIR:-$HOME/.claude-shared}/proxy/cma-proxy"
 if [ -x "$_proxy_bin" ]; then
-  if "$_proxy_bin" --has-transform helixagent >/dev/null 2>&1 \
-     || "$_proxy_bin" --help >/dev/null 2>&1; then
+  # BOUNDED (review residual (b), 2026-07-23): both probe arms run under the
+  # same watchdog as the ccr probe above — a WEDGED proxy binary is the same
+  # hang class at the same install seam and must not stall the install.
+  # --has-transform is the arm the REAL binary answers with exit 0; its
+  # --help exits 2 (Go stdlib flag prints usage via ErrHelp), so --help is
+  # only a generosity fallback for a binary that answers help but not the
+  # transform grammar. A 124 on either arm is a HANG, reported as one (the
+  # M2 discipline) — never conflated with "does not execute".
+  _prc=0; cma_probe_run "$_PROBE_BUDGET" "$_proxy_bin" --has-transform helixagent >/dev/null || _prc=$?
+  if [ "$_prc" -ne 0 ] && [ "$_prc" -ne 124 ]; then
+    _prc=0; cma_probe_help "$_proxy_bin" "$_PROBE_BUDGET" >/dev/null || _prc=$?
+  fi
+  if [ "$_prc" -eq 0 ]; then
     _ok "cma-proxy: compatibility proxy verified ($_proxy_bin)"
+  elif [ "$_prc" -eq 124 ]; then
+    _fail "cma-proxy: '$_proxy_bin' did not answer within ${_PROBE_BUDGET}s — killed by the probe watchdog.
+             A WEDGED/hanging proxy binary, not a grammar mismatch.
+             Fix: claude-proxy-build   (rebuilding replaces the wedged binary)"
   else
-    _fail "cma-proxy: '$_proxy_bin' exists but does not execute.
+    _fail "cma-proxy: '$_proxy_bin' exists but does not execute (probe rc=$_prc).
              Fix: claude-proxy-build"
   fi
 else

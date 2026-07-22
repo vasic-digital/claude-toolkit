@@ -181,34 +181,52 @@ cma_realpath() {
   printf '%s/%s\n' "$dir" "$base"
 }
 
-# cma_probe_help BIN [SECONDS] — BOUNDED `--help` probe of a binary; prints the
-# first 20 lines of its combined output and never hangs.
+# cma_probe_run SECONDS BIN [ARG...] — BOUNDED run of a binary with any probe
+# grammar; prints the first 20 lines of its combined output, never hangs, and
+# never stalls its caller.
 #
-# Why not `timeout 15 "$bin" --help | head -20` (the previous shape):
+# Why not `timeout 15 "$bin" ... | head -20` (the previous shape):
 #   1. `timeout` is absent on macOS without coreutils, and the fallback that
 #      shipped there ran the binary UNBOUNDED — a wedged router hung the
 #      installer forever (review finding I1, 2026-07-22).
 #   2. Even where `timeout` exists, a probed binary that spawns a child which
 #      inherits stdout keeps the PIPE open after the parent is killed, so the
-#      `head` reader can still wait forever on EOF. Output goes to a temp FILE
-#      instead: a file read cannot block on a straggler's open descriptor.
-# One implementation for every host — a single instrument to validate, instead
-# of a proven branch plus an unproven fallback (§11.4.201: the path is part of
-# the instrument).
+#      `head` reader can still wait forever on EOF. The PROBE's output goes to
+#      a temp FILE instead: a file read cannot block on a straggler's open
+#      descriptor. That protects against stragglers of the PROBE — the
+#      watchdog arm needs its own discipline, next point.
+#   3. The WATCHDOG below is backgrounded, so it inherits the CALLER's stdio —
+#      and when the caller captures this function through a command
+#      substitution, that stdout IS the $( ) pipe. After a fast probe the
+#      disarm kill orphaned the watchdog's `sleep SECONDS` child, which kept
+#      the pipe write-end open, so the caller blocked for the FULL budget
+#      even though the verdict was already correct (+15s on every healthy
+#      install/verify — review finding I3, 2026-07-23, measured). The
+#      watchdog's stdio is therefore detached to /dev/null: a background
+#      helper must never hold a descriptor its caller waits on. The guard for
+#      this class is behavioural — test_install_clean_host_ccr.sh case I
+#      times a fast probe through a command substitution.
+# One implementation for every host and every probe grammar — a single
+# instrument to validate, instead of a proven branch plus an unproven fallback
+# (§11.4.201: the path is part of the instrument).
 #
 # Returns the probe's own exit code, or 124 when the watchdog had to kill it
 # (deliberately the same convention coreutils `timeout` uses, so callers can
 # classify "wedged" with one check). Safe under `set -e` callers.
-cma_probe_help() {
-  local _bin="$1" _budget="${2:-15}" _tmp _rc _pid _wpid
+cma_probe_run() {
+  local _budget="$1" _bin="$2"
+  shift 2
+  local _tmp _rc _pid _wpid
   _tmp="$(mktemp "${TMPDIR:-/tmp}/cma-probe.XXXXXX")" || return 1
-  "$_bin" --help </dev/null >"$_tmp" 2>&1 &
+  "$_bin" "$@" </dev/null >"$_tmp" 2>&1 &
   _pid=$!
   # Watchdog: TERM at the budget, KILL 2s later for a TERM-ignoring probe. It
   # drops a marker file BEFORE killing so "watchdog fired" is a recorded fact,
   # not inferred from an exit status the probe could also produce on its own.
+  # stdio detached — header point 3 (I3): its orphaned sleep must not hold
+  # the caller's command-substitution pipe.
   ( sleep "$_budget"; : >"${_tmp}.killed"; kill -TERM "$_pid" 2>/dev/null
-    sleep 2; kill -KILL "$_pid" 2>/dev/null ) &
+    sleep 2; kill -KILL "$_pid" 2>/dev/null ) >/dev/null 2>&1 &
   _wpid=$!
   _rc=0; wait "$_pid" 2>/dev/null || _rc=$?
   kill "$_wpid" 2>/dev/null || true      # probe finished: disarm the watchdog
@@ -217,6 +235,14 @@ cma_probe_help() {
   head -20 "$_tmp"
   rm -f "$_tmp" "${_tmp}.killed"
   return "$_rc"
+}
+
+# cma_probe_help BIN [SECONDS] — BOUNDED `--help` probe: cma_probe_run with
+# the one grammar every binary is expected to answer. Kept as the named entry
+# point because "--help, default budget 15" is the contract the install-seam
+# callers (claude-install-verify.sh, claude-ccr-build.sh) share.
+cma_probe_help() {
+  cma_probe_run "${2:-15}" "$1" --help
 }
 
 # cma_proxy_transform_family ID — does provider ID belong to a family cma-proxy
