@@ -2,6 +2,59 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.25.1 — 2026-07-22 — router aliases refused to launch on a stale bundled ccr (self-healing rebuild)
+
+Patch. A field failure caught immediately after v1.25.0: from a normal
+interactive shell, EVERY router-transport provider alias (helixagent, poe, kimi,
+…) could refuse to launch —
+
+    claude-providers: refusing to launch <id> — its ccr route was NOT applied.
+      'ccr restart' failed (rc=1): Profile "restart" was not found or is disabled.
+
+### Fixed
+- **A stale bundled `ccr` binary no longer bricks router-alias launches.** The
+  vendored Go router `ccr` is a gitignored BUILD ARTIFACT, so a submodule bump
+  that added the `ccr restart` subcommand — which every router launch runs to
+  apply its route — does NOT rebuild an existing install's binary. A stale ccr
+  parsed `restart` as a profile NAME and replied `Profile "restart" was not found
+  or is disabled` (rc=1); the launch's fail-safe then (correctly, so it never
+  serves the wrong model) REFUSED — but that refusal bricked every router alias
+  at once, with an opaque message. `cma_run_provider` now SELF-HEALS on exactly
+  that shape: it rebuilds once via `claude-ccr-build` and retries `ccr restart`;
+  only if that cannot resolve it does it refuse, now with an actionable "rebuild
+  it: claude-ccr-build" message. The heal is bounded (one rebuild, one retry),
+  gated on the stale-binary shape alone (a 401/402/403 auth failure or a timeout
+  is NOT a rebuild trigger and still counts), and fail-closed if the rebuild does
+  not help. Regression-guarded by `test_ccr_restart_selfheal.sh`, which EXECUTES
+  the real wrapper against a stale-ccr stub (not a text grep): self-heal fires +
+  retries, the launch proceeds after a successful heal, an actionable fail-closed
+  refusal when it cannot, and non-stale shapes excluded.
+
+### Verification gap that let it ship (honest)
+- v1.25.0's live verification launched helixagent through the scrubbed-env
+  `verify --deep` / superpowers-TUI path AND ran the run-proof AFTER the ccr
+  binary happened to be rebuilt — so it never exercised a plain interactive
+  `<alias>` launch against a *stale* build artifact, which is the exact path that
+  failed for the operator. Green internal-harness tests masked a broken
+  user-facing path. The regression test above now covers that path.
+
+### Verified
+- **Hermetic sandbox suite: 42 files, 42 passed, 0 failed — ALL GREEN.** Includes
+  the new `test_ccr_restart_selfheal.sh` (9/0), which EXECUTES the real
+  `cma_run_provider` against a stale-ccr stub and pins: the self-heal fires +
+  retries, the launch proceeds after a successful heal, an actionable fail-closed
+  refusal when it cannot, and — a real behavioral Scenario C, not a literal grep —
+  that a NON-stale restart failure (a `CCR_API_KEYS` auth refusal) does NOT
+  trigger a rebuild and is not mislabeled. `test_ccr_conformance.sh` 12/0;
+  `test_coverage.sh` 70/0 (its SIGPIPE-pipeline lint first caught the new test).
+- **The live install:** `ccr` rebuilt from the released submodule (`904effb`);
+  `ccr restart` → rc=0; a direct interactive `helixagent` launch now passes the
+  ccr-restart gate (reproduced) instead of refusing.
+- **Independently reviewed SOUND:** the self-heal is trigger-specific (stale shape
+  only; auth/5xx/timeout still count), bounded (one rebuild, one retry), and
+  fail-closed (a failed rebuild returns 78 before `ccr default-claude-code`, never
+  serving an unapplied route).
+
 ## v1.25.0 — 2026-07-22 — the compatibility proxy goes Go (cma-proxy) + HelixAgent fully working (routed + capacity-sized + tool-engaging) + provider-verification honesty + rc-safety
 
 Minor release. Two headline changes make it a minor:

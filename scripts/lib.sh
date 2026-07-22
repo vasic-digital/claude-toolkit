@@ -1483,12 +1483,40 @@ cma_run_provider() {
           # the most dangerous state of all, and the one `|| true` used to hide.
           _rst_out="$(ccr restart 2>&1)"; _rst_rc=$?
           if (( _rst_rc != 0 )); then
+            # SELF-HEAL the commonest cause. A "Profile … not found or is
+            # disabled" reply means ccr parsed 'restart' as a profile NAME — the
+            # installed ccr binary is STALE: it predates the 'restart' subcommand
+            # this launch depends on (a current build lists it in `ccr --help`).
+            # The binary is a gitignored build artifact, so a submodule bump does
+            # NOT rebuild it, and because EVERY router-transport alias hits this
+            # same step, one stale ccr bricks all of them at once. Rebuild once +
+            # retry (bounded: one rebuild, one retry) so a launch cannot be
+            # silently refused for a condition the toolkit can fix itself; if the
+            # rebuild is unavailable or does not help, fall through to the
+            # self-diagnosing error below.
+            case "$_rst_out" in
+              *'not found or is disabled'*)
+                if command -v claude-ccr-build >/dev/null 2>&1; then
+                  command -v cma_log >/dev/null 2>&1 \
+                    && cma_log "bundled ccr is stale (no 'restart' subcommand) — rebuilding once via claude-ccr-build …" \
+                    || printf 'claude-providers: bundled ccr is stale — rebuilding it once (this may take ~30s) …\n' >&2
+                  claude-ccr-build >/dev/null 2>&1 || true
+                  _rst_out="$(ccr restart 2>&1)"; _rst_rc=$?
+                fi ;;
+            esac
+          fi
+          if (( _rst_rc != 0 )); then
             _route_err=1
             # Single quotes, not backticks: test_ccr_conformance.sh scans lib.sh
             # for `ccr <subcommand>` invocations by splitting on shell command
             # separators — a backtick here reads as a command substitution and
             # the scanner extracts the bogus subcommand 'restart\'.
             _route_msg="'ccr restart' failed (rc=$_rst_rc), so the new route was written but never applied${_rst_out:+: $_rst_out}"
+            case "$_rst_out" in
+              *'not found or is disabled'*)
+                _route_msg="$_route_msg
+  ROOT CAUSE: the bundled 'ccr' binary is STALE — it does not recognize the 'restart' subcommand (it read 'restart' as a profile), and an automatic rebuild was unavailable or did not resolve it. Rebuild manually, then retry: claude-ccr-build (needs the Go toolchain)." ;;
+            esac
           fi
         fi
       fi
