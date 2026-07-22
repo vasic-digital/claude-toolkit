@@ -2,6 +2,33 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.25.4 — 2026-07-22 — un-fossilise ephemeral cma-proxy addresses (kill the 502 class) + toon Go port
+
+Patch + feature release on top of v1.25.3.
+
+### Fixed
+- **Ephemeral cma-proxy address no longer fossilises into `Router.default`.** A
+  transform-declaring provider gets a cma-proxy on a scan-until-free port and its
+  `base` is rewritten to that proxy address — which was then persisted into the
+  durable `config.json` and left behind when the proxy died on exit, so
+  `Router.default` named a dead `127.0.0.1:<port>` with no listener and every
+  gateway consumer hit `502 dial tcp … connection refused` while the provider's
+  real backend was healthy. Two compare-and-swap guards now (1) repair our own
+  ephemeral address back to the real endpoint on exit and (2) reap fossils whose
+  owning launch died — reaping only a provably-dead holder (`kill -0`, §11.4.180)
+  and never clobbering a concurrent live route; the real endpoint is kept in a
+  sidecar marker, not `config.json`. Measured: `helixagent` and `poe` had both
+  fossilised on `127.0.0.1:3457` and were misread as provider outages. Live
+  re-verification post-fix: all 8 valid aliases launch clean (PING-OK) and `poe`
+  surfaces its real upstream status instead of a dead-port 502.
+
+### Added
+- **`scripts/toon/` — Go port of `toon_encode.py`** (added alongside the Python,
+  which remains the sole caller). Byte-parity with the real `python3` encoder over
+  the realistic numeric + structural input space (42 golden vectors + a
+  4000-iteration float-repr sweep), with two honestly-documented, test-gated
+  divergences (bare `NaN`/`Infinity`; the `findToonScript` walk-up superset).
+
 ## v1.25.3 — 2026-07-22 — trim knob survives generator regen + operator docs for trim/gate/container-mode
 
 Patch follow-up to v1.25.2.
