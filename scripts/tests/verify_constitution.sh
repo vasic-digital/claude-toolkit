@@ -60,7 +60,14 @@ else
   cond=1; [[ "${sub_files:-0}" -ge 20 ]] && cond=0
   assert_eq 0 "$cond" "CONST-051 swept a populated submodule ($sub_files files under $SUB)"
   echo "CONST-051 files swept: $sub_files" >> "$EV"
-  hits="$(grep -rn --exclude-dir=.git -E 'claude_toolkit|cma_|claude-providers' "$SUB")"
+  # --exclude=.git as well as --exclude-dir=.git: in a WORKTREE checkout a
+  # populated submodule's .git is a FILE (a gitdir pointer whose content names
+  # the parent repo's path, e.g. .../claude_toolkit/.git/worktrees/...), not a
+  # directory — sweeping it is a §11.4.201(7)(a) CARRIER match (git plumbing
+  # that MENTIONS the parent path), not a coupling reference in the
+  # submodule's own content. The find on line 59 already prunes .git in both
+  # shapes; the grep must exclude both shapes too or the two disagree.
+  hits="$(grep -rn --exclude-dir=.git --exclude=.git -E 'claude_toolkit|cma_|claude-providers' "$SUB")"
   if [[ -n "$hits" ]]; then printf 'CONST-051 coupling hits:\n%s\n' "$hits" >> "$EV"; fi
   assert_eq "" "$hits" "no claude_toolkit / cma_ / claude-providers references in the submodule"
 fi

@@ -181,6 +181,64 @@ cma_realpath() {
   printf '%s/%s\n' "$dir" "$base"
 }
 
+# cma_probe_help BIN [SECONDS] — BOUNDED `--help` probe of a binary; prints the
+# first 20 lines of its combined output and never hangs.
+#
+# Why not `timeout 15 "$bin" --help | head -20` (the previous shape):
+#   1. `timeout` is absent on macOS without coreutils, and the fallback that
+#      shipped there ran the binary UNBOUNDED — a wedged router hung the
+#      installer forever (review finding I1, 2026-07-22).
+#   2. Even where `timeout` exists, a probed binary that spawns a child which
+#      inherits stdout keeps the PIPE open after the parent is killed, so the
+#      `head` reader can still wait forever on EOF. Output goes to a temp FILE
+#      instead: a file read cannot block on a straggler's open descriptor.
+# One implementation for every host — a single instrument to validate, instead
+# of a proven branch plus an unproven fallback (§11.4.201: the path is part of
+# the instrument).
+#
+# Returns the probe's own exit code, or 124 when the watchdog had to kill it
+# (deliberately the same convention coreutils `timeout` uses, so callers can
+# classify "wedged" with one check). Safe under `set -e` callers.
+cma_probe_help() {
+  local _bin="$1" _budget="${2:-15}" _tmp _rc _pid _wpid
+  _tmp="$(mktemp "${TMPDIR:-/tmp}/cma-probe.XXXXXX")" || return 1
+  "$_bin" --help </dev/null >"$_tmp" 2>&1 &
+  _pid=$!
+  # Watchdog: TERM at the budget, KILL 2s later for a TERM-ignoring probe. It
+  # drops a marker file BEFORE killing so "watchdog fired" is a recorded fact,
+  # not inferred from an exit status the probe could also produce on its own.
+  ( sleep "$_budget"; : >"${_tmp}.killed"; kill -TERM "$_pid" 2>/dev/null
+    sleep 2; kill -KILL "$_pid" 2>/dev/null ) &
+  _wpid=$!
+  _rc=0; wait "$_pid" 2>/dev/null || _rc=$?
+  kill "$_wpid" 2>/dev/null || true      # probe finished: disarm the watchdog
+  wait "$_wpid" 2>/dev/null || true
+  [ -e "${_tmp}.killed" ] && _rc=124
+  head -20 "$_tmp"
+  rm -f "$_tmp" "${_tmp}.killed"
+  return "$_rc"
+}
+
+# cma_proxy_transform_family ID — does provider ID belong to a family cma-proxy
+# transforms? Exit 0 when yes. Used by cma_run_provider to decide whether a
+# MISSING cma-proxy is worth a warning: a provider with no shim loses nothing,
+# so warning there would be a false positive (§11.4.201(1)).
+#
+# Normally the proxy binary itself answers (`cma-proxy --has-transform ID`),
+# but with no binary present we cannot ask it — this list mirrors the
+# registrations in scripts/proxy/*.go (registerRequest/registerResponse).
+# KEEP IN SYNC with that registry: test_cma_proxy.sh asserts, in BOTH
+# directions, that these families EQUAL the registered set, so a new transform
+# provider added to the proxy without a family here fails the suite instead of
+# silently missing its warning. Prefix-matched because ids carry variant
+# suffixes (poe2 -> poe, kimi-k2 -> kimi) — the same folds providerKey() does.
+cma_proxy_transform_family() {
+  case "$1" in
+    helixagent*|poe*|kimi*|sarvam*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Find all existing Claude account config directories under $HOME, matching
 # the convention `.claude-<name>`. Echoes absolute paths, one per line,
 # sorted. The default `~/.claude` is intentionally excluded because we treat
@@ -373,7 +431,9 @@ _cma_rc_rewrite_ok() {
 _cma_rc_begin() { printf '# cma-rc:%s BEGIN — managed by claude-multi-account; do not edit inside' "$1"; }
 _cma_rc_end()   { printf '# cma-rc:%s END' "$1"; }
 # Named sentinels for the markers in use (tests + code share one source of truth).
+# shellcheck disable=SC2034  # public surface: consumed by test_rc_safety.sh, which sources lib.sh
 CMA_RC_PATH_BEGIN="$(_cma_rc_begin path)"
+# shellcheck disable=SC2034  # public surface: consumed by test_rc_safety.sh, which sources lib.sh
 CMA_RC_PATH_END="$(_cma_rc_end path)"
 
 # cma_rc_safe_rewrite <rc> <candidate_tmp> <intended_removed_lines>
@@ -1643,6 +1703,27 @@ cma_run_provider() {
     local _proxy_script=""
     if [[ -x "$_proxy_bin" ]] && "$_proxy_bin" --has-transform "$CMA_PROVIDER_ID" >/dev/null 2>&1; then
       _proxy_script="$_proxy_bin"
+    elif [[ ! -x "$_proxy_bin" ]]; then
+      # HONEST SKIP-with-reason, never a silent degrade (§11.4.69).
+      # This branch did not exist: with cma-proxy absent, _proxy_script stayed
+      # empty, the whole shim block was skipped WITHOUT A WORD, and the alias
+      # launched against the raw endpoint. The provider then failed in exactly
+      # the ways the shims exist to prevent (helixagent Hermes tool-call
+      # recovery; poe/kimi/sarvam request-schema fixes) with nothing anywhere
+      # saying the shims were off — from the outside, indistinguishable from a
+      # shim that ran and did not help.
+      #
+      # stderr only (never stdout, which is the agent's channel), and only for
+      # providers that actually HAVE a transform: a provider with no shim loses
+      # nothing, so warning there would be a false positive (§11.4.201(1)).
+      # We normally ask the binary via --has-transform, but with no binary we
+      # cannot — cma_proxy_transform_family mirrors the proxy's registry
+      # (prefix-matched: poe2 -> poe, kimi-k2 -> kimi) and test_cma_proxy.sh
+      # asserts the two stay EQUAL in both directions.
+      if cma_proxy_transform_family "$CMA_PROVIDER_ID"; then
+        printf 'claude-providers: cma-proxy is NOT installed (%s) — launching %s WITHOUT its compatibility shims.\n  Tool-call/request-schema fixes for this provider are inactive; failures here are expected until it is built.\n  Fix: claude-proxy-build   (then: claude-install-verify)\n' \
+          "$_proxy_bin" "$CMA_PROVIDER_ID" >&2
+      fi
     fi
     if [[ -n "$_proxy_script" ]]; then
       # Port-squatter guard (live-proven 2026-07-19: `poe: FAIL tools-params`).

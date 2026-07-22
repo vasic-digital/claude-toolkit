@@ -81,10 +81,25 @@ done
 
 # 2b. Build the BUNDLED Go claude-code-router (submodule) and install it as
 # `ccr`, so the provider aliases route through OUR vendored router rather than a
-# separately-installed Node one. Best-effort: with no Go toolchain the script
-# explains how to proceed and the install still completes.
+# separately-installed Node one.
+#
+# NOT best-effort any more (field failure 2026-07-22, operator host, v1.25.4):
+# this was `if ! bash ...; then cma_warn ...`, so a build failure only WARNED,
+# the install continued, and the banner still printed "[done] installed" while
+# the npm @musistudio ccr kept answering for `ccr`. The operator's FIRST
+# symptom was a provider alias dying at RUNTIME. An installer that reports
+# success over a broken product is a §11.4 PASS-bluff at the install layer.
+#
+# The failure is RECORDED and re-raised by step 7 rather than aborting here:
+# the remaining steps (PATH, aliases, unify) are independent and still worth
+# completing, and step 7 then reports EVERY problem at once instead of making
+# the operator re-run once per failure.
+# Declared together (and BEFORE first use) so `set -u` never trips on an
+# append to an unset array, and so step 7 can length-test them safely.
+CMA_INSTALL_FAILURES=()
+CMA_INSTALL_DEGRADED=()
 if ! bash "$LIB_DIR/claude-ccr-build.sh"; then
-  cma_warn "bundled claude-code-router (Go) not built — provider aliases need a 'ccr' on PATH (run 'claude-ccr-build' after installing Go)"
+  CMA_INSTALL_FAILURES+=("bundled claude-code-router (Go) did NOT build/install — provider aliases on the router transport cannot launch. Fix: install Go (https://go.dev/dl/), then run: claude-ccr-build")
 fi
 
 # 3. Make sure ~/.local/bin is on PATH for new shells. We add to .bashrc
@@ -146,10 +161,13 @@ done
 # 4b. Build + install the Go compatibility proxy (cma-proxy) for provider
 # compatibility (helixagent Hermes tool-call recovery + poe/kimi/sarvam
 # request-schema fixes). Replaces the former per-provider python proxies.
-# Best-effort: with no Go toolchain the aliases fall back to their direct
-# endpoint and the compat shims are inactive (claude-proxy-build explains).
+# Recorded (not warn-and-forget) for the same reason as 2b: without it the
+# helixagent/poe/kimi/sarvam aliases silently lose their compat shims, which is
+# a DEGRADED product the operator must be told about by name — step 7 reports
+# it. It is a DEGRADED (not FAILED) capability: those aliases still launch
+# against their direct endpoint, so it must not by itself fail the install.
 if ! bash "$LIB_DIR/claude-proxy-build.sh"; then
-  cma_warn "compatibility proxy (cma-proxy, Go) not built — helixagent/poe/kimi/sarvam aliases run without their compat shims (run 'claude-proxy-build' after installing Go)"
+  CMA_INSTALL_DEGRADED+=("compatibility proxy (cma-proxy, Go) did NOT build — helixagent/poe/kimi/sarvam aliases run WITHOUT their compat shims (Hermes tool-call recovery + request-schema fixes inactive). Fix: install Go, then run: claude-proxy-build")
 fi
 
 # 4c. Provider session-sync hook + an install-time sync (soft — the host may
@@ -174,6 +192,37 @@ fi
 if command -v pandoc >/dev/null 2>&1 && [[ -f "$HOME/Documents/Claude_Multi_Account_Fine_Tuning.md" ]]; then
   cma_log "running claude-export-docs.sh"
   "$LIB_DIR/claude-export-docs.sh" || cma_warn "doc export failed (continuing)"
+fi
+
+# 7. SELF-VERIFY, then report honestly.
+#
+# The banner below is the toolkit's success claim. It is now EARNED, not
+# printed unconditionally: claude-install-verify probes the REAL artifacts the
+# runtime will resolve (it does not grep our own source), so "[done]" can no
+# longer appear over a product whose router is missing or is the npm
+# doppelganger. Any recorded build failure from 2b, or any verify FAIL, exits
+# non-zero with the actionable fix.
+if [[ ! -f "$LIB_DIR/claude-install-verify.sh" ]]; then
+  # Say WHICH file is missing rather than letting bash emit a bare
+  # "No such file or directory" that reads like a bug in the installer.
+  # A checkout without the gate cannot demonstrate a good install, so this is
+  # a failure, not a skip — never assume-good on a missing verifier.
+  CMA_INSTALL_FAILURES+=("post-install self-verify is MISSING ($LIB_DIR/claude-install-verify.sh) — this checkout cannot prove the install is good. Fix: re-pull the repository.")
+elif ! bash "$LIB_DIR/claude-install-verify.sh"; then
+  CMA_INSTALL_FAILURES+=("post-install self-verify FAILED — see the [FAIL] lines above")
+fi
+
+if (( ${#CMA_INSTALL_DEGRADED[@]} > 0 )); then
+  printf '\n[warn] claude-multi-account installed with DEGRADED optional components:\n' >&2
+  for _d in "${CMA_INSTALL_DEGRADED[@]}"; do printf '  - %s\n' "$_d" >&2; done
+fi
+
+if (( ${#CMA_INSTALL_FAILURES[@]} > 0 )); then
+  printf '\n[FAILED] claude-multi-account install did NOT complete successfully.\n\n' >&2
+  for _f in "${CMA_INSTALL_FAILURES[@]}"; do printf '  - %s\n' "$_f" >&2; done
+  printf '\nNothing above was silently ignored. Fix the items and re-run: %s\n' "$LIB_DIR/install.sh" >&2
+  printf 'To re-check without a full re-install:  claude-install-verify\n' >&2
+  exit 1
 fi
 
 cat <<EOF
