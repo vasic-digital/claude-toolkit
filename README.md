@@ -200,6 +200,24 @@ touched. The suite is **27 files, all green, shellcheck 0**; live verifiers
 (`verify_*_live.sh`) prove behavior against the real OpenCode/provider state and
 write inspectable evidence to `scripts/tests/proof/`.
 
+## 🚦 Releasing — the LIVE gate is mandatory
+
+```bash
+claude-release-gate                       # sandbox suite + LIVE alias smoke
+claude-release-gate --verify-providers    # + full LLMsVerifier model scan
+claude-release-gate --provider poe        # smoke through a different provider
+```
+
+**No release commit without a green `claude-release-gate`.** The sandbox suite
+proves wrapper *logic* but is structurally blind to real-host state — v1.25.1
+shipped fully green while every router alias on the real host was bricked by a
+PATH-shadowing `ccr` doppelgänger, and the live smoke then caught two more
+real defects (a mis-sliced HelixLLM context and ~330k tokens of auto-resumed
+session history) within minutes of existing. The gate drives the REAL
+generated alias through the REAL PATH → ccr → route-apply → proxy → backend
+and asserts the served reply plus the sink-side route. Fail-closed: any layer
+red = do not release.
+
 ## ↩️ Rollback
 
 ```bash

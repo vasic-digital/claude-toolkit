@@ -1284,7 +1284,14 @@ cma_run_provider() {
   local _cma_psf=""
   if [[ -x "$HOME/.local/bin/claude-session" ]]; then
     if [[ $# -eq 0 ]]; then
-      _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+      # TRIM providers skip the stored session flags here too: `flags` emits
+      # `--resume <id> …` for an existing project session, which drags the
+      # synced history into the INTERACTIVE path just like the auto-resume
+      # below does for conversation args (live issue 2026-07-22 — both seams
+      # must stay history-free or a local model's window overflows).
+      if [[ "${CMA_PROVIDER_TRIM:-}" != "bare" ]]; then
+        _cma_psf="$("$HOME/.local/bin/claude-session" flags "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+      fi
       "$HOME/.local/bin/claude-session" hint "$CMA_PROVIDER_ID" 2>/dev/null || true
       eval "set -- $_cma_psf"
       # Auto-apply this provider alias's color to the session (idempotent).
@@ -1299,31 +1306,62 @@ cma_run_provider() {
           # deterministic UUID for never-used projects, and injecting --resume
           # with a session that was never created fails hard ("No conversation
           # found with session ID"). Inject only for a session that EXISTS.
-          _cma_psf="$("$HOME/.local/bin/claude-session" existing-id "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
-          [[ -n "$_cma_psf" ]] && set -- --resume "$_cma_psf" "$@"
+          # TRIM providers (CMA_PROVIDER_TRIM=bare) SKIP the auto-resume: a
+          # fresh session per launch keeps the synced session history out of
+          # the request (live issue 2026-07-22: a 229,376-token local-model
+          # window refused every helixagent launch under ~330k tokens of
+          # resumed history — history must not ride along by default).
+          if [[ "${CMA_PROVIDER_TRIM:-}" != "bare" ]]; then
+            _cma_psf="$("$HOME/.local/bin/claude-session" existing-id "$CLAUDE_CONFIG_DIR" 2>/dev/null || true)"
+            [[ -n "$_cma_psf" ]] && set -- --resume "$_cma_psf" "$@"
+          fi
           ;;
       esac
     fi
   fi
+  # TRIM providers launch MINIMAL: --bare skips the hook/plugin/MCP/CLAUDE.md
+  # surface (~110k tokens of fixed tool schemas on a plugin-heavy host) so a
+  # session actually fits a local model's context window. Conversation
+  # launches only — non-conversation subcommands are left untouched.
+  if [[ "${CMA_PROVIDER_TRIM:-}" == "bare" ]]; then
+    case "${1:-}" in
+      agents|mcp|export|doctor|install|update|config|plugin|setup|acp|server|web|provider) ;;
+      *) set -- --bare "$@" ;;
+    esac
+  fi
   local rc
   local _proxy_pid=""
   if [[ "${CMA_PROVIDER_TRANSPORT:-native}" == "router" ]]; then
-    if ! command -v ccr >/dev/null 2>&1; then
+    # Resolve OUR router by its stable install identity, NOT by PATH order
+    # (live issue 2026-07-22, §11.4.111 resolve-by-stable-name): the npm
+    # @musistudio/claude-code-router also installs a `ccr` (nvm's bin dir
+    # precedes ~/.local/bin on PATH) whose --help carries the same
+    # "ccr start" / "ccr serve" fingerprint — it passes the identity gate
+    # below — but has NO `restart` subcommand. Bare PATH resolution picked
+    # it, every route-apply failed exactly like a stale bundled build, and
+    # the self-heal rebuild (which repairs the BUNDLED binary) could never
+    # fix it: a rebuild cannot fix PATH shadowing. claude-ccr-build installs
+    # the bundled router at $HOME/.local/bin/ccr; that symlink IS the stable
+    # identity (same idiom as claude-session above). CMA_CCR_BIN overrides
+    # for tests/power users; PATH is the LAST resort, only when the bundled
+    # install is absent.
+    local _ccr="${CMA_CCR_BIN:-$HOME/.local/bin/ccr}"
+    [[ -x "$_ccr" ]] || _ccr="$(command -v ccr 2>/dev/null || true)"
+    if [[ -z "$_ccr" ]]; then
       printf 'claude-providers: provider %s needs claude-code-router (the `ccr` gateway).\n  Build the bundled Go router: claude-ccr-build\n' "$id" >&2
       return 127
     fi
     # Identity check (live issue 2026-07-18, revised 2026-07-19): a
-    # DIFFERENT tool named ccr on PATH (e.g. CCS's profile manager,
-    # `ccs`) shadows the real router and fails cryptically downstream —
-    # "Profile 'code' was not found or is disabled" — because
-    # `ccr code` to it means "launch profile 'code'". The current ccr
-    # CLI no longer has a `version` subcommand (positional args are
+    # DIFFERENT tool named ccr (e.g. CCS's profile manager, `ccs`) fails
+    # cryptically downstream — "Profile 'code' was not found or is
+    # disabled" — because `ccr code` to it means "launch profile 'code'".
+    # The current ccr CLI has no `version` subcommand (positional args are
     # profile names), so we identify via --help, which shows the
     # distinctive "ccr start" / "ccr serve" router commands.
-    local _ccr_help; _ccr_help="$(ccr --help 2>&1 | head -10)"
+    local _ccr_help; _ccr_help="$("$_ccr" --help 2>&1 | head -10)"
     case "$_ccr_help" in
       *"ccr start"*|*"ccr serve"*) ;;
-      *) printf 'claude-providers: ccr on PATH is not the bundled claude-code-router (found: "%s").\n  Fix PATH, remove the shadowing ccr, or (re)build the bundled Go router: claude-ccr-build\n' "$_ccr_help" >&2
+      *) printf 'claude-providers: resolved ccr (%s) is not the bundled claude-code-router (found: "%s").\n  Fix the install, remove the shadowing ccr, or (re)build the bundled Go router: claude-ccr-build\n' "$_ccr" "$_ccr_help" >&2
          return 127 ;;
     esac
     # Upsert THIS provider into ccr config with the live key (regenerated each
@@ -1481,7 +1519,7 @@ cma_run_provider() {
           # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
           # Its failure means the file is right and the gateway is still wrong —
           # the most dangerous state of all, and the one `|| true` used to hide.
-          _rst_out="$(ccr restart 2>&1)"; _rst_rc=$?
+          _rst_out="$("$_ccr" restart 2>&1)"; _rst_rc=$?
           if (( _rst_rc != 0 )); then
             # SELF-HEAL the commonest cause. A "Profile … not found or is
             # disabled" reply means ccr parsed 'restart' as a profile NAME — the
@@ -1501,7 +1539,7 @@ cma_run_provider() {
                     && cma_log "bundled ccr is stale (no 'restart' subcommand) — rebuilding once via claude-ccr-build …" \
                     || printf 'claude-providers: bundled ccr is stale — rebuilding it once (this may take ~30s) …\n' >&2
                   claude-ccr-build >/dev/null 2>&1 || true
-                  _rst_out="$(ccr restart 2>&1)"; _rst_rc=$?
+                  _rst_out="$("$_ccr" restart 2>&1)"; _rst_rc=$?
                 fi ;;
             esac
           fi
@@ -1533,7 +1571,7 @@ cma_run_provider() {
       fi
       return 78
     fi
-    ccr default-claude-code -- "$@"; rc=$?
+    "$_ccr" default-claude-code -- "$@"; rc=$?
     # Stop proxy if we started one
     if [[ -n "$_proxy_pid" ]]; then
       kill "$_proxy_pid" 2>/dev/null || true

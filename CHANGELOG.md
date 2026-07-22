@@ -2,6 +2,55 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.25.2 — 2026-07-22 — ccr resolved by stable path (PATH-shadowing doppelgänger), provider trim mode, mandatory live release gate
+
+Patch. A second field failure on the v1.25.1 shape, with a DIFFERENT root
+cause the self-heal could never fix: the npm `@musistudio/claude-code-router`
+package installs its own `ccr` into nvm's bin dir, which precedes
+`~/.local/bin` on PATH. Its `--help` carries the same "ccr start / ccr serve"
+fingerprint (it passes the identity gate) but it has NO `restart` subcommand —
+so every router launch failed exactly like a stale bundled build, the
+self-heal rebuilt the BUNDLED binary (which was never the one being invoked),
+retried bare `ccr restart`, hit the doppelgänger again, and refused. A rebuild
+cannot fix PATH shadowing. Investigation of the live helixagent chain then
+surfaced two more stacked defects: the HelixLLM container serving
+8 × 3,072-token slots (`-c 24576 --parallel 8` — llama.cpp splits `-c` across
+slots), and ~330k tokens of auto-resumed session history + ~110k of
+plugin/MCP tool schemas overflowing the local model's window on every launch
+(a direct `claude --bare -p hi` request measures 4,891 bytes — the client was
+never the problem).
+
+### Fixed
+- **`cma_run_provider` resolves OUR router by its stable install identity,
+  never by PATH order.** Resolution: `$CMA_CCR_BIN` override, else
+  `$HOME/.local/bin/ccr` (the symlink `claude-ccr-build` maintains), PATH only
+  as a last resort when the bundled install is absent — and the resolved path
+  is used for EVERY invocation (identity probe, `restart`, post-rebuild retry,
+  and the launch itself). A PATH-shadowing doppelgänger can no longer brick
+  router aliases nor masquerade as a stale bundled build.
+  (`scripts/tests/test_ccr_path_shadowing.sh`, executed red→green against the
+  real generated wrapper.)
+
+### Added
+- **`CMA_PROVIDER_TRIM='bare'` — per-provider minimal-launch mode** for
+  local-model providers: conversation launches get `--bare` (drops the
+  hook/plugin/MCP/CLAUDE.md surface) and BOTH history seams stay closed — the
+  conversation-args `--resume` auto-injection AND the interactive
+  (zero-args) stored-session-flags injection are skipped, so every launch is
+  a fresh session that actually fits a local window. Explicit user session
+  selectors (`--resume`, `--session-id`, …) are honored verbatim;
+  non-conversation subcommands are untouched; untrimmed providers are
+  byte-identical to before. Wired for `helixagent` (whose HelixLLM backend
+  belongs in `helixllm-mode.sh claude` — one 229,376-token slot).
+  (`scripts/tests/test_provider_trim.sh`, 11 scenarios red→green.)
+- **`claude-release-gate` — the mandatory LIVE pre-release gate.** Sandbox
+  suite + a live smoke that drives the REAL generated alias through the REAL
+  PATH → ccr → route-apply → proxy → provider backend, asserting the served
+  reply and the sink-side route (`--verify-providers` adds the LLMsVerifier
+  scan). The sandbox suite is structurally blind to real-host state — this
+  release's defect class shipped green through it — so releases now require
+  the live layer. See README "Releasing".
+
 ## v1.25.1 — 2026-07-22 — router aliases refused to launch on a stale bundled ccr (self-healing rebuild)
 
 Patch. A field failure caught immediately after v1.25.0: from a normal

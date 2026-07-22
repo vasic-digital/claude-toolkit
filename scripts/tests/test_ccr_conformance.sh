@@ -36,8 +36,10 @@ ROUTER_MAIN="$REPO_ROOT/submodules/claude-code-router/cmd/ccr/main.go"
 # Every `ccr <subcommand>` the toolkit actually RUNS. Command position only:
 # the line is split on shell command separators, each segment is trimmed of
 # leading whitespace and leading keywords, and only a segment that BEGINS with
-# `ccr ` counts. That rejects the many non-invocations in lib.sh — comments,
-# `case *"ccr start"*` identity-guard patterns, printf help text, and the
+# `ccr ` — or, since the §11.4.111 stable-path resolution (2026-07-22), the
+# resolved-binary form `"$_ccr" ` — counts. That rejects the many
+# non-invocations in lib.sh — comments, `case *"ccr start"*` identity-guard
+# patterns, printf help text, and the
 # `[[ "$_prov_body" != *'ccr default-claude-code …'* ]]` migration markers.
 # Portable awk only (2-arg match + substr/RSTART/RLENGTH; no gawk captures).
 ccr_required_subcommands() {
@@ -51,8 +53,13 @@ ccr_required_subcommands() {
         s = seg[i]
         sub(/^[[:space:]]+/, "", s)
         while (s ~ /^(then|do|else|!)[[:space:]]+/) sub(/^(then|do|else|!)[[:space:]]+/, "", s)
+        rest = ""
         if (s ~ /^ccr[[:space:]]/) {
           rest = substr(s, 4)
+        } else if (s ~ /^"\$_ccr"[[:space:]]/) {
+          rest = substr(s, 8)
+        }
+        if (rest != "") {
           sub(/^[[:space:]]+/, "", rest)
           if (match(rest, /^[^[:space:]]+/)) print substr(rest, RSTART, RLENGTH)
         }
@@ -132,12 +139,18 @@ done
 # unusable ("Profile … was not found or is disabled.", exit 1).
 it "the launch subcommand used by the wrapper is a real router subcommand"
 launch_sub="$(awk '
-  /ccr[[:space:]]+[^[:space:]]+[[:space:]]+--[[:space:]]+"\$@"/ {
+  {
+    # The §11.4.111 stable-path resolution launches via the resolved binary
+    # ("$_ccr" default-claude-code -- "$@"); normalize that token back to the
+    # bare form so ONE extraction covers both spellings.
     line = $0
-    if (match(line, /ccr[[:space:]]+[^[:space:]]+/)) {
-      tok = substr(line, RSTART, RLENGTH)
-      sub(/^ccr[[:space:]]+/, "", tok)
-      print tok
+    gsub(/"\$_ccr"/, "ccr", line)
+    if (line ~ /ccr[[:space:]]+[^[:space:]]+[[:space:]]+--[[:space:]]+"\$@"/) {
+      if (match(line, /ccr[[:space:]]+[^[:space:]]+/)) {
+        tok = substr(line, RSTART, RLENGTH)
+        sub(/^ccr[[:space:]]+/, "", tok)
+        print tok
+      }
     }
   }
 ' "$LIB_SH" | sort -u | head -1)"
