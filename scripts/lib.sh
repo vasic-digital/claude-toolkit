@@ -1464,8 +1464,34 @@ cma_run_provider() {
     # way, one line below).
     _cma_eph_lock() {
       command -v flock >/dev/null 2>&1 || return 0
-      exec 9>>"$_eph_lock" 2>/dev/null || return 0
-      flock -x 9 2>/dev/null || true
+      # BRACE-WRAP the redirection. A bare `exec 9>>FILE 2>/dev/null` is NOT
+      # just "open fd 9 quietly": `exec` without a command applies EVERY
+      # redirection on the line to the CURRENT SHELL, PERMANENTLY. So the
+      # `2>/dev/null` silenced the shell's stderr for the rest of its life —
+      # and because cma_run_provider runs inside the operator's INTERACTIVE
+      # shell, one provider launch left that terminal unable to print any
+      # error, from any command, ever again. `_cma_eph_unlock` below already
+      # used the correct brace form (`{ exec 9>&-; } 2>/dev/null`); this line
+      # was the asymmetric outlier. Proven: pre-fix, a marker echoed to stderr
+      # after calling this function never appeared; post-fix it does.
+      { exec 9>>"$_eph_lock"; } 2>/dev/null || return 0
+      # BOUNDED wait. Defensive hardening carried over from an earlier
+      # independent review, NOT a fix for the reported exit-hang (that was
+      # traced to the launch itself, and this lock/unlock pair provably
+      # completes). An unbounded `flock -x 9` can never time out while any
+      # process holds the lock, which on an interactive path is a latent stall
+      # by construction; the guarded critical section is a tiny marker
+      # read-modify-write, so a short bound is ample and a timeout degrades to
+      # the same unlocked best-effort path this section already takes when
+      # `flock` is absent entirely (macOS).
+      # On timeout, SAY SO (§11.4.201(5): a guard reports its resolved
+      # evidence). Swallowing it discards the acquired-vs-timed-out
+      # distinction, leaving a real contention event undiagnosable.
+      flock -w 5 9 2>/dev/null || {
+        command -v cma_log >/dev/null 2>&1 \
+          && cma_log "eph-lock: 5s timeout — proceeding unlocked (best-effort)"
+        true
+      }
       return 0
     }
     _cma_eph_unlock() {
