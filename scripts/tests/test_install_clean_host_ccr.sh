@@ -456,11 +456,15 @@ it "K2. I3 end-to-end: HEALTHY host verify completes immediately (was +15s per p
 # seconds — this is what every install step 7 costs on a healthy host.
 sandbox_stub "$PROXY_DIR/cma-proxy" <<'STUB'
 #!/usr/bin/env bash
-# healthy proxy stub: answers --has-transform like the real Go binary (exit 0);
-# --help exits 2 exactly like Go stdlib flag's ErrHelp does on the real proxy.
-[ "${1:-}" = "--has-transform" ] && exit 0
-echo "usage: cma-proxy ..." >&2
-exit 2
+# healthy proxy stub mirroring the REAL Go binary's MEASURED exit codes
+# (re-review 2026-07-23): --has-transform <id> -> 0; --help -> 0 (Go stdlib
+# flag exits 0 on ErrHelp — 2 is the parse-ERROR path); unknown flag -> 2
+# like a real flag parse error.
+case "${1:-}" in
+  --has-transform) exit 0 ;;
+  --help) echo "usage: cma-proxy ..."; exit 0 ;;
+  *) echo "flag provided but not defined: ${1:-}" >&2; exit 2 ;;
+esac
 STUB
 _t0=$SECONDS
 outK2="$(${_outer[@]+"${_outer[@]}"} env CMA_CCR_BIN='' bash "$VERIFY" 2>&1)"; rcK2=$?

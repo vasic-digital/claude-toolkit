@@ -158,11 +158,13 @@ if [ -x "$_proxy_bin" ]; then
   # BOUNDED (review residual (b), 2026-07-23): both probe arms run under the
   # same watchdog as the ccr probe above — a WEDGED proxy binary is the same
   # hang class at the same install seam and must not stall the install.
-  # --has-transform is the arm the REAL binary answers with exit 0; its
-  # --help exits 2 (Go stdlib flag prints usage via ErrHelp), so --help is
-  # only a generosity fallback for a binary that answers help but not the
-  # transform grammar. A 124 on either arm is a HANG, reported as one (the
-  # M2 discipline) — never conflated with "does not execute".
+  # --has-transform is the arm the REAL binary answers with exit 0 (measured
+  # on both the worktree-built and installed binaries, re-review 2026-07-23);
+  # its --help ALSO exits 0 — Go stdlib flag exits 0 on ErrHelp, 2 is the
+  # parse-ERROR path — so --help is a generosity fallback that genuinely
+  # rescues a Go-flag binary lacking the has-transform grammar. A 124 on
+  # either arm is a HANG, reported as one (the M2 discipline) — never
+  # conflated with "does not execute".
   _prc=0; cma_probe_run "$_PROBE_BUDGET" "$_proxy_bin" --has-transform helixagent >/dev/null || _prc=$?
   if [ "$_prc" -ne 0 ] && [ "$_prc" -ne 124 ]; then
     _prc=0; cma_probe_help "$_proxy_bin" "$_PROBE_BUDGET" >/dev/null || _prc=$?
