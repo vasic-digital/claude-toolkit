@@ -365,6 +365,162 @@ func TestParityInputPathsNodeMode(t *testing.T) {
 	}
 }
 
+// TestFindToonScriptWalkUp closes a §11.4.6 accuracy gap: the doc comment on
+// findToonScript (encode.go) claims its two INTENTIONAL, non-Python-parity
+// walk-up candidates (../toon.mjs and ../../toon.mjs relative to the running
+// executable's directory) are "pinned down by TestFindToonScriptWalkUp ... so
+// it cannot silently widen further" — this IS that test. Before this change
+// no such test existed (grep-confirmed: the name appeared only inside that
+// comment) and the comment's citation was false.
+//
+// It drives the REAL compiled toon_encode binary end-to-end — proving the
+// whole resolve-then-shell-out pipeline, not merely the unexported resolver
+// called in isolation — built into the two realistic in-place layouts the
+// doc comment itself names (scripts/toon/ and scripts/toon/bin/), with a
+// decoy toon.mjs seeded one and two levels up from the binary's own
+// directory. Real node / @toon-format/toon is not required: the "node" the
+// binary shells out to is a fake stand-in, prepended onto PATH, that simply
+// echoes back the exact script path it was invoked with — turning the
+// binary's own stdout into a direct, unambiguous witness of which candidate
+// findToonScript() selected, with zero need to reach into the package's
+// unexported state.
+func TestFindToonScriptWalkUp(t *testing.T) {
+	// fakeNode reports the script path it is told to run instead of actually
+	// encoding anything, so a candidate SELECTION is observable without any
+	// real Node.js / @toon-format/toon dependency (this test must run even
+	// where neither is installed).
+	fakeBinDir := t.TempDir()
+	fakeNode := filepath.Join(fakeBinDir, "node")
+	if err := os.WriteFile(fakeNode, []byte("#!/bin/sh\necho \"SELECTED:$1\"\n"), 0o755); err != nil {
+		t.Fatalf("write fake node stand-in: %v", err)
+	}
+	pathWithFakeNode := fakeBinDir + string(os.PathListSeparator) + os.Getenv("PATH")
+
+	// isolatedEnv strips CMA_TOON_SCRIPT (the highest-priority candidate,
+	// which must NOT be in play here) and points HOME at an empty temp dir
+	// (so the ~/.local/share/claude-multi-account fallback candidate never
+	// resolves either) — isolating the two walk-up candidates as the ONLY
+	// ones left standing.
+	isolatedEnv := func(t *testing.T, path string) []string {
+		t.Helper()
+		isoHome := t.TempDir()
+		base := envWith(os.Environ(), "HOME", isoHome)
+		base = envWith(base, "CMA_TOON_SCRIPT", "")
+		return envWith(base, "PATH", path)
+	}
+
+	buildAt := func(t *testing.T, exeDir string) string {
+		t.Helper()
+		if err := os.MkdirAll(exeDir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", exeDir, err)
+		}
+		return buildBinary(t, exeDir)
+	}
+
+	writeDecoy := func(t *testing.T, path string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte("// decoy toon.mjs — never actually executed\n"), 0o644); err != nil {
+			t.Fatalf("write decoy %s: %v", path, err)
+		}
+	}
+
+	// mustEvalSymlinks resolves a path to its canonical form so path identity
+	// is compared by the physical file on disk, never by raw string form —
+	// os.Executable() inside the child may report a symlink-resolved
+	// (canonicalized) form of a directory under t.TempDir() that differs
+	// character-for-character from the string this test built, even though
+	// both name the exact same file (§11.4.201: the path is part of the
+	// instrument — compare what the two sides actually mean, not their
+	// incidental spelling).
+	mustEvalSymlinks := func(t *testing.T, p string) string {
+		t.Helper()
+		r, err := filepath.EvalSymlinks(p)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(%q): %v", p, err)
+		}
+		return r
+	}
+
+	t.Run("two_level_walkup_only", func(t *testing.T) {
+		// Realistic layout #2 from the doc comment: binary built under
+		// scripts/toon/bin/, so exeDir/../../toon.mjs is scripts/toon.mjs.
+		root := t.TempDir()
+		exeDir := filepath.Join(root, "scripts", "toon", "bin")
+		bin := buildAt(t, exeDir)
+		decoy := filepath.Join(exeDir, "..", "..", "toon.mjs") // == root/scripts/toon.mjs
+		writeDecoy(t, decoy)
+
+		got := runProc(t, bin, nil, `{}`, isolatedEnv(t, pathWithFakeNode))
+		if got.exit != 0 {
+			t.Fatalf("exit=%d stdout=%q", got.exit, got.stdout)
+		}
+		line := strings.TrimSuffix(got.stdout, "\n")
+		if !strings.HasPrefix(line, "SELECTED:") {
+			t.Fatalf("two-level walk-up candidate not reached: stdout=%q", got.stdout)
+		}
+		gotPath := strings.TrimPrefix(line, "SELECTED:")
+		if mustEvalSymlinks(t, gotPath) != mustEvalSymlinks(t, decoy) {
+			t.Fatalf("resolved script %q does not refer to the seeded two-level decoy %q", gotPath, decoy)
+		}
+	})
+
+	t.Run("one_level_walkup_wins_over_two_level", func(t *testing.T) {
+		// Realistic layout #1 from the doc comment: binary built directly
+		// under scripts/toon/, so exeDir/../toon.mjs is scripts/toon.mjs.
+		// BOTH the one-level and two-level candidates are seeded here to
+		// prove candidate ORDER — sibling, then one-up, then two-up — not
+		// merely that "some" walk-up candidate resolves.
+		root := t.TempDir()
+		exeDir := filepath.Join(root, "scripts", "toon")
+		bin := buildAt(t, exeDir)
+		oneUp := filepath.Join(exeDir, "..", "toon.mjs")       // == root/scripts/toon.mjs
+		twoUp := filepath.Join(exeDir, "..", "..", "toon.mjs") // == root/toon.mjs
+		writeDecoy(t, oneUp)
+		writeDecoy(t, twoUp)
+
+		got := runProc(t, bin, nil, `{}`, isolatedEnv(t, pathWithFakeNode))
+		if got.exit != 0 {
+			t.Fatalf("exit=%d stdout=%q", got.exit, got.stdout)
+		}
+		line := strings.TrimSuffix(got.stdout, "\n")
+		if !strings.HasPrefix(line, "SELECTED:") {
+			t.Fatalf("one-level walk-up candidate not reached: stdout=%q", got.stdout)
+		}
+		gotPath := strings.TrimPrefix(line, "SELECTED:")
+		if mustEvalSymlinks(t, gotPath) != mustEvalSymlinks(t, oneUp) {
+			t.Fatalf("one-up did not win: resolved script %q, want %q (two-up %q)", gotPath, oneUp, twoUp)
+		}
+	})
+
+	t.Run("no_decoy_falls_through_to_fallback", func(t *testing.T) {
+		// Negative control (§11.4.201 control-needle discipline): with
+		// NEITHER walk-up candidate present, findToonScript() must return ""
+		// and the binary must take the ordinary fallback path — never
+		// fabricate a hit. Proves the two positive cases above are genuinely
+		// conditioned on the seeded decoy files, not an artifact of the
+		// fake-node harness always reporting a match.
+		root := t.TempDir()
+		exeDir := filepath.Join(root, "scripts", "toon", "bin")
+		bin := buildAt(t, exeDir)
+
+		in := `{"a":1}`
+		data, err := parseOrdered([]byte(in))
+		if err != nil {
+			t.Fatalf("parseOrdered(%q): %v", in, err)
+		}
+		want := fallbackEncode(data, 0) + "\n"
+
+		got := runProc(t, bin, nil, in, isolatedEnv(t, pathWithFakeNode))
+		if got.exit != 0 || got.stdout != want {
+			t.Fatalf("no-decoy case did not fall through to the fallback encoder\n got: exit=%d stdout=%q\nwant: exit=0 stdout=%q",
+				got.exit, got.stdout, want)
+		}
+		if strings.Contains(got.stdout, "SELECTED:") {
+			t.Fatalf("no-decoy case unexpectedly reached the fake node stand-in: %q", got.stdout)
+		}
+	})
+}
+
 // TestNaNInfinityDocumentedDivergence GATES a known, deliberately-NOT-CLOSED
 // divergence (§11.4.6 honest documentation, not silence): Python's json
 // module accepts the non-standard bare literals NaN/Infinity/-Infinity
