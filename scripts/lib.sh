@@ -1418,6 +1418,131 @@ cma_run_provider() {
       */chat/completions|*/v1beta/models/|*/v1beta/models) ;;
       *) base="${base%/}/chat/completions" ;;
     esac
+    # --- anti-fossil bookkeeping (live defect 2026-07-22) --------------------
+    # An EPHEMERAL address must never OUTLIVE the process that owns it.
+    # Below, a transform-declaring provider gets a cma-proxy on a scan-until-free
+    # port and `base` is REPLACED by that proxy address — which is then persisted
+    # into a DURABLE config and left behind when the proxy is killed on exit. The
+    # result is a fossil: `Router.default` naming a provider whose api_base_url is
+    # a 127.0.0.1 port with no listener, so every consumer of the gateway gets
+    # `502 … dial tcp … connection refused` while the provider's real backend is
+    # perfectly healthy. Measured: `helixagent` and `poe` both fossilised on
+    # 127.0.0.1:3457, and the fossil was misread as two provider outages.
+    #
+    # Two guards, both compare-and-swap so a CONCURRENT launch is never clobbered
+    # (restoring unconditionally would re-create the silent-wrong-model failure
+    # this file already fights: a launch that finishes late must not yank the
+    # route out from under a launch that is still running):
+    #   (1) on exit, repair OUR ephemeral address back to the REAL endpoint —
+    #       only while it is still ours (see _cma_ccr_unfossilise below);
+    #   (2) at start, reap fossils whose owning launch died without running (1)
+    #       — SIGKILL, host reboot. §11.4.180: only a PROVABLY dead holder
+    #       (`kill -0` fails) is reaped; a live holder is never touched.
+    # The real endpoint is recorded in a sidecar marker, NOT in config.json, so
+    # the router never sees a field it does not model.
+    local _real_base="$base" _eph_base=""
+    local _eph_marker="$HOME/.claude-code-router/.cma-ephemeral.json"
+    local _prior_default="" _prior_background=""
+    local _wrote_default="" _wrote_background=""
+    if command -v jq >/dev/null 2>&1; then
+      _prior_default="$(jq -r '.Router.default // ""' "$cfg" 2>/dev/null || printf '')"
+      _prior_background="$(jq -r '.Router.background // ""' "$cfg" 2>/dev/null || printf '')"
+      # (2) stale-fossil reap. Entirely best-effort: any failure here must never
+      # block a launch, so every step is guarded and the loop simply moves on.
+      if [[ -s "$_eph_marker" ]]; then
+        local _rv_dead="[]" _rv_n _rv_pid _rv_tmp
+        for _rv_n in $(jq -r 'keys[]?' "$_eph_marker" 2>/dev/null); do
+          _rv_pid="$(jq -r --arg k "$_rv_n" '.[$k].pid // 0' "$_eph_marker" 2>/dev/null || printf '0')"
+          # Liveness PROVEN, never assumed — a live owner keeps its address.
+          if [[ "$_rv_pid" != "0" ]] && kill -0 "$_rv_pid" 2>/dev/null; then continue; fi
+          _rv_dead="$(jq -c --arg k "$_rv_n" '. + [$k]' <<<"$_rv_dead" 2>/dev/null || printf '%s' "$_rv_dead")"
+        done
+        if [[ "$_rv_dead" != "[]" ]]; then
+          _rv_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_rv_tmp" 2>/dev/null
+          if [[ -n "$_rv_tmp" ]] && jq --argjson dead "$_rv_dead" --slurpfile mk "$_eph_marker" '
+                .Providers = [ .Providers[]? as $p
+                  | ($mk[0][$p.name] // null) as $m
+                  | if ($m != null) and ([$p.name] | inside($dead)) and ($p.api_base_url == ($m.eph // ""))
+                      and (($m.real // "") != "")
+                    then $p + {api_base_url: $m.real} else $p end ]
+              ' "$cfg" >| "$_rv_tmp" 2>/dev/null && [[ -s "$_rv_tmp" ]]; then
+            command mv -f "$_rv_tmp" "$cfg" 2>/dev/null && chmod 600 "$cfg" 2>/dev/null
+            command -v cma_log >/dev/null 2>&1 && cma_log "reaped stale cma-proxy fossil(s) from ccr config: $_rv_dead" || true
+          else
+            [[ -n "$_rv_tmp" ]] && rm -f "$_rv_tmp"
+          fi
+          _rv_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_rv_tmp" 2>/dev/null
+          if [[ -n "$_rv_tmp" ]] && jq --argjson dead "$_rv_dead" 'delpaths([$dead[] | [.]])' \
+                "$_eph_marker" >| "$_rv_tmp" 2>/dev/null && [[ -s "$_rv_tmp" ]]; then
+            command mv -f "$_rv_tmp" "$_eph_marker" 2>/dev/null
+          else
+            [[ -n "$_rv_tmp" ]] && rm -f "$_rv_tmp"
+          fi
+        fi
+      fi
+    fi
+    # (1) Exit repair. Defined here (indented — a `}` at column 0 would end the
+    # function body for _cma_alias_carryover's legacy scanner) so it travels with
+    # this body into the emitted, self-contained alias file. Its inputs arrive as
+    # positional args, with ONE deliberate exception: the resolved router binary
+    # is read from the enclosing `$_ccr` via bash dynamic scoping rather than
+    # being passed in. That is not laziness — test_ccr_conformance.sh derives the
+    # REQUIRED router-subcommand set by scanning this file for `"$_ccr" <word>` at
+    # command position, so passing the binary as an argument would (a) make the
+    # call site read as a bogus invocation `ccr "$_eph_marker"` and (b) hide this
+    # function's REAL `"$_ccr" restart` from the very gate that exists to catch an
+    # unsupported subcommand. Both call sites are inside cma_run_provider, so
+    # `$_ccr` is always in scope.
+    _cma_ccr_unfossilise() {
+      local _u_cfg="$1" _u_n="$2" _u_eph="$3" _u_real="$4" _u_wd="$5" _u_wb="$6"
+      local _u_pd="$7" _u_pb="$8" _u_marker="$9"
+      [[ -n "$_u_eph" ]] || return 0          # no proxy ran => nothing fossilised
+      [[ -f "$_u_cfg" ]] || return 0
+      command -v jq >/dev/null 2>&1 || return 0
+      local _u_addr_now _u_def_now _u_bg_now _u_mine=0 _u_tmp
+      _u_addr_now="$(jq -r --arg n "$_u_n" \
+        '[.Providers[]?|select(.name==$n)|.api_base_url][0] // ""' "$_u_cfg" 2>/dev/null || printf '')"
+      # CAS-1 — repair ONLY while the stored address is still the one WE wrote.
+      # If a newer launch re-stamped it, that launch owns the entry and will run
+      # its own repair; touching it here would corrupt a live route.
+      [[ "$_u_addr_now" == "$_u_eph" ]] || return 0
+      _u_def_now="$(jq -r '.Router.default // ""' "$_u_cfg" 2>/dev/null || printf '')"
+      _u_bg_now="$(jq -r '.Router.background // ""' "$_u_cfg" 2>/dev/null || printf '')"
+      # CAS-2 — the route is still ours only if BOTH halves are unchanged.
+      [[ "$_u_def_now" == "$_u_wd" && "$_u_bg_now" == "$_u_wb" ]] && _u_mine=1
+      _u_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" || return 0
+      chmod 600 "$_u_tmp" 2>/dev/null || true
+      if jq --arg n "$_u_n" --arg eph "$_u_eph" --arg real "$_u_real" \
+             --arg pd "$_u_pd" --arg pb "$_u_pb" --argjson mine "$_u_mine" '
+             .Providers = [ .Providers[]?
+               | if .name == $n and .api_base_url == $eph then .api_base_url = $real else . end ]
+             | if ($mine == 1) and ($pd != "") then .Router.default    = $pd else . end
+             | if ($mine == 1) and ($pb != "") then .Router.background = $pb else . end
+           ' "$_u_cfg" >| "$_u_tmp" 2>/dev/null && [[ -s "$_u_tmp" ]]; then
+        command mv -f "$_u_tmp" "$_u_cfg" 2>/dev/null && chmod 600 "$_u_cfg" 2>/dev/null
+        command -v cma_log >/dev/null 2>&1 && \
+          cma_log "un-fossilised ccr config for $_u_n: api_base_url ephemeral -> real (route_restored=$_u_mine)" || true
+        # Only a bounce applies a config change (service.go:cmdRestart). Bounce
+        # ONLY when the route was still ours: restarting while ANOTHER launch
+        # owns the route would drop that launch's in-flight requests.
+        if [[ "$_u_mine" == "1" && -n "$_ccr" && -x "$_ccr" ]]; then
+          "$_ccr" restart >/dev/null 2>&1 || true
+        fi
+      else
+        rm -f "$_u_tmp"
+      fi
+      # Drop our marker entry last: until here it is the crash-recovery record.
+      if [[ -n "$_u_marker" && -s "$_u_marker" ]]; then
+        local _u_mt; _u_mt="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" || return 0
+        chmod 600 "$_u_mt" 2>/dev/null || true
+        if jq --arg k "$_u_n" 'del(.[$k])' "$_u_marker" >| "$_u_mt" 2>/dev/null && [[ -s "$_u_mt" ]]; then
+          command mv -f "$_u_mt" "$_u_marker" 2>/dev/null
+        else
+          rm -f "$_u_mt"
+        fi
+      fi
+      return 0
+    }
     # Start the Go compatibility proxy (cma-proxy) when it transforms this
     # provider: helixagent Hermes tool-call recovery, or poe/kimi/sarvam request-
     # schema fixes (e.g. Poe requires `parameters` in tool definitions; Claude
@@ -1466,6 +1591,12 @@ cma_run_provider() {
     fi
     if [[ -n "$_proxy_script" ]]; then
       base="http://127.0.0.1:${_proxy_port}/v1/chat/completions"
+      # THE fossil-producing assignment: `base` is now an EPHEMERAL address whose
+      # lifetime is this launch. Record it (and the real endpoint it replaced) so
+      # both the exit repair and the next launch's stale-reap can undo it. The
+      # marker is a sidecar — never a field inside config.json, which the router
+      # parses.
+      _eph_base="$base"
       # cma_log is a lib.sh helper; the self-contained alias file has no such
       # function, so guard the call to avoid a 'cma_log: command not found' on
       # every proxied launch.
@@ -1516,6 +1647,27 @@ cma_run_provider() {
           _route_msg="installing the rewritten $cfg failed (mv rc=$_mv_rc)${_mv_err:+: $_mv_err}"
         else
           chmod 600 "$cfg" 2>/dev/null || true
+          # Remember exactly what WE wrote, so the exit repair can compare-and-swap
+          # instead of clobbering a newer launch's route.
+          _wrote_default="$CMA_PROVIDER_ID,$CMA_PROVIDER_MODEL"
+          _wrote_background="$CMA_PROVIDER_ID,${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}"
+          # Crash-recovery marker: written the moment an ephemeral address becomes
+          # durable, so a launch killed before its exit repair (SIGKILL, reboot)
+          # still leaves the next launch enough to reap the fossil. $$ is the
+          # owning shell; the next launch reaps only when `kill -0` proves it dead.
+          if [[ -n "$_eph_base" ]] && command -v jq >/dev/null 2>&1; then
+            local _mk_tmp
+            [[ -f "$_eph_marker" ]] || ( umask 077; printf '{}\n' > "$_eph_marker" )
+            _mk_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_mk_tmp" 2>/dev/null
+            if [[ -n "$_mk_tmp" ]] && jq --arg k "$CMA_PROVIDER_ID" --arg e "$_eph_base" \
+                  --arg r "$_real_base" --argjson p "$$" \
+                  '.[$k] = {eph:$e, real:$r, pid:$p}' "$_eph_marker" >| "$_mk_tmp" 2>/dev/null \
+                  && [[ -s "$_mk_tmp" ]]; then
+              command mv -f "$_mk_tmp" "$_eph_marker" 2>/dev/null && chmod 600 "$_eph_marker" 2>/dev/null
+            else
+              [[ -n "$_mk_tmp" ]] && rm -f "$_mk_tmp"
+            fi
+          fi
           # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
           # Its failure means the file is right and the gateway is still wrong —
           # the most dangerous state of all, and the one `|| true` used to hide.
@@ -1569,6 +1721,12 @@ cma_run_provider() {
         kill "$_proxy_pid" 2>/dev/null || true
         command -v cma_log >/dev/null 2>&1 && cma_log "stopped proxy for $CMA_PROVIDER_ID (pid=$_proxy_pid) after route failure" || true
       fi
+      # This path can ALSO leave a fossil: the jq+mv may have succeeded and only
+      # `ccr restart` failed, in which case the ephemeral address is already
+      # durable. Repair here too — the proxy we just killed is now dead.
+      _cma_ccr_unfossilise "$cfg" "$CMA_PROVIDER_ID" "$_eph_base" "$_real_base" \
+        "$_wrote_default" "$_wrote_background" "$_prior_default" "$_prior_background" \
+        "$_eph_marker"
       return 78
     fi
     "$_ccr" default-claude-code -- "$@"; rc=$?
@@ -1577,6 +1735,12 @@ cma_run_provider() {
       kill "$_proxy_pid" 2>/dev/null || true
       command -v cma_log >/dev/null 2>&1 && cma_log "stopped proxy for $CMA_PROVIDER_ID (pid=$_proxy_pid)" || true
     fi
+    # The proxy is dead as of the line above, so the address written into the
+    # DURABLE config now names nothing. Undo it before returning — compare-and-
+    # swap, so a launch that started after ours keeps its own route untouched.
+    _cma_ccr_unfossilise "$cfg" "$CMA_PROVIDER_ID" "$_eph_base" "$_real_base" \
+      "$_wrote_default" "$_wrote_background" "$_prior_default" "$_prior_background" \
+      "$_eph_marker"
   else
     export ANTHROPIC_BASE_URL="$CMA_PROVIDER_BASE_URL"
     export ANTHROPIC_AUTH_TOKEN="$token"
