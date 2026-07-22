@@ -124,3 +124,42 @@ Yes. Sessions are shared across all providers via the unified `~/.claude-shared/
 ### What happens to my session if a provider goes down?
 
 Your session history is preserved in `~/.claude-shared/projects/`. You can resume it through any other verified provider.
+
+## Local models (helixagent)
+
+### What is the `helixagent` alias?
+
+`helixagent` points Claude Code at a **local** HelixLLM backend — a podman container serving Qwen3-Coder-30B on one GPU at `http://127.0.0.1:18434/v1` — instead of a hosted API. It uses router transport through `ccr` plus the bundled Go `cma-proxy` (which recovers the model's tool calls so Claude Code's tools engage), and is pinned to a 229,376-token context window. See §12 of the Provider Aliases User Guide for the full note.
+
+### Why does `helixagent` show as `unverified` and refuse to launch?
+
+Its HelixLLM backend is almost certainly in **coder mode** (`-c 24576 --parallel 8` — eight 3,072-token slots), which HelixCode uses. llama.cpp splits `-c` across the slots, so each request gets only ~3,072 tokens and a Claude Code session returns HTTP 400. `helixagent` needs **claude mode** — one 229,376-token slot. Because coder mode is the default operational state, the toolkit honestly marks `helixagent` `unverified` and the launch gate refuses it until you switch:
+
+```bash
+helix_code/scripts/helixllm-mode.sh claude     # companion repo, NOT this toolkit
+claude-providers verify helixagent --deep      # now passes
+helixagent
+```
+
+The two modes share one GPU and cannot run at once — switch back with `helixllm-mode.sh coder` when you need HelixCode.
+
+### What is minimal-launch (`CMA_PROVIDER_TRIM='bare'`) mode?
+
+A per-provider setting (a line in the provider's resolved `.env` file) that makes every conversation launch **minimal and fresh** so it fits a small local context window. It prepends `--bare` (dropping the hook/plugin/MCP/CLAUDE.md surface) and skips **both** automatic history seams — the conversation-args auto-`--resume` and the interactive zero-args stored session-flags — so no synced session history rides along. Your **explicit** `--resume` / `--session-id` / `--continue` selectors are still honored verbatim, non-conversation subcommands (`doctor`, `mcp`, …) are untouched, and providers without the setting behave exactly as before. It is wired today for `helixagent`, whose 229,376-token window would otherwise be overflowed by ~330k tokens of resumed history plus ~110k of tool schemas.
+
+## Releasing
+
+### How do I run the pre-release gate?
+
+```bash
+claude-release-gate                     # sandbox suite + LIVE real-alias smoke
+claude-release-gate --provider poe      # gate through a specific provider
+claude-release-gate --skip-suite        # reuse a suite run you just ran green
+claude-release-gate --verify-providers  # also run the full LLMsVerifier scan
+```
+
+It is **mandatory**: a release commit must not be made unless the gate exits 0. The default gate provider is `helixagent` (override with `--provider` or `$CMA_GATE_PROVIDER`); the chosen provider must exist and be verified, or the gate fails rather than skipping.
+
+### Why isn't the sandbox test suite enough on its own?
+
+The sandbox proves wrapper **logic** but is structurally blind to real-host state. v1.25.1 shipped with the whole sandbox suite green while every router alias on the real host was bricked (a PATH-shadowing `ccr`, a mis-configured local backend, resumed history overflowing a small window — none reachable from a sandbox). So the gate adds a **live** layer: it regenerates the aliases from the current `lib.sh` and drives the real alias through the real PATH → ccr → route-apply → proxy → backend, asserting the served `GATE-OK` reply and — for router providers — that the gateway's sink-side route actually names the provider under test.

@@ -16,3 +16,5 @@ scratch_*.log
 # Agent scratch/progress ledger — never commit
 .superpowers/
 scripts/proxy/bin/
+logs/
+verification_results/

@@ -406,6 +406,10 @@ claude-unify                          # re-merge shared state
 
 # Docs
 claude-export-docs                    # regenerate HTML/PDF/DOCX
+
+# Release gate (run before tagging a release)
+claude-release-gate                   # sandbox suite + LIVE real-alias smoke
+claude-release-gate --verify-providers  # also run the full LLMsVerifier scan
 ```
 
 ## 12. Individual provider notes
@@ -803,4 +807,115 @@ poe -p "explain this function"      # non-interactive print mode
 - Tool calling verified on multiple models
 - 382 models accessible across all categories
 - OpenAI-compatible format confirmed
+
+### HelixAgent (helixagent) — local single-GPU model
+
+`helixagent` points Claude Code at a **local** HelixLLM backend — a podman
+container serving Qwen3-Coder-30B on one GPU (an RTX 5090) at
+`http://127.0.0.1:18434/v1` — instead of a hosted API. Transport is **router**:
+launches go through `claude-code-router` plus the bundled Go `cma-proxy`, which
+recovers the model's Hermes/Qwen `<function=…>` tool calls into structured
+`tool_calls` so Claude Code's tools actually engage. The alias is pinned in
+`scripts/providers/helixagent.json` to a **229,376-token** context window and an
+**8,192-token** output cap.
+
+Two things are specific to a local, single-GPU backend and worth knowing before
+you launch it.
+
+#### The backend must be in "claude mode" (one big slot), not "coder mode"
+
+The HelixLLM backend is shared — on the **same single GPU** — with HelixCode,
+and the two configurations are **mutually exclusive**:
+
+| Mode | llama.cpp config | Slot layout | For |
+|------|------------------|-------------|-----|
+| **claude mode** | `-c 229376 --parallel 1` | one 229,376-token slot | the `helixagent` alias (Claude Code) |
+| **coder mode** | `-c 24576 --parallel 8` | eight 3,072-token slots | HelixCode's concurrent sub-requests |
+
+llama.cpp splits `-c` across the parallel slots, so **coder mode gives each
+request only ~3,072 tokens** — a Claude Code session (system prompt + tool
+schemas) is far larger, and every launch against coder mode returns **HTTP
+400**. `helixagent` needs the single large slot of claude mode.
+
+Because coder mode is the **default** operational state (HelixCode is the common
+case), `helixagent` is honestly demoted to **`unverified`** and the launch gate
+refuses it until you flip the backend to claude mode:
+
+```bash
+# The mode-switch script lives in the companion helix_code repo — NOT this toolkit:
+helix_code/scripts/helixllm-mode.sh claude     # one 229,376-token slot
+# then re-verify + launch:
+claude-providers verify helixagent --deep      # passes once the backend is in claude mode
+helixagent
+```
+
+Switch back with `helixllm-mode.sh coder` when you need HelixCode again. The two
+modes cannot run at once on the shared GPU.
+
+#### Minimal-launch (`--bare`) trim mode — `CMA_PROVIDER_TRIM='bare'`
+
+A local 229,376-token window is small next to a hosted model's, and a normal
+launch would overflow it before the first turn: on a plugin-heavy host,
+auto-resumed session history (~330k tokens) plus the fixed
+hook/plugin/MCP/CLAUDE.md tool schemas (~110k tokens) together dwarf the whole
+window. So `helixagent`'s resolved env file carries `CMA_PROVIDER_TRIM='bare'`,
+which makes **every conversation launch minimal and fresh**:
+
+- prepends **`--bare`**, dropping the hook/plugin/MCP/CLAUDE.md surface;
+- **skips both automatic history seams** — the conversation-args
+  auto-`--resume` injection *and* the interactive (zero-args) stored
+  session-flags injection — so no synced session history rides along;
+- so each launch is a **fresh session that fits the local window**.
+
+What trim deliberately does **not** touch:
+
+- **Explicit** session selectors you pass yourself (`--resume <id>`,
+  `--session-id <id>`, `--continue`, `--fork-session`, `-c`) are honored
+  **verbatim** — trim only suppresses the *automatic* resume, never your own.
+- **Non-conversation subcommands** (`agents`, `mcp`, `export`, `doctor`,
+  `config`, `plugin`, `setup`, …) get neither `--bare` nor a resume.
+- **Untrimmed providers are byte-identical to before.** Trim is opt-in per
+  provider via the `.env` line, wired today only for `helixagent` but reusable
+  for any local-model provider that needs a fresh minimal session each launch.
+
+## 13. Releasing — the mandatory live pre-release gate
+
+`claude-release-gate` is the release gate: **no release commit may be made
+unless it exits 0.** It exists because a green sandbox suite is not proof the
+real host works — v1.25.1 shipped with the entire sandbox suite green while
+**every** router alias on the real host was bricked. The sandbox proves wrapper
+*logic*; it is structurally blind to real-host state (a PATH-shadowing `ccr`
+doppelgänger, a mis-configured local backend, resumed history overflowing a
+small window). So the gate adds a **live** layer that drives the real chain
+end-to-end.
+
+```bash
+claude-release-gate                      # sandbox suite + live smoke (default provider: helixagent)
+claude-release-gate --provider poe       # gate through a different provider
+claude-release-gate --skip-suite         # reuse a suite run you JUST completed green
+claude-release-gate --verify-providers   # also run the full LLMsVerifier provider scan
+```
+
+The layers, fail-closed — any failure means **DO NOT RELEASE**:
+
+1. **Sandbox suite** — `scripts/tests/run-all.sh`. `--skip-suite` skips it, only
+   valid if you just ran it green.
+2. **Live alias smoke** — regenerates the aliases from the *current* `lib.sh`,
+   then launches the real alias with a fresh session
+   (`… --session-id <uuid> -p "Reply with exactly: GATE-OK"`) through the real
+   **PATH → ccr → route-apply → proxy → provider backend**, and asserts (a) the
+   launch exited 0, (b) the served reply contained `GATE-OK`, and (c) for a
+   router-transport provider, that the gateway's **sink-side route**
+   (`.Router.default` in `~/.claude-code-router/config.json`) actually names the
+   provider under test. A write-then-apply route that silently served the wrong
+   backend fails here.
+3. **Provider scan** *(opt-in, `--verify-providers`)* — runs
+   `claude-verify-providers` (the LLMsVerifier scan) over every provider/model.
+   Slower; off by default.
+
+The gate provider is chosen as `--provider`, else `$CMA_GATE_PROVIDER`, else
+`helixagent`. It **must exist and be verified** — a missing or broken gate
+provider is a gate **failure** (fix it, or pick another with `--provider`),
+never a silent skip. For `helixagent` specifically that means the HelixLLM
+backend must be in claude mode first (§12).
 

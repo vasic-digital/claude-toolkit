@@ -2386,6 +2386,20 @@ cma_provider_write_env() {
   [[ "$max_output" == "null" ]] && max_output=""
   [[ "$alias_name" == "null" ]] && alias_name=""
   local pdir; pdir="$(cma_providers_dir)"; mkdir -p "$pdir"
+  # Preserve the opt-in per-provider TRIM knob (CMA_PROVIDER_TRIM) across
+  # regeneration. It is NOT in the models.dev catalog nor the alias manifest, so
+  # neither caller passes it — it is set on the env file itself. Because this
+  # generator OVERWRITES the whole file (cat > below), an `add`/re-add would
+  # otherwise DROP it. Read the current on-disk value BEFORE the cat truncates
+  # the file and re-emit it below (same existing-value-from-env read as cmd_sync).
+  # `unset CMA_PROVIDER_TRIM` first so only the file's value is preserved — never
+  # a value that happens to be exported in the caller's shell.
+  local trim=""
+  if [[ -f "$pdir/$id.env" ]]; then
+    # shellcheck disable=SC1090,SC1091
+    trim="$( ( unset CMA_PROVIDER_TRIM; set -a; . "$pdir/$id.env" >/dev/null 2>&1; set +a; printf '%s' "${CMA_PROVIDER_TRIM:-}" ) )"
+  fi
+  [[ "$trim" == "null" ]] && trim=""
   # Values are single-quoted (with embedded-quote escaping) so sourcing the file
   # in the user's shell is safe regardless of characters in URLs/model ids.
   # POSIX single-quote escaping: replace each ' with '\'' via a loop.
@@ -2423,6 +2437,16 @@ CMA_PROVIDER_MAX_OUTPUT=$(_cma_q "$max_output")
 # refresh falls back to the provider id as the alias name.
 CMA_PROVIDER_ALIAS=$(_cma_q "$alias_name")
 EOF
+  # Re-emit the preserved TRIM knob, ONLY when set — a provider without it must
+  # stay without it (no spurious empty line). CMA_PROVIDER_TRIM=bare makes
+  # cma_run_provider launch minimal (--bare, fresh session, no auto-resume).
+  if [[ -n "$trim" ]]; then
+    {
+      printf '# Opt-in per-provider TRIM knob (preserved across regeneration).\n'
+      printf '# CMA_PROVIDER_TRIM=bare launches minimal: --bare + fresh session (no auto-resume).\n'
+      printf 'CMA_PROVIDER_TRIM=%s\n' "$(_cma_q "$trim")"
+    } >> "$pdir/$id.env"
+  fi
   unset -f _cma_q
 }
 

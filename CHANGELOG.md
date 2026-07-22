@@ -2,6 +2,33 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.25.3 — 2026-07-22 — trim knob survives generator regen + operator docs for trim/gate/container-mode
+
+Patch follow-up to v1.25.2.
+
+### Fixed
+- **`CMA_PROVIDER_TRIM` now survives a provider re-add.** The v1.25.2 trim knob
+  was a hand-added line on the provider `.env`, which the generator
+  (`cma_provider_write_env`) would have dropped on the next `claude-providers
+  add`/sync (the file is machine-generated). The generator now READS the
+  existing `CMA_PROVIDER_TRIM` value before it truncates the file and re-emits
+  it — matching the existing "preserve-existing-value" pattern; emitted only
+  when set, and the ambient var is unset first so a shell export can never leak
+  onto the file. (`scripts/tests/test_provider_trim_persist.sh`, red→green.)
+
+### Added
+- **Operator documentation** for the v1.25.2 features in
+  `docs/Provider_Aliases_User_Guide.md` (+ synchronized HTML/PDF/DOCX) and
+  `docs/Provider_FAQ.md`: `CMA_PROVIDER_TRIM='bare'` trim mode, the
+  `claude-release-gate` live gate, and the helixagent HelixLLM container-mode
+  dependency (claude mode = one 229k slot vs coder mode = 8×3072).
+
+### Changed
+- GitLab upstream repointed to the renamed `claude_toolkit` (underscore) repo
+  (`upstreams/GitLab.sh` + local remotes) — GitLab, like GitHub, has completed
+  the §11.4.29 snake_case rename. GitFlic/GitVerse still host the dash name
+  (underscore absent there) and remain on dash until renamed operator-side.
+
 ## v1.25.2 — 2026-07-22 — ccr resolved by stable path (PATH-shadowing doppelgänger), provider trim mode, mandatory live release gate
 
 Patch. A second field failure on the v1.25.1 shape, with a DIFFERENT root

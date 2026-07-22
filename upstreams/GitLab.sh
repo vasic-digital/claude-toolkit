@@ -1,4 +1,4 @@
 #!/bin/bash
 
-export UPSTREAMABLE_REPOSITORY="git@gitlab.com:vasic-digital/claude-toolkit.git"
+export UPSTREAMABLE_REPOSITORY="git@gitlab.com:vasic-digital/claude_toolkit.git"
 
