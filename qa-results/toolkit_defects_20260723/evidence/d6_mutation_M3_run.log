@@ -1,0 +1,13 @@
+=== M3: unwire the default-sync multi phase (regress to opt-in-only, §11.4.196(F)) ===
+scripts/claude-providers.sh: line 1208: syntax error near unexpected token `)'
+scripts/claude-providers.sh: line 1208: `  list)        cmd_list ;;'
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: fast = next-ranked model
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: primary alias env file
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: second alias env file
+  - idempotent + re-runnable: second sync leaves byte-identical alias env files :: second sync exits cleanly
+  - opt-in: --include-paid probes paid + unknown tiers too :: sync --include-paid exits cleanly
+  - opt-in: --include-paid probes paid + unknown tiers too :: paidx probed under the explicit opt-in
+  - opt-in: --include-paid probes paid + unknown tiers too :: mysterym probed under the explicit opt-in
+  - generated aliases are provider-class: cma_run_provider + ~/.claude-prov-* namespace :: generated alias invokes cma_run_provider (provider class — the account dispatcher refuses prov-*, see test_dynamic_account_dispatch.sh)
+M3 test exit: 1
+M3 restored

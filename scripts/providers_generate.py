@@ -52,8 +52,11 @@ def pair_models(models, max_aliases=5, min_score=25):
     if not verified:
         return []
 
-    # Sort by score descending
-    verified.sort(key=lambda m: m.get("score", 0), reverse=True)
+    # Sort by score descending; model_id is the FINAL tie-break so pairing —
+    # and therefore alias naming — is deterministic regardless of the order
+    # the verifier's concurrent probes completed in (ATM-860: idempotent,
+    # collision-free `provider`, `provider2`, ... naming).
+    verified.sort(key=lambda m: (-m.get("score", 0), str(m.get("model_id", ""))))
 
     aliases = []
     i = 0

@@ -1,0 +1,9 @@
+=== M2: admit models on catalog metadata alone (override the live-probe verdict) ===
+    [32m[PASS][0m generated alias invokes cma_run_provider (provider class — the account dispatcher refuses prov-*, see test_dynamic_account_dispatch.sh) (0)
+
+[31m✗ 1 failed, 27 passed[0m
+
+Failures:
+  - a models-list entry is not evidence: brokenfree (real completion fails) never admitted :: brokenfree recorded verified=false
+M2 test exit: 1
+M2 restored

@@ -1,30 +1,48 @@
 === verify_helixagent_test.sh evidence ===
-date: 2026-07-23T15:21:47Z
-server port: 49857   pid: 1616912
-PATH helixagent: /tmp/.private/milos/cma-test.Pa9qyh/.local/bin/helixagent
---- live GET http://127.0.0.1:49857/v1/models ---
+date: 2026-07-23T20:08:48Z
+server port: 38851   pid: 236818
+PATH helixagent: /tmp/.private/milos/cma-test.3eXEG9/.local/bin/helixagent
+--- live GET http://127.0.0.1:38851/v1/models ---
 {"object": "list", "data": [{"id": "helix-live-strong", "object": "model"}, {"id": "helix-live-fast", "object": "model"}]}
-[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.Pa9qyh/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [36m[cma][0m discovered 2 key vars; 1 resolve to a provider
 [36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=helix-live-strong (unverified/existence)
 [36m[cma][0m sync done: 1 active, 0 disabled (failed verify), 1 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.Pa9qyh/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 2 key vars; 1 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:38851/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'helixagent'
+[36m[cma][0m multi-sync done: 0 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/aliases.sh
 --- detect_helixagent_record output (CASE A) ---
-[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:49857/v1","transport":"router","strong_model":"helix-live-strong","fast_model":"helix-live-fast","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
+[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:38851/v1","transport":"router","strong_model":"helix-live-strong","fast_model":"helix-live-fast","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
 --- detect_helixagent_record output (CASE A2, authed) ---
-[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:50485/v1","transport":"router","strong_model":"helix-auth-strong","fast_model":"helix-auth-fast","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
+[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:47935/v1","transport":"router","strong_model":"helix-auth-strong","fast_model":"helix-auth-fast","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
 --- detect_helixagent_record output (CASE A2, no key -> 401) ---
-[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:50485/v1","transport":"router","strong_model":"helix-debate","fast_model":"helix-llm","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
-[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.Pa9qyh/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[{"key_var":"HELIXAGENT_API_KEY","classification":"llm","provider_id":"helixagent","alias":"helixagent","base_url":"http://127.0.0.1:47935/v1","transport":"router","strong_model":"helix-debate","fast_model":"helix-llm","context_limit":128000,"max_output":8192,"status":"resolved","reason":"helixagent detected on PATH"}]
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [36m[cma][0m discovered 1 key vars; 0 resolve to a provider
 [33m[cma warn][0m provider 'helixagent' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
 [36m[cma][0m sync done: 0 active, 0 disabled (failed verify), 1 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.Pa9qyh/.local/share/claude-multi-account/aliases.sh
-[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.Pa9qyh/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 1 key vars; 0 resolve to a provider
+[36m[cma][0m multi-sync done: 0 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/providers/models.dev.cache.json)
 [36m[cma][0m discovered 2 key vars; 1 resolve to a provider
 [36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=helix-debate (unverified/existence)
 [36m[cma][0m sync done: 1 active, 0 disabled (failed verify), 1 not-resolved
-[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.Pa9qyh/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 2 key vars; 1 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:1/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'helixagent'
+[36m[cma][0m multi-sync done: 0 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.3eXEG9/.local/share/claude-multi-account/aliases.sh
 --- CASE D1 (resolver prints [] then exit 7) rc=1 ---
 STDOUT=[]
 STDERR=[[31m[cma err][0m providers_resolve.py failed (exit 7) — refusing to merge in an empty/partial provider list]
@@ -43,7 +61,7 @@ CMA_PROVIDER_TRANSPORT='router'
 CMA_PROVIDER_BASE_URL='http://127.0.0.1:1/v1'
 CMA_PROVIDER_MODEL='helix-debate'
 CMA_PROVIDER_FAST_MODEL='helix-llm'
-CMA_PROVIDER_CONFIG_DIR='/tmp/.private/milos/cma-test.Pa9qyh/.claude-prov-helixagent'
+CMA_PROVIDER_CONFIG_DIR='/tmp/.private/milos/cma-test.3eXEG9/.claude-prov-helixagent'
 # Context-window limits from the models.dev catalog for the selected strong model.
 # CMA_PROVIDER_CONTEXT_LIMIT: input context window (tokens); empty = unknown.
 #   -> exported as CLAUDE_CODE_AUTO_COMPACT_WINDOW (input-side guard).

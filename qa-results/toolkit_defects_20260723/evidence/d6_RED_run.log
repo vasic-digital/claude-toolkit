@@ -1,0 +1,97 @@
+
+  • default sync runs the per-model multi phase and emits multi-alias artifacts
+    [32m[PASS][0m default sync exits cleanly (0)
+    [31m[FAIL][0m per-model verification output produced by DEFAULT sync
+           missing: /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_verified.json
+    [31m[FAIL][0m multi-alias manifest produced by DEFAULT sync
+           missing: /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json
+
+  • control needle: the recorder really records completion probes (free models hit)
+    [31m[FAIL][0m freealpha was probed with a REAL completion (needle: instrument sees probes)
+           want=0 got=1
+    [31m[FAIL][0m the probe includes the tool-call round-trip (not a bare models-list read)
+           want=0 got=1
+
+  • free-only default: paid and unknown-tier models are NEVER probed
+    [32m[PASS][0m paidx (catalog cost > 0) received ZERO completion requests (1)
+    [32m[PASS][0m mysterym (no cost data => underivable => treated as PAID) received ZERO requests (1)
+
+  • skips are honest: verified.json says free_only and names the skipped tiers
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_verified.json: No such file or directory
+    [31m[FAIL][0m free_only flag recorded
+           want=true got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_verified.json: No such file or directory
+    [31m[FAIL][0m paidx skipped with tier=paid
+           want=paid got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_verified.json: No such file or directory
+    [31m[FAIL][0m mysterym skipped with tier=unknown (treated as paid, said so)
+           want=unknown got=
+
+  • a models-list entry is not evidence: brokenfree (real completion fails) never admitted
+    [31m[FAIL][0m brokenfree WAS probed (free tier => probe allowed)
+           want=0 got=1
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_verified.json: No such file or directory
+    [31m[FAIL][0m brokenfree recorded verified=false
+           want=false got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [32m[PASS][0m brokenfree appears in NO generated alias ()
+
+  • per-model aliases: provider, provider2 — deterministic strong/fast pairing
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [31m[FAIL][0m 4 verified free models => 2 paired aliases
+           want=2 got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [31m[FAIL][0m primary alias name
+           want=stubprov got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [31m[FAIL][0m second alias name (collision-free suffix)
+           want=stubprov2 got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [31m[FAIL][0m equal-score tie broken deterministically by model id (freealpha before freebeta)
+           want=freealpha got=
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [31m[FAIL][0m fast = next-ranked model
+           want=freebeta got=
+    [32m[PASS][0m primary alias env file: /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov.env
+    [31m[FAIL][0m second alias env file
+           missing: /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov2.env
+
+  • idempotent + re-runnable: second sync leaves byte-identical alias env files
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [32m[PASS][0m second sync exits cleanly (0)
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [32m[PASS][0m env files byte-identical across runs (a89922305bc1341556b136c193b5214ddc293c948d3f9b9978ff9dcc0d038eed)
+    [32m[PASS][0m alias set + order identical across runs ()
+
+  • opt-in: --include-paid probes paid + unknown tiers too
+    [32m[PASS][0m sync --include-paid exits cleanly (0)
+    [31m[FAIL][0m paidx probed under the explicit opt-in
+           want=0 got=1
+    [31m[FAIL][0m mysterym probed under the explicit opt-in
+           want=0 got=1
+
+  • generated aliases are provider-class: cma_run_provider + ~/.claude-prov-* namespace
+jq: error: Could not open file /tmp/.private/milos/cma-test.Clfoj1/.local/share/claude-multi-account/providers/stubprov_manifest.json: No such file or directory
+    [32m[PASS][0m every generated config_dir is in the .claude-prov-* namespace (disjoint from account dirs) (0)
+    [32m[PASS][0m generated alias invokes cma_run_provider (provider class — the account dispatcher refuses prov-*, see test_dynamic_account_dispatch.sh) (0)
+
+[31m✗ 17 failed, 11 passed[0m
+
+Failures:
+  - default sync runs the per-model multi phase and emits multi-alias artifacts :: per-model verification output produced by DEFAULT sync
+  - default sync runs the per-model multi phase and emits multi-alias artifacts :: multi-alias manifest produced by DEFAULT sync
+  - control needle: the recorder really records completion probes (free models hit) :: freealpha was probed with a REAL completion (needle: instrument sees probes)
+  - control needle: the recorder really records completion probes (free models hit) :: the probe includes the tool-call round-trip (not a bare models-list read)
+  - skips are honest: verified.json says free_only and names the skipped tiers :: free_only flag recorded
+  - skips are honest: verified.json says free_only and names the skipped tiers :: paidx skipped with tier=paid
+  - skips are honest: verified.json says free_only and names the skipped tiers :: mysterym skipped with tier=unknown (treated as paid, said so)
+  - a models-list entry is not evidence: brokenfree (real completion fails) never admitted :: brokenfree WAS probed (free tier => probe allowed)
+  - a models-list entry is not evidence: brokenfree (real completion fails) never admitted :: brokenfree recorded verified=false
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: 4 verified free models => 2 paired aliases
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: primary alias name
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: second alias name (collision-free suffix)
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: equal-score tie broken deterministically by model id (freealpha before freebeta)
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: fast = next-ranked model
+  - per-model aliases: provider, provider2 — deterministic strong/fast pairing :: second alias env file
+  - opt-in: --include-paid probes paid + unknown tiers too :: paidx probed under the explicit opt-in
+  - opt-in: --include-paid probes paid + unknown tiers too :: mysterym probed under the explicit opt-in

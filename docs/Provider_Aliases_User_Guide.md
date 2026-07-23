@@ -167,23 +167,42 @@ overhead that `claudeN` aliases already have.
 `claude-unify` and `claude-add-account`). Only `claude-sync-state` includes them,
 so the existing account management is unaffected.
 
-### Multi-alias system (v1.6.0+)
+### Multi-alias system (v1.6.0+; free-tier-first default since v1.26.0)
 
-By default, `sync` creates **one alias per provider** using the 2 strongest
-models. With `--multi`, it verifies **ALL models** for each provider and creates
-**multiple aliases** — `provider`, `provider2`, `provider3`, etc. — each with
-a different pair of strong + fast models.
+`sync` creates **one alias per provider** using the 2 strongest models, and
+then (v1.26.0+, ATM-860) runs the **per-model multi-alias phase by default**:
+it verifies each provider's **FREE-tier models** with real completion probes
+and creates **multiple aliases** — `provider`, `provider2`, `provider3`, etc.
+— each with a different pair of strong + fast models. Free-vs-paid derives
+from real data only (models.dev `cost` rows, `:free` ids, self-hosted local
+endpoints); a model whose tier cannot be derived is treated as **paid** and
+skipped unprobed (fail-safe on spend), recorded honestly under
+`skipped_models` in `<provider>_verified.json`. Paid models are **never
+probed by default** — that costs real money and is an explicit opt-in.
 
 ```bash
-# Standard: 1 alias per provider (2 models)
+# Standard (default): 1 alias per provider + per-model aliases for FREE models
 claude-providers sync
 
-# Multi: verify all models, create multiple aliases
+# Opt in to probing paid/unknown-tier models too (spends real money)
+claude-providers sync --include-paid          # or CMA_SYNC_INCLUDE_PAID=1
+
+# Only the per-model phase (no single-alias sync); free-tier by default
 claude-providers sync --multi
+
+# Skip the per-model phase entirely (legacy single-alias-only shape)
+CMA_SYNC_MULTI=0 claude-providers sync
 
 # Options
 claude-providers sync --multi --max-aliases 10 --min-score 20
 ```
+
+Alias generation is idempotent and deterministic: ranking/pairing tie-breaks
+on model id, so re-running sync yields byte-identical alias env files and the
+same `provider`/`provider2`/... naming. Generated provider aliases live in
+the `~/.claude-prov-*` namespace and launch via `cma_run_provider` — a class
+the account dispatcher refuses, so they can never shadow or outrank a native
+`claudeN` account alias.
 
 **How verification works (v1.14.0+):**
 

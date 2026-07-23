@@ -1,0 +1,107 @@
+=== ATM-860 LIVE free-endpoint end-to-end proof (opencode, D14 free-tier-first) ===
+date: 2026-07-23T20:10:00Z   sandbox: /tmp/cma-test.pvcPNL (live provider state untouched)
+keys: names-only sandbox copy of the Zen/opencode vars (values never logged)
+
+--- RUN 1: DEFAULT sync (live models.dev fetch + live free-tier completion probes) ---
+[36m[cma][0m refreshed models.dev catalog -> /tmp/cma-test.pvcPNL/.local/share/claude-multi-account/providers/models.dev.cache.json (3249098 bytes)
+[36m[cma][0m discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=HelixAgent/HelixLLM (unverified/existence)
+[36m[cma][0m provider 'opencode' -> alias 'opencode' [router] model=big-pickle (unverified/existence)
+[36m[cma][0m sync done: 2 active, 0 disabled (failed verify), 0 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/cma-test.pvcPNL/.local/share/claude-multi-account/aliases.sh
+[36m[cma][0m multi-sync: discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:18434/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'helixagent'
+[36m[cma][0m multi-sync: verifying models for 'opencode' at https://opencode.ai/zen/v1/chat/completions (free-tier only)...
+free-only: skipping 59 non-free model(s) unprobed: claude-opus-4-8, gpt-5-codex, gpt-5.5-pro, claude-opus-4-1, glm-4.7, gpt-5.4, gpt-5.4-pro, gemini-3.1-pro, gemini-3.5-flash, claude-sonnet-4, claude-sonnet-4-6, gpt-5.3-codex-spark, gpt-5.4-mini, gpt-5.6-terra, gemini-3.6-flash, kimi-k2.7-code, gpt-5.3-codex, gpt-5.1-codex-max, gemini-3-flash, minimax-m2.1, gpt-5.1-codex, grok-build-0.1, claude-haiku-4-5, gpt-5.4-nano, kimi-k2-thinking, deepseek-v4-flash, gpt-5.2-codex, gemini-3.5-flash-lite, qwen3.5-plus, gpt-5.1-codex-mini, gpt-5, qwen3-coder, grok-4.5, gpt-5.1, kimi-k2, claude-3-5-haiku, kimi-k2.6, minimax-m2.5, deepseek-v4-pro, claude-fable-5, claude-sonnet-5, claude-opus-4-5, qwen3.6-plus, gpt-5-nano, glm-5.2, gpt-5.2, gpt-5.6-luna, gemini-3-pro, claude-opus-4-7, kimi-k2.5, claude-opus-4-6, minimax-m3, claude-sonnet-4-5, glm-5, gpt-5.6-sol, gpt-5.5, glm-5.1, minimax-m2.7, glm-4.6
+Verifying 23 models for opencode...
+  ✗ hy3-free: score=0 (HTTP 401)
+  ✗ mimo-v2-pro-free: score=0 (HTTP 401)
+  ✗ minimax-m2.5-free: score=0 (HTTP 401)
+  ✗ glm-4.7-free: score=0 (HTTP 401)
+  ✗ qwen3.6-plus-free: score=0 (HTTP 401)
+  ✗ mimo-v2-flash-free: score=0 (HTTP 401)
+  ✗ ling-2.6-flash-free: score=0 (HTTP 401)
+  ✗ minimax-m2.1-free: score=0 (HTTP 401)
+  ✗ trinity-large-preview-free: score=0 (HTTP 401)
+  ✗ hy3-preview-free: score=0 (HTTP 401)
+  ✗ kimi-k2.5-free: score=0 (HTTP 401)
+  ✓ north-mini-code-free: score=55 ()
+  ✗ minimax-m3-free: score=0 (HTTP 401)
+  ✗ glm-5-free: score=0 (HTTP 401)
+  ✗ ring-2.6-1t-free: score=0 (HTTP 401)
+  ✗ laguna-s-2.1-free: score=0 (Rate limited (429))
+  ✗ nemotron-3-super-free: score=0 (HTTP 401)
+  ✗ grok-code: score=0 (HTTP 401)
+  ✓ big-pickle: score=50 ()
+  ✓ mimo-v2.5-free: score=55 ()
+  ✗ mimo-v2-omni-free: score=0 (HTTP 401)
+  ✓ deepseek-v4-flash-free: score=55 ()
+  ✓ nemotron-3-ultra-free: score=45 ()
+[36m[cma][0m   opencode: 5 models verified
+[36m[cma][0m   opencode: 3 aliases generated
+[36m[cma][0m   alias 'opencode': strong=north-mini-code-free fast=deepseek-v4-flash-free [router]
+[36m[cma][0m   alias 'opencode2': strong=mimo-v2.5-free fast=big-pickle [router]
+[36m[cma][0m   alias 'opencode3': strong=nemotron-3-ultra-free fast=nemotron-3-ultra-free [router]
+[36m[cma][0m multi-sync done: 3 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/cma-test.pvcPNL/.local/share/claude-multi-account/aliases.sh
+run1 exit=0
+
+--- verified.json shape (free_only + skips + verified set; no secrets in this file) ---
+{
+  "provider_id": "opencode",
+  "endpoint": "https://opencode.ai/zen/v1/chat/completions",
+  "free_only": true,
+  "verified_count": 5,
+  "failed_count": 18,
+  "total_tested": 23,
+  "skipped_count": 59
+}
+--- skipped tiers histogram (paid/unknown NEVER probed) ---
+paid: 59
+--- verified models (real completion round-trips: latency + capabilities) ---
+north-mini-code-free score=72 tier=free latency_ms=1242 tool_call=true
+deepseek-v4-flash-free score=71 tier=free latency_ms=1179 tool_call=true
+mimo-v2.5-free score=71 tier=free latency_ms=1759 tool_call=true
+big-pickle score=66 tier=free latency_ms=3622 tool_call=true
+nemotron-3-ultra-free score=65 tier=free latency_ms=12673 tool_call=true
+--- probed-but-not-verified (honest failures, real round-trips) ---
+mimo-v2-pro-free tier=free reason=HTTP 401
+grok-code tier=free reason=HTTP 401
+hy3-preview-free tier=free reason=HTTP 401
+kimi-k2.5-free tier=free reason=HTTP 401
+laguna-s-2.1-free tier=free reason=Rate limited (429)
+ling-2.6-flash-free tier=free reason=HTTP 401
+mimo-v2-flash-free tier=free reason=HTTP 401
+mimo-v2-omni-free tier=free reason=HTTP 401
+qwen3.6-plus-free tier=free reason=HTTP 401
+ring-2.6-1t-free tier=free reason=HTTP 401
+glm-4.7-free tier=free reason=HTTP 401
+glm-5-free tier=free reason=HTTP 401
+hy3-free tier=free reason=HTTP 401
+minimax-m2.1-free tier=free reason=HTTP 401
+minimax-m2.5-free tier=free reason=HTTP 401
+minimax-m3-free tier=free reason=HTTP 401
+nemotron-3-super-free tier=free reason=HTTP 401
+trinity-large-preview-free tier=free reason=HTTP 401
+--- control needle: every PROBED model is free-tier (a paid/unknown id here = filter broken) ---
+non_free_probed=0
+--- generated aliases (manifest) ---
+opencode: strong=north-mini-code-free fast=deepseek-v4-flash-free
+opencode2: strong=mimo-v2.5-free fast=big-pickle
+opencode3: strong=nemotron-3-ultra-free fast=nemotron-3-ultra-free
+/tmp/cma-test.pvcPNL/.local/share/claude-multi-account/providers/opencode2.env
+/tmp/cma-test.pvcPNL/.local/share/claude-multi-account/providers/opencode3.env
+/tmp/cma-test.pvcPNL/.local/share/claude-multi-account/providers/opencode.env
+run1 env sha256=be30fe92d854221b7eaf2b3e11342dc8d64e31bcbcb678e981d8cb5a0ac34307
+
+--- RUN 2: idempotency (same default sync, re-run) ---
+[36m[cma][0m   alias 'opencode': strong=north-mini-code-free fast=deepseek-v4-flash-free [router]
+[36m[cma][0m   alias 'opencode2': strong=mimo-v2.5-free fast=big-pickle [router]
+[36m[cma][0m   alias 'opencode3': strong=nemotron-3-ultra-free fast=nemotron-3-ultra-free [router]
+[36m[cma][0m multi-sync done: 3 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/cma-test.pvcPNL/.local/share/claude-multi-account/aliases.sh
+run2 env sha256=be30fe92d854221b7eaf2b3e11342dc8d64e31bcbcb678e981d8cb5a0ac34307
+IDEMPOTENT: byte-identical alias env files across runs
+=== live proof done 2026-07-23T20:10:29Z ===

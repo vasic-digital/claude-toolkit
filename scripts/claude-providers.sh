@@ -49,9 +49,19 @@ OVERRIDES="$LIB_DIR/providers/overrides.json"
 CACHE="$(cma_providers_dir)/models.dev.cache.json"
 VERIFIED_CACHE="$(cma_providers_dir)/verification_cache.json"
 
+# ATM-860 (operator decision D14, 2026-07-23): the per-model multi-alias
+# pipeline runs as part of the DEFAULT sync, restricted to FREE-tier models
+# (models.dev cost 0/0, `:free` ids, self-hosted local endpoints). Paid /
+# unknown-tier models are NEVER sent a completion by default — probing them
+# requires the explicit opt-in --include-paid (or CMA_SYNC_INCLUDE_PAID=1).
+# CMA_SYNC_MULTI=0 disables the default multi phase entirely (legacy shape).
+: "${CMA_SYNC_MULTI:=1}"
+: "${CMA_SYNC_INCLUDE_PAID:=0}"
+
 # shellcheck disable=SC2034  # ASSUME_YES reserved for --yes prompt suppression (not yet wired into cmds)
 NO_VERIFY=0 OFFLINE=0 DRY_RUN=0 ASSUME_YES=0 MULTI=0
 REFRESH_ALIASES=0 QUIET=0 PRUNE_UNRESOLVED=0
+INCLUDE_PAID="$CMA_SYNC_INCLUDE_PAID"
 MAX_ALIASES=5 MIN_SCORE=25 VERIFY_CONCURRENCY=5
 
 usage() {
@@ -59,8 +69,13 @@ usage() {
 Usage: claude-providers [SUBCOMMAND] [options]
 
 Subcommands:
-  sync                 (default) discover + create/refresh all provider aliases
-  sync --multi         verify ALL models per provider, create multiple aliases
+  sync                 (default) discover + create/refresh all provider aliases,
+                       then verify FREE-tier models per provider and create
+                       per-model aliases (paid models are NEVER probed by
+                       default — see --include-paid; CMA_SYNC_MULTI=0 skips
+                       the per-model phase)
+  sync --multi         run ONLY the per-model multi-alias phase (free-tier
+                       by default; add --include-paid to probe paid models)
   list                 list only VALIDATED + VERIFIED provider aliases
   list-all             list every installed provider alias (any status)
   list-faulty          list only aliases with an issue (failed/unverified/pending)
@@ -92,7 +107,10 @@ Options:
   --unresolved         with prune: also remove UNRESOLVED orphans (has a
                        *.env but no longer resolves) — without this flag,
                        prune only ever auto-removes status-only orphans
-  --multi              with sync: verify all models, create multiple aliases per provider
+  --multi              with sync: run ONLY the per-model multi-alias phase
+  --include-paid       ALSO fire verification completions at paid/unknown-tier
+                       models (spends real money; default is free-tier only —
+                       operator decision D14). Env: CMA_SYNC_INCLUDE_PAID=1
   --max-aliases N      max aliases per provider (default: 5)
   --min-score N        minimum verification score (default: 25)
   --verify-concurrency N  concurrent model verifications (default: 5)
@@ -1019,10 +1037,19 @@ cmd_sync_multi() {
       *) verify_endpoint="${verify_endpoint%/}/chat/completions" ;;
     esac
 
-    cma_log "multi-sync: verifying all models for '$pid' at $verify_endpoint..."
+    # Free-tier-first (ATM-860 / D14): the default probes ONLY free-tier
+    # models; paid + underivable tiers cost real money and need the explicit
+    # --include-paid opt-in. model_verify.py owns the classification (real
+    # catalog cost data / :free ids / local endpoints — never a roster).
+    local tier_args=(--free-only) tier_note="free-tier only"
+    if (( INCLUDE_PAID )); then
+      tier_args=() tier_note="INCLUDING PAID (explicit opt-in)"
+    fi
+
+    cma_log "multi-sync: verifying models for '$pid' at $verify_endpoint ($tier_note)..."
 
     if (( DRY_RUN )); then
-      cma_log "  would verify models for '$pid' and generate multi-aliases"
+      cma_log "  would verify models for '$pid' ($tier_note) and generate multi-aliases"
       continue
     fi
 
@@ -1036,6 +1063,7 @@ cmd_sync_multi() {
       --concurrency "$VERIFY_CONCURRENCY" \
       --cache-file "$VERIFIED_CACHE" \
       --output "$verified_out" \
+      ${tier_args[@]+"${tier_args[@]}"} \
       --verbose 2>&1 || { cma_warn "verification failed for '$pid'"; continue; }
 
     local vcount; vcount="$(jq '.verified_count' "$verified_out" 2>/dev/null || echo 0)"
@@ -1127,6 +1155,7 @@ while (( $# )); do
     --refresh-aliases) REFRESH_ALIASES=1; shift ;;
     --quiet) QUIET=1; shift ;;
     --multi) MULTI=1; shift ;;
+    --include-paid) INCLUDE_PAID=1; shift ;;
     --max-aliases) MAX_ALIASES="$2"; shift 2 ;;
     --min-score) MIN_SCORE="$2"; shift 2 ;;
     --verify-concurrency) VERIFY_CONCURRENCY="$2"; shift 2 ;;
@@ -1168,7 +1197,14 @@ if (( REFRESH_ALIASES )); then
 fi
 
 case "$SUBCMD" in
-  sync)        if (( MULTI )); then cmd_sync_multi; else cmd_sync; fi ;;
+  # Default sync = single-alias sync, THEN the per-model multi phase
+  # (free-tier only unless --include-paid) — ATM-860 D14 wiring: the multi
+  # pipeline is no longer reachable only through the opt-in --multi flag
+  # (§11.4.196(F) CONFIGURED != IN USE). `sync --multi` runs ONLY the
+  # per-model phase (its pre-D14 shape); CMA_SYNC_MULTI=0 restores the
+  # legacy single-alias-only default.
+  sync)        if (( MULTI )); then cmd_sync_multi
+               else cmd_sync; if (( CMA_SYNC_MULTI )); then cmd_sync_multi; fi; fi ;;
   list)        cmd_list ;;
   list-all)    cmd_list_all ;;
   list-faulty) cmd_list_faulty ;;

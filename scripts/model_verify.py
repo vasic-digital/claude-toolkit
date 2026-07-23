@@ -44,7 +44,9 @@ EXPECTED_CONTENT = "VERIFY_OK"
 TIMEOUT_DEFAULT = 30
 CONCURRENCY_DEFAULT = 5
 CACHE_TTL_SECONDS = 86400  # 24 hours
-CACHE_VERSION = 2  # bump when verification semantics change; older caches are ignored
+CACHE_VERSION = 3  # bump when verification semantics change; older caches are ignored
+                   # (v3: ATM-860 free-only tier filtering + deterministic ranking —
+                   # pre-v3 caches may hold result sets probed under different rules)
 MIN_CONTEXT_WINDOW = 8000
 MIN_OUTPUT_TOKENS = 1000
 
@@ -466,13 +468,71 @@ def verify_model(model_id, provider_id, endpoint, api_key, timeout=TIMEOUT_DEFAU
     return result
 
 
-def enrich_from_catalog(verified_models, catalog_models):
+def endpoint_is_local(endpoint):
+    """True when the endpoint host is loopback or an RFC1918 private address.
+
+    A self-hosted endpoint (llama.cpp on 127.0.0.1, a LAN gateway) has no
+    billing relationship at all — a completion against it costs nothing.
+    This is derived from the REAL endpoint URL (provider data), not a roster.
+    """
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(endpoint).hostname or "").lower()
+    except Exception:
+        return False
+    if host in ("localhost", "127.0.0.1", "::1"):
+        return True
+    if host.startswith("10.") or host.startswith("192.168."):
+        return True
+    if host.startswith("172."):
+        try:
+            second = int(host.split(".")[1])
+            return 16 <= second <= 31
+        except (IndexError, ValueError):
+            return False
+    return False
+
+
+def classify_tier(model_id, cat_entry, endpoint=""):
+    """free | paid | unknown — from REAL data only, never a guess (§11.4.6).
+
+    Precedence (most-authoritative first):
+      1. models.dev catalog `cost` row: zero on BOTH sides = free; any
+         non-zero side = paid. The catalog verdict OUTRANKS locality, so a
+         paid model proxied through a local gateway still classifies paid.
+      2. The provider's own `:free` id convention (OpenRouter et al.).
+      3. A CATALOGUED model without pricing = a commercial catalog provider
+         that publishes no cost for it => "unknown" (genuinely underivable),
+         EVEN on a local endpoint — the catalog's knowledge of the model
+         outranks where it is reached.
+      4. An UNCATALOGUED model on a loopback / RFC1918 endpoint host:
+         self-hosted => free by construction (no billing party exists —
+         the helixagent / llama.cpp class, whose models appear in no
+         commercial catalog).
+      5. Otherwise "unknown" — which spend-guarded callers (--free-only)
+         MUST treat as PAID (fail-safe on spend, operator decision D14).
+
+    Single classification point shared by the pre-probe free-only filter and
+    enrich_from_catalog, so filtering and scoring cannot disagree.
+    """
+    cost = (cat_entry or {}).get("cost", {})
+    inp_cost = cost.get("input") if isinstance(cost, dict) else None
+    out_cost = cost.get("output") if isinstance(cost, dict) else None
+    if isinstance(inp_cost, (int, float)) and isinstance(out_cost, (int, float)):
+        return "free" if (inp_cost == 0 and out_cost == 0) else "paid"
+    if str(model_id).endswith(":free"):
+        return "free"
+    if not cat_entry and endpoint and endpoint_is_local(endpoint):
+        return "free"
+    return "unknown"
+
+
+def enrich_from_catalog(verified_models, catalog_models, endpoint=""):
     """Enrich verification results with catalog metadata (context window, cost, etc.)."""
     for model in verified_models:
         mid = model["model_id"]
         cat = catalog_models.get(mid, {})
         limit = cat.get("limit", {})
-        cost = cat.get("cost", {})
 
         ctx = limit.get("context", 0)
         out = limit.get("output", 0)
@@ -485,18 +545,13 @@ def enrich_from_catalog(verified_models, catalog_models):
             ctx_score = min(WEIGHT_CONTEXT, int(WEIGHT_CONTEXT * math.log10(ctx / 1000) / math.log10(1000)))
             model["score"] += ctx_score
 
-        # Free/paid tier — the same classification providers_resolve.py uses, so
-        # the --multi path and the single-alias path cannot disagree about which
-        # models are free. Zero on BOTH sides is free; missing pricing is
-        # "unknown", never assumed free.
-        inp_cost = cost.get("input") if isinstance(cost, dict) else None
-        out_cost = cost.get("output") if isinstance(cost, dict) else None
-        if isinstance(inp_cost, (int, float)) and isinstance(out_cost, (int, float)):
-            tier = "free" if (inp_cost == 0 and out_cost == 0) else "paid"
-        elif str(mid).endswith(":free"):
-            tier = "free"
-        else:
-            tier = "unknown"
+        # Free/paid tier — classify_tier is the single shared classification
+        # (same data providers_resolve.py reads), so the --multi path, the
+        # free-only filter, and the single-alias path cannot disagree about
+        # which models are free. Missing pricing is "unknown", never assumed
+        # free — except a self-hosted local endpoint, which is free by
+        # construction (endpoint_is_local).
+        tier = classify_tier(mid, cat, endpoint)
         model["credit_tier"] = tier
         if tier == "free":
             model["score"] += WEIGHT_FREE
@@ -840,8 +895,13 @@ def rank_by_credit(results, credit_status):
         tier_rank = {"paid": 0, "unknown": 1, "free": 2}
     else:
         tier_rank = {"free": 0, "unknown": 1, "paid": 2}
+    # model_id is the FINAL tie-break: `results` arrives in as_completed()
+    # order (non-deterministic across runs), and Python's stable sort would
+    # otherwise let equal-(tier,score) models swap positions between two
+    # identical syncs — flipping which model backs which generated alias.
+    # ATM-860 requires deterministic, idempotent alias naming.
     results.sort(key=lambda m: (tier_rank.get(m.get("credit_tier", "unknown"), 1),
-                                -m["score"]))
+                                -m["score"], str(m.get("model_id", ""))))
     return results
 
 
@@ -856,6 +916,12 @@ def main(argv=None):
     ap.add_argument("--cache-file", default="", help="Verification cache file path")
     ap.add_argument("--output", default="", help="Output file path (default: stdout)")
     ap.add_argument("--no-cache", action="store_true", help="Skip cache")
+    ap.add_argument("--free-only", action="store_true",
+                    help="Fire completion probes ONLY at FREE-tier models (catalog cost 0/0, "
+                         ":free ids, or a self-hosted local endpoint). Models whose tier is "
+                         "paid OR underivable are SKIPPED unprobed — fail-safe on spend "
+                         "(operator decision D14, ATM-860). Skips are recorded honestly in "
+                         "the output (skipped_models), never as failures.")
     ap.add_argument("--verbose", action="store_true", help="Verbose output")
     ap.add_argument("--credit-probe", action="store_true",
                     help="Probe account credit for --provider and write --credits-file")
@@ -917,6 +983,32 @@ def main(argv=None):
         print("Error: no models specified and no catalog available", file=sys.stderr)
         return 1
 
+    # --free-only: partition BEFORE any probe is built. Only tier=="free"
+    # models are ever sent a completion; "paid" AND "unknown" are excluded
+    # unprobed (unknown is treated as paid — fail-safe on spend, never a
+    # guess that a probe is free, §11.4.6 / D14). The skip is honest output
+    # metadata, not a failure record: nothing was tested, so nothing may be
+    # reported verified OR failed for these ids (§11.4.3 skip-with-reason).
+    skipped_models = []
+    if args.free_only:
+        probed_ids = []
+        for mid in model_ids:
+            tier = classify_tier(mid, catalog_models.get(mid, {}), args.endpoint)
+            if tier == "free":
+                probed_ids.append(mid)
+            else:
+                skipped_models.append({
+                    "model_id": mid,
+                    "credit_tier": tier,
+                    "skip_reason": "free-only mode: tier '%s' treated as paid — no completion fired" % tier,
+                })
+        if args.verbose and skipped_models:
+            print("free-only: skipping %d non-free model(s) unprobed: %s"
+                  % (len(skipped_models),
+                     ", ".join(m["model_id"] for m in skipped_models)),
+                  file=sys.stderr)
+        model_ids = probed_ids
+
     # Check cache
     cache = {}
     if not args.no_cache and args.cache_file:
@@ -969,7 +1061,7 @@ def main(argv=None):
                 })
 
     # Enrich from catalog
-    results = enrich_from_catalog(results, catalog_models)
+    results = enrich_from_catalog(results, catalog_models, args.endpoint)
 
     # Sort by credit tier first, then score (see rank_by_credit).
     rank_by_credit(results, args.credit_status)
@@ -984,6 +1076,9 @@ def main(argv=None):
         "verified_count": len(verified),
         "failed_count": len(failed),
         "total_tested": len(results),
+        "free_only": bool(args.free_only),
+        "skipped_count": len(skipped_models),
+        "skipped_models": skipped_models,
         "tested_at": datetime.now(timezone.utc).isoformat(),
         "models": results,
     }

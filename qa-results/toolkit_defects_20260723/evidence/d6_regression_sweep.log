@@ -1,0 +1,16 @@
+=== ATM-854 regression sweep 2026-07-23T20:08:02Z ===
+--- test_free_tier_multi_sync ---
+test_free_tier_multi_sync exit=0 summary: 28 passed, 0 failed[0m ✓ 28 passed, 0 failed
+--- test_providers ---
+test_providers exit=0 summary: 412 passed, 0 failed[0m ✓ 412 passed, 0 failed
+--- verify_helixagent_test ---
+verify_helixagent_test exit=0 summary: 46 passed, 0 failed[0m ✓ 46 passed, 0 failed
+--- test_helixagent_pins_survive_live_sync ---
+test_helixagent_pins_survive_live_sync exit=0 summary: 10 passed, 0 failed[0m ✓ 10 passed, 0 failed
+--- test_dynamic_account_dispatch ---
+test_dynamic_account_dispatch exit=0 summary: 8 passed, 0 failed[0m ✓ 8 passed, 0 failed
+--- test_add_account_tmux_notice ---
+test_add_account_tmux_notice exit=0 summary: 12 passed, 0 failed[0m ✓ 12 passed, 0 failed
+--- ccr go test ---
+ccr go test exit=0
+=== sweep done 2026-07-23T20:09:50Z ===

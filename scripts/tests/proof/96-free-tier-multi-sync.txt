@@ -1,0 +1,79 @@
+=== test_free_tier_multi_sync.sh evidence ===
+date: 2026-07-23T20:08:02Z
+server port: 58861 pid: 214079
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=HelixAgent/HelixLLM (unverified/existence)
+[36m[cma][0m provider 'stubprov' -> alias 'stubprov' [router] model=freealpha (unverified/existence)
+[36m[cma][0m sync done: 2 active, 0 disabled (failed verify), 0 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:18434/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'helixagent'
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:58861/v1/chat/completions (free-tier only)...
+free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
+Verifying 5 models for stubprov...
+  ✗ brokenfree: score=0 (Server error (500))
+  ✓ freealpha: score=65 ()
+  ✓ freebeta: score=65 ()
+  ✓ freegamma: score=65 ()
+  ✓ freedelta: score=65 ()
+[36m[cma][0m   stubprov: 4 models verified
+[36m[cma][0m   stubprov: 2 aliases generated
+[36m[cma][0m   alias 'stubprov': strong=freealpha fast=freebeta [router]
+[36m[cma][0m   alias 'stubprov2': strong=freedelta fast=freegamma [router]
+[36m[cma][0m multi-sync done: 2 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=HelixAgent/HelixLLM (unverified/existence)
+[36m[cma][0m provider 'stubprov' -> alias 'stubprov' [router] model=freealpha (unverified/existence)
+[33m[cma warn][0m provider 'stubprov2' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
+[36m[cma][0m sync done: 2 active, 0 disabled (failed verify), 0 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:18434/v1/chat/completions (free-tier only)...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'helixagent'
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:58861/v1/chat/completions (free-tier only)...
+free-only: skipping 2 non-free model(s) unprobed: paidx, mysterym
+[36m[cma][0m   stubprov: 4 models verified
+[36m[cma][0m   stubprov: 2 aliases generated
+[36m[cma][0m   alias 'stubprov': strong=freealpha fast=freebeta [router]
+[36m[cma][0m   alias 'stubprov2': strong=freedelta fast=freegamma [router]
+[36m[cma][0m multi-sync done: 2 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m provider 'helixagent' -> alias 'helixagent' [router] model=HelixAgent/HelixLLM (unverified/existence)
+[36m[cma][0m provider 'stubprov' -> alias 'stubprov' [router] model=freealpha (unverified/existence)
+[33m[cma warn][0m provider 'stubprov2' is ORPHANED — it no longer resolves against the current catalog/keys, but its status/config was left behind. Demoting so the launch gate refuses it. Run 'claude-providers prune' to remove it, or restore its key to re-adopt it.
+[36m[cma][0m sync done: 2 active, 0 disabled (failed verify), 0 not-resolved
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/aliases.sh
+[33m[cma warn][0m offline: using cached catalog (/tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/providers/models.dev.cache.json)
+[36m[cma][0m multi-sync: discovered 2 key vars; 2 resolve to a provider
+[36m[cma][0m multi-sync: verifying models for 'helixagent' at http://127.0.0.1:18434/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
+Error: no models specified and no catalog available
+[33m[cma warn][0m verification failed for 'helixagent'
+[36m[cma][0m multi-sync: verifying models for 'stubprov' at http://127.0.0.1:58861/v1/chat/completions (INCLUDING PAID (explicit opt-in))...
+Cache hit: 5 models, 2 to verify
+Verifying 7 models for stubprov...
+  ✗ brokenfree: score=0 (Server error (500))
+  ✓ freegamma: score=65 ()
+  ✓ freedelta: score=65 ()
+  ✓ freealpha: score=65 ()
+  ✓ freebeta: score=65 ()
+  ✓ paidx: score=65 ()
+  ✓ mysterym: score=65 ()
+[36m[cma][0m   stubprov: 6 models verified
+[36m[cma][0m   stubprov: 3 aliases generated
+[36m[cma][0m   alias 'stubprov': strong=freealpha fast=freebeta [router]
+[36m[cma][0m   alias 'stubprov2': strong=freedelta fast=freegamma [router]
+[36m[cma][0m   alias 'stubprov3': strong=mysterym fast=paidx [router]
+[36m[cma][0m multi-sync done: 3 aliases created across all providers
+[36m[cma][0m reload your shell or: source /tmp/.private/milos/cma-test.7uK8Ez/.local/share/claude-multi-account/aliases.sh
+
+=== result: pass=28 fail=0 ===
