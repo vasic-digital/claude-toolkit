@@ -445,6 +445,53 @@ print(R.derive_limits({"id": "uncatalogued"}, tiny)[:2])' "$SCRIPTS_DIR")"
 assert_eq "(65536, 8192)
 (65536, 8192)" "$_p10" "fallback follows the provider's typical model, floored at a usable window"
 
+it "limit.input below limit.context caps the emitted window (ATM-853 opencode compaction loop)"
+# opencode/big-pickle publishes {context:200000, input:160000, output:32000}.
+# The emitted context_limit drives CLAUDE_CODE_AUTO_COMPACT_WINDOW — the
+# INPUT-side guard. Deriving it from limit.context alone put the client-side
+# compact trigger (200000-32000=168000) ABOVE the server's real input cap
+# (160000): the guard could never fire before the endpoint rejected the
+# request, so every over-limit turn produced reject -> compact -> reject —
+# the live "compresses on every prompt" loop. The window must respect
+# limit.input when the catalog publishes one.
+_inp="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import providers_resolve as R
+bp = {"id": "big-pickle", "limit": {"context": 200000, "input": 160000, "output": 32000}}
+ctx, out, _ = R.derive_limits(bp)
+print((ctx, out))
+# Control 1: input >= context is not a tighter cap — context wins unchanged.
+loose = {"id": "loose", "limit": {"context": 100000, "input": 200000, "output": 8192}}
+print(R.derive_limits(loose)[:2])
+# Control 2: no input field at all — behaviour byte-identical to before.
+plain = {"id": "plain", "limit": {"context": 100000, "output": 8192}}
+print(R.derive_limits(plain)[:2])' "$SCRIPTS_DIR")"
+assert_eq "(160000, 8192)
+(100000, 8192)
+(100000, 8192)" "$_inp" "context_limit = min(limit.context, limit.input) with the output carve re-applied against the REAL window; controls unchanged"
+
+it "model_verify: an UNCATALOGUED live-proven model is not demoted for an UNKNOWN context (ATM-860)"
+# helixagent's .gguf id is not in models.dev; enrich_from_catalog read the
+# absent context as 0 and demoted a model the live completion probe had just
+# PROVEN serving (verified=False, "Context window too small: 0 < 8000") —
+# a §11.4.201 false refusal: UNKNOWN is not "too small". A KNOWN-small
+# context must still demote (control).
+_mv="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import model_verify as V
+unk = [{"model_id": "local.gguf", "score": 55, "verified": True,
+        "capabilities": {"context_window": 0, "output_tokens": 0}}]
+V.enrich_from_catalog(unk, {})
+print(unk[0]["verified"])
+small = [{"model_id": "tiny", "score": 55, "verified": True,
+          "capabilities": {"context_window": 0, "output_tokens": 0}}]
+V.enrich_from_catalog(small, {"tiny": {"limit": {"context": 4000, "output": 2048}}})
+print(small[0]["verified"])' "$SCRIPTS_DIR")"
+assert_eq "True
+False" "$_mv" "unknown context stays verified (live probe is ground truth); known-small still demotes"
+
 it "a context narrower than the 8192 output floor does not invert the pair"
 # microcorp's sole model is the impossible 8000/8000 shape: the output slot holds
 # a context value, so it is discarded, and the 8192 floor would then exceed the

@@ -114,3 +114,27 @@ Next steps:
 To remove this account later:
   $LIB_DIR/claude-remove-account.sh --alias $ALIAS_NAME
 EOF
+
+# ATM-850 (2026-07-23): long-lived shells (tmux panes above all) sourced the
+# alias file BEFORE this add. Detect them, say exactly who is covered by the
+# dynamic dispatcher vs who needs ONE re-source, and print the exact commands.
+# The notice never sends keys; the broadcast below is interactive, default No,
+# and scoped to idle SHELL panes only.
+cma_tmux_stale_shell_notice "$ALIAS_FILE" || true
+if ! (( NONINTERACTIVE )) && cma_can_prompt; then
+  _bc="$(prompt "Broadcast the re-source into idle tmux SHELL panes now? (y/N)" "N")"
+  case "$_bc" in
+    [Yy]*)
+      _tdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
+      for _sock in "$_tdir"/*; do
+        [[ -S "$_sock" ]] || continue
+        tmux -S "$_sock" list-panes -a -F '#{pane_id} #{pane_current_command}' 2>/dev/null \
+          | awk '$2 ~ /^-?(bash|zsh|sh|dash|ksh|fish)$/{print $1}' \
+          | while read -r _pane; do
+              tmux -S "$_sock" send-keys -t "$_pane" C-u " source $ALIAS_FILE" Enter 2>/dev/null || true
+            done
+      done
+      cma_log "re-source broadcast sent to idle shell panes" ;;
+    *) : ;;
+  esac
+fi

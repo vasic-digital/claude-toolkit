@@ -977,6 +977,129 @@ CMA_CCRGW_EOF
 # Define it in THIS shell from the exact same bytes the alias file receives.
 eval "$(_cma_emit_ccr_gateway_guard)"
 
+# Dynamic account dispatcher (live defect 2026-07-23, `claude5`): a newly
+# added account's alias is INVISIBLE to every shell that sourced the alias
+# file BEFORE the add — and long-lived shells are the norm (tmux panes
+# survive SSH re-logins; re-attaching does NOT restart the pane's shell, so
+# "log out and back in" does not pick the alias up). The static per-account
+# `alias claudeN=…` lines can never fix that class: an alias must exist at
+# shell start.
+#
+# The dispatcher closes the class STRUCTURALLY: a command-not-found handler
+# (bash: command_not_found_handle; zsh: command_not_found_handler) resolves
+# `<name>` -> $HOME/<prefix><name> at INVOCATION time from the config dirs,
+# so ANY account added AFTER a shell sourced a dispatcher-bearing alias file
+# works in that shell immediately, with no re-source. It is a pure FALLBACK:
+# defined aliases/functions/binaries always win (the handler only fires when
+# nothing else matched), a pre-existing handler (e.g. Ubuntu's
+# command-not-found) is preserved and chained for non-account names, and a
+# non-account miss still reports "command not found" with rc 127.
+#
+# Honest boundary: shells that sourced a PRE-dispatcher alias file remain
+# stale until they re-source once (claude-add-account warns about exactly
+# this) — the dispatcher eliminates the staleness class from then on, it
+# cannot retroactively appear in old shells. Accounts created with a custom
+# --dir that does not follow the $HOME/<prefix><alias> pattern are resolved
+# by their (re-sourced) alias line only; the dispatcher cannot infer such a
+# mapping and does not guess (§11.4.6).
+_cma_emit_account_dispatch() {
+  # The account-dir prefix is embedded at render time (like CLAUDE_BIN above)
+  # so the emitted file is self-contained; the runtime fallback keeps a
+  # hand-truncated header from breaking dispatch entirely.
+  printf '_CMA_ACCOUNT_PREFIX=%q\n' "${ACCOUNT_PREFIX:-.claude-}"
+  cat <<'CMA_DISPATCH_EOF'
+# True when $1 names a launchable ACCOUNT: a plain command word (no path
+# separator, not an option, not dot-prefixed) whose $HOME/<prefix>$1 config
+# dir exists. Provider config dirs (<prefix>prov-*) and the router's own dir
+# (<prefix>code-router) are NOT accounts — providers launch via
+# cma_run_provider and must never be hijacked by the account fallback.
+_cma_is_account_cmd() {
+  case "${1:-}" in ''|*/*|-*|.*) return 1 ;; esac
+  case "$1" in prov-*|code-router) return 1 ;; esac
+  [ -d "$HOME/${_CMA_ACCOUNT_PREFIX:-.claude-}$1" ]
+}
+_cma_cnf_impl() {
+  if _cma_is_account_cmd "${1:-}"; then
+    local _cma_d="$HOME/${_CMA_ACCOUNT_PREFIX:-.claude-}$1"
+    shift
+    CLAUDE_CONFIG_DIR="$_cma_d" cma_run "$@"
+    return $?
+  fi
+  # Not an account: hand off to whatever handler existed before this file was
+  # sourced (captured below), else reproduce the shell's stock behaviour.
+  if declare -f _cma_prev_cnf_handle >/dev/null 2>&1; then
+    _cma_prev_cnf_handle "$@"
+    return $?
+  fi
+  printf '%s: command not found\n' "${1:-}" >&2
+  return 127
+}
+# Preserve a PRE-EXISTING handler exactly once. Idempotent across re-sources:
+# a definition that already routes through _cma_cnf_impl is OURS and must not
+# be captured as "previous" (that would chain the handler to itself).
+if [ -n "${BASH_VERSION:-}" ]; then
+  _cma_cnf_name=command_not_found_handle
+else
+  _cma_cnf_name=command_not_found_handler
+fi
+_cma_cnf_def="$(declare -f "$_cma_cnf_name" 2>/dev/null || true)"
+case "$_cma_cnf_def" in
+  *_cma_cnf_impl*) : ;;
+  '') : ;;
+  *) eval "_cma_prev_cnf_handle() ${_cma_cnf_def#*'()'}" ;;
+esac
+unset _cma_cnf_def _cma_cnf_name
+# Define BOTH spellings; each shell consults only its own, the other is inert.
+command_not_found_handle()  { _cma_cnf_impl "$@"; }
+command_not_found_handler() { _cma_cnf_impl "$@"; }
+CMA_DISPATCH_EOF
+}
+
+# ATM-850 remediation half 2 (2026-07-23): operator-facing tmux staleness
+# notice. The dispatcher above closes the new-account staleness class for
+# every shell that sourced a dispatcher-bearing alias file; shells older than
+# that render still hold pre-dispatcher definitions until they re-source ONCE.
+# tmux pane shells are the canonical long-lived case (five servers from 00:00
+# survived the 15:14 add in the live incident; SSH re-login re-attaches the
+# SAME server). This function only DETECTS and PRINTS — the exact re-source
+# command plus a per-server broadcast one-liner scoped to idle SHELL panes —
+# and NEVER sends keys itself: an autonomous send-keys could type into a pane
+# the operator is mid-edit in. Callers may offer an interactive,
+# default-No broadcast on top (claude-add-account does).
+cma_tmux_stale_shell_notice() {
+  local alias_file="${1:-$ALIAS_FILE}"
+  command -v tmux >/dev/null 2>&1 || return 0
+  local tdir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u 2>/dev/null || echo 0)"
+  [[ -d "$tdir" ]] || return 0
+  local sock cmds n total=0
+  local -a servers=()
+  for sock in "$tdir"/*; do
+    [[ -S "$sock" ]] || continue
+    cmds="$(tmux -S "$sock" list-panes -a -F '#{pane_current_command}' 2>/dev/null)" || continue
+    [[ -n "$cmds" ]] || continue
+    n="$(printf '%s\n' "$cmds" | grep -cE '^-?(bash|zsh|sh|dash|ksh|fish)$')" || n=0
+    servers+=("$n:$sock"); total=$(( total + n ))
+  done
+  (( ${#servers[@]} )) || return 0
+  printf '\n[tmux] %d running tmux server(s) detected — their pane shells read the alias file when THEY started, not now.\n' "${#servers[@]}"
+  if grep -q '_cma_cnf_impl' "$alias_file" 2>/dev/null; then
+    printf '[tmux] This alias file carries the dynamic account dispatcher: shells that sourced a\n'
+    printf '[tmux] dispatcher-bearing render resolve NEW accounts at invocation time — no re-source needed there.\n'
+    printf '[tmux] Only shells that sourced an OLDER (pre-dispatcher) render still need ONE re-source:\n'
+  else
+    printf '[tmux] Every pre-existing shell needs a re-source to see this account:\n'
+  fi
+  printf '           source %s\n' "$alias_file"
+  printf '[tmux] %d shell pane(s) detected across those servers. To push the re-source into the idle\n' "$total"
+  printf '[tmux] SHELL panes of a server (editors/agents/panes running programs are skipped):\n'
+  local ent
+  for ent in "${servers[@]}"; do
+    sock="${ent#*:}"
+    printf "         tmux -S %s list-panes -a -F '#{pane_id} #{pane_current_command}' | awk '\$2 ~ /^-?(bash|zsh|sh|dash|ksh|fish)\$/{print \$1}' | xargs -r -I{} tmux -S %s send-keys -t {} C-u ' source %s' Enter\n" "$sock" "$sock" "$alias_file"
+  done
+  return 0
+}
+
 _cma_emit_cma_run() {
   cat <<'CMA_RUN_BODY_EOF'
 # Wrapper: keeps .claude.json projects/session index synced across every
@@ -2042,6 +2165,8 @@ _cma_emit_managed() {
   _cma_emit_cma_run
   printf '\n'
   _cma_emit_cma_run_provider
+  printf '\n'
+  _cma_emit_account_dispatch
   printf '%s\n' "$CMA_ALIAS_MANAGED_END"
 }
 

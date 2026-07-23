@@ -502,8 +502,14 @@ def enrich_from_catalog(verified_models, catalog_models):
             model["score"] += WEIGHT_FREE
             model["capabilities"]["is_free"] = True
 
-        # Filter: skip models with too-small context or output
-        if ctx < MIN_CONTEXT_WINDOW:
+        # Filter: skip models with a KNOWN too-small context or output.
+        # ATM-860 (2026-07-23): ctx==0 means the catalog has NO row / NO
+        # context for this model — UNKNOWN, not "a window of zero". The live
+        # completion probe above is the ground truth that the model serves;
+        # demoting on an absent catalog datum was a §11.4.201 false refusal
+        # (it zeroed helixagent's entire live-enumerated .gguf roster). An
+        # unknown context simply earns no context score.
+        if 0 < ctx < MIN_CONTEXT_WINDOW:
             model["verified"] = False
             model["failure_reason"] = f"Context window too small: {ctx} < {MIN_CONTEXT_WINDOW}"
         if out < MIN_OUTPUT_TOKENS and out > 0:

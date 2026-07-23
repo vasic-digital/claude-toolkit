@@ -670,6 +670,31 @@ def derive_limits(model, siblings=None, corroboration=None, provider_id=None):
         notes.append("limit.output=%r is not a usable cap; treated as unknown"
                      % _dget(limit, "output"))
 
+    # ATM-853 (2026-07-23, live opencode compaction loop): some catalog rows
+    # publish a limit.input BELOW limit.context (opencode/big-pickle:
+    # {context:200000, input:160000, output:32000}). The emitted context_limit
+    # drives CLAUDE_CODE_AUTO_COMPACT_WINDOW — the INPUT-side guard — so a
+    # window derived from limit.context alone puts the client-side compact
+    # trigger ABOVE the server's real input cap: the guard can never fire
+    # before the endpoint rejects, and every over-limit turn loops
+    # reject -> compact -> reject regardless of the prompt. When the catalog
+    # publishes a smaller real input cap, the input-side window MUST respect
+    # it. A limit.input at/above the context adds no information (the context
+    # already binds), and one below MIN_VIABLE_CONTEXT is treated like an
+    # unusably-small context (noted, ignored) rather than emitting a window
+    # nothing can fit in.
+    inp = _pos_int(_dget(limit, "input"))
+    if inp is not None and ctx is not None and inp < ctx:
+        if inp >= MIN_VIABLE_CONTEXT:
+            notes.append(
+                "limit.input=%d is below limit.context=%d; the input-side "
+                "guard uses the smaller real input cap" % (inp, ctx))
+            ctx = inp
+        else:
+            notes.append(
+                "limit.input=%d is below the minimum viable window; ignored "
+                "(context %d kept)" % (inp, ctx))
+
     suspicious = _free_output_anomaly(model, siblings)
     # The anomaly is only EVIDENCE ABOUT THE CONTEXT when the record's output
     # sits strictly below its context. Where `output == context` the record is
