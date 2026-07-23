@@ -2,6 +2,18 @@
 
 All notable changes to the Claude multi-account toolkit.
 
+## v1.25.5 — 2026-07-23 — fail-loud install over broken/missing ccr + interactive-shell stderr fix + anti-fossil r-m-w hardening
+
+Patch release on top of v1.25.4. Every change independently reviewed to a zero-finding / zero-warning GO on Fable-xhigh (Opus-xhigh fallback while Fable is weekly-limited; §11.4.209/§11.4.134); install suite 46/46 green (`suite_rc=0`).
+
+### Fixed
+- **`install.sh` no longer prints `[done] installed` over a broken or missing `ccr`.** The build/verify seam now probes the ARTIFACT through its real invocation path (not a build-prerequisite's presence): a usable resident `ccr` with no Go toolchain passes with an honest will-go-stale warning; a broken / npm-doppelganger / wedged / absent `ccr` hard-fails exit 1 instead of a false success (§11.4.201(11)).
+- **The probe watchdog no longer stalls install/verify by +15s on a healthy host.** A watchdog subshell spawned inside a `$(...)` command-substitution held the pipe write-end via its orphaned `sleep`, so every seam blocked to the full timeout budget on instant work. The watchdog's fds are redirected away from the cmd-subst pipe; the fast path returns in ~0s and a genuinely-wedged probe is still bounded at `rc=124`. (Codified as shell-instrument footgun I7 in the constitution.)
+- **Bare `exec N>>file 2>/dev/null` in the sourced eph-lock helper no longer silences the interactive shell's stderr for the shell's lifetime.** The side redirection is brace-scoped; the eph-lock wait is bounded (best-effort, proceeds unlocked with an honest log on timeout).
+- **Anti-fossil marker read-modify-write hardened** against lost updates + word-split.
+
+### Verified
+- Provider `helixagent` (local Qwen3-Coder-30B on `127.0.0.1:18434`) re-verified + proven end-to-end: `model_verify.py` anti-bluff scoring PASS + a live captured answer correctly naming the working repo (no `--force`, no bluff).
 ## v1.25.4 — 2026-07-22 — un-fossilise ephemeral cma-proxy addresses (kill the 502 class) + toon Go port
 
 Patch + feature release on top of v1.25.3.
