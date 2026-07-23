@@ -1,0 +1,30 @@
+
+  • a stale shell resolves a NEWLY added account with no re-source (the claude5 defect)
+    [31m[FAIL][0m new-account command exits 0 in the pre-add shell (pre-fix: rc=127 command not found)
+           want=0 got=1
+    [31m[FAIL][0m launch reached claude with CLAUDE_CONFIG_DIR=…/.claude-claude9 (the ADDED account, resolved at invocation time)
+           want=0 got=1
+
+  • guard-rail: a non-account command is NOT hijacked (still 127)
+    [32m[PASS][0m unknown command still exits 127 (0)
+
+  • guard-rail: a PRE-EXISTING command_not_found_handle is chained, not clobbered
+    [32m[PASS][0m previous handler still fires for non-account names (0)
+    [32m[PASS][0m previous handler's exit code is preserved (0)
+
+  • guard-rail: provider config dirs are not dispatchable accounts
+    [32m[PASS][0m prov-* name is refused (providers launch via cma_run_provider, never the account fallback) (0)
+
+  • zsh: the same alias file dispatches a post-source account via command_not_found_handler
+    [31m[FAIL][0m zsh dispatches the post-source account through command_not_found_handler
+           want=0 got=1
+
+  • rendered alias file still parses (bash -n)
+    [32m[PASS][0m alias file is bash-parseable with the dispatcher block (0)
+
+[31m✗ 3 failed, 5 passed[0m
+
+Failures:
+  - a stale shell resolves a NEWLY added account with no re-source (the claude5 defect) :: new-account command exits 0 in the pre-add shell (pre-fix: rc=127 command not found)
+  - a stale shell resolves a NEWLY added account with no re-source (the claude5 defect) :: launch reached claude with CLAUDE_CONFIG_DIR=…/.claude-claude9 (the ADDED account, resolved at invocation time)
+  - zsh: the same alias file dispatches a post-source account via command_not_found_handler :: zsh dispatches the post-source account through command_not_found_handler

@@ -1,0 +1,17 @@
+{"time":"2026-07-23T20:06:46.51272148+05:00","level":"INFO","msg":"http_request","method":"POST","path":"/fake/v1/messages","status":404,"duration_ms":0,"bytes":0,"request_id":"63b7e19d-6de3-4b08-b2ff-47423c5be6e6"}
+--- FAIL: TestProviderScopedMessagesPathRoutes (0.00s)
+    provider_scoped_path_test.go:47: POST /fake/v1/messages status = 404, want 200 (body=404 page not found)
+{"time":"2026-07-23T20:06:46.513009866+05:00","level":"INFO","msg":"http_request","method":"POST","path":"/not-configured/v1/messages","status":404,"duration_ms":0,"bytes":0,"request_id":"8db920da-6006-4a3f-a2e5-9f39942fd36d"}
+{"time":"2026-07-23T20:06:46.51368782+05:00","level":"INFO","msg":"http_request","method":"POST","path":"/v1/messages","status":200,"duration_ms":0,"bytes":219,"request_id":"12f18f04-e26b-46b2-a4c1-e2530cc6dbec"}
+{"time":"2026-07-23T20:06:46.514070058+05:00","level":"INFO","msg":"http_request","method":"POST","path":"/[REDACTED]","status":404,"duration_ms":0,"bytes":0,"request_id":"7d4679be-7746-4b2e-8038-42d8e77a33e2"}
+--- FAIL: TestProviderScopedChatCompletionsPathRoutes (0.00s)
+    provider_scoped_path_test.go:90: POST /fake/v1/chat/completions status = 404, want 200 (body=404 page not found)
+FAIL
+FAIL	github.com/vasic-digital/claude-code-router/internal/gateway	0.009s
+FAIL
+gateway RED rc=1
+# github.com/vasic-digital/claude-code-router/cmd/ccr [github.com/vasic-digital/claude-code-router/cmd/ccr.test]
+cmd/ccr/provider_scoped_base_test.go:25:10: undefined: providerScopedBase
+FAIL	github.com/vasic-digital/claude-code-router/cmd/ccr [build failed]
+FAIL
+ccr RED rc=0

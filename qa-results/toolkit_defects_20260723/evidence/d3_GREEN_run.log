@@ -1,0 +1,4 @@
+ok  	github.com/vasic-digital/claude-code-router/internal/gateway	0.011s
+gateway GREEN rc=0
+ok  	github.com/vasic-digital/claude-code-router/cmd/ccr	0.005s
+ccr GREEN rc=0

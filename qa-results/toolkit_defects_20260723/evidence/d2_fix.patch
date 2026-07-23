@@ -1,0 +1,71 @@
+diff --git a/scripts/claude-providers.sh b/scripts/claude-providers.sh
+index 60b914d..e6eb524 100755
+--- a/scripts/claude-providers.sh
++++ b/scripts/claude-providers.sh
+@@ -219,6 +219,19 @@ detect_helixagent_record() {
+       esac
+     done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_ha_json" 2>/dev/null)
+   fi
++  # PIN PROVENANCE (2026-07-23 live defect): record — BEFORE the built-in
++  # defaults below make it undecidable — whether strong/fast were EXPLICITLY
++  # pinned (process-env or pins-file, the two authoritative sources) or are
++  # about to be filled from the built-in defaults. An explicit pin is a facade
++  # contract (e.g. "HelixAgent/HelixLLM") that the live /v1/models listing must
++  # NEVER overwrite: llama.cpp reports the loaded .gguf PATH as its model id,
++  # so the old positional fallback (`head -n1`) replaced the pinned facade with
++  # '/models/….gguf' whenever the endpoint was UP but did not list the facade
++  # id — while base_url/key_var/context_limit (never live-derived) survived.
++  # Built-in defaults stay data-driven: live enumeration keeps winning there.
++  local _ha_strong_pinned=0 _ha_fast_pinned=0
++  [[ -n "${CMA_HELIXAGENT_STRONG+x}" ]] && _ha_strong_pinned=1
++  [[ -n "${CMA_HELIXAGENT_FAST+x}"   ]] && _ha_fast_pinned=1
+   : "${CMA_HELIXAGENT_BIN:=helixagent}"
+   : "${CMA_HELIXAGENT_ID:=helixagent}"
+   : "${CMA_HELIXAGENT_HOST:=localhost}"
+@@ -270,25 +283,39 @@ detect_helixagent_record() {
+   fi
+ 
+   local strong="" fast=""
+-  if [[ -n "$ids" ]]; then
+-    # Data-driven selection from the LIVE id list: prefer the configured strong/
+-    # fast ids when the server serves them, else fall back to positional picks.
++  if (( _ha_strong_pinned )); then
++    # EXPLICITLY pinned (env or pins-file): the pin is the facade contract and
++    # is AUTHORITATIVE. The live listing is still fetched above (verification /
++    # reachability evidence) but must not overwrite the pin — the 2026-07-23
++    # defect was exactly this overwrite ('HelixAgent/HelixLLM' replaced by the
++    # endpoint-reported '/models/….gguf' path).
++    strong="$CMA_HELIXAGENT_STRONG"
++  elif [[ -n "$ids" ]]; then
++    # Nothing pinned: data-driven selection from the LIVE id list — prefer the
++    # built-in default id when the server serves it, else positional pick.
+     if printf '%s\n' "$ids" | grep -qxF -- "$CMA_HELIXAGENT_STRONG"; then
+       strong="$CMA_HELIXAGENT_STRONG"
+     else
+       strong="$(printf '%s\n' "$ids" | head -n1)"
+     fi
++  else
++    strong="$CMA_HELIXAGENT_STRONG"
++  fi
++  if (( _ha_fast_pinned )); then
++    fast="$CMA_HELIXAGENT_FAST"
++  elif [[ -n "$ids" ]]; then
+     if printf '%s\n' "$ids" | grep -qxF -- "$CMA_HELIXAGENT_FAST"; then
+       fast="$CMA_HELIXAGENT_FAST"
+     else
+       fast="$(printf '%s\n' "$ids" | sed -n '2p')"
+       [[ -z "$fast" ]] && fast="$strong"
+     fi
+-  else
+-    # Server unreachable / no models returned: honest fallback to the configured
+-    # pins so the alias still exists (verification will mark it 'unverified').
+-    strong="$CMA_HELIXAGENT_STRONG"; fast="$CMA_HELIXAGENT_FAST"
+   fi
++  # Server unreachable / no models returned AND fast not pinned: honest
++  # fallback to the configured value so the alias still exists (verification
++  # will mark it 'unverified'). strong's own else-branch above already did the
++  # same for the strong model.
++  [[ -z "$fast" ]] && fast="$CMA_HELIXAGENT_FAST"
+ 
+   # Emit ONE record with the exact schema providers_resolve.py produces.
+   jq -cn \

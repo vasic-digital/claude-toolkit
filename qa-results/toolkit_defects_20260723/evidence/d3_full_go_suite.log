@@ -1,0 +1,9 @@
+ok  	github.com/vasic-digital/claude-code-router/internal/cache	0.243s
+ok  	github.com/vasic-digital/claude-code-router/internal/config	0.034s
+ok  	github.com/vasic-digital/claude-code-router/internal/gateway	6.148s
+ok  	github.com/vasic-digital/claude-code-router/internal/logging	0.013s
+ok  	github.com/vasic-digital/claude-code-router/internal/metrics	0.073s
+ok  	github.com/vasic-digital/claude-code-router/internal/proxy	0.674s
+ok  	github.com/vasic-digital/claude-code-router/internal/router	0.012s
+ok  	github.com/vasic-digital/claude-code-router/internal/translate	0.389s
+ok  	github.com/vasic-digital/claude-code-router/cmd/ccr	20.205s

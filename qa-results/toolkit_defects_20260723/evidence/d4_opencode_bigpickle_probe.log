@@ -1,0 +1,8 @@
+--- full live id list ---
+57 /tmp/.private/milos/oc_live_ids.txt
+1
+1
+--- direct completion: big-pickle (legacy?) ---
+{"id":"gen-1784819576-BlnQuPSXW530aGUDipLw","object":"chat.completion","created":1784819576,"model":"big-pickle","choices":[{"index":0,"finish_reason":"length","logprobs":null,"message":{"role":"assistant","content":null,"refusal":null,"reasoning":"The user says \"hi\". I","reasoning_details":[{"type":"reasoning.text","text":"The user says \"hi\". I","format":"unknown","index":0}]}}],"usage":{"prompt_tokens":248,"completion_tokens":8,"total_tokens":256,"prompt_tokens_details":{"audio_tokens":0,"cached_tokens":192,"video_tokens":0,"cache_write_tokens":0},"completion_tokens_details":{"audio_tokens":0,"reasoning_tokens":7,"image_tokens":0}},"cost":"0"}
+--- direct completion: gpt-5.5 (listed control) ---
+{"type":"error","error":{"type":"CreditsError","message":"No payment method. Add a payment method here: https://opencode.ai/workspace/wrk_01K6AS65JYCDFYFC9AMPHTT47H/billing"}}

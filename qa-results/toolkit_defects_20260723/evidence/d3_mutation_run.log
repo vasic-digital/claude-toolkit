@@ -1,0 +1,6 @@
+--- FAIL: TestProviderScopedMessagesPathRoutes (0.00s)
+--- FAIL: TestProviderScopedChatCompletionsPathRoutes (0.00s)
+FAIL
+FAIL	github.com/vasic-digital/claude-code-router/internal/gateway	0.008s
+FAIL
+MUTATED rc=1

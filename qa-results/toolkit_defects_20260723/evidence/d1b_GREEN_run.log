@@ -1,0 +1,22 @@
+
+  • notice function exists and reports the tmux reality
+    [32m[PASS][0m cma_tmux_stale_shell_notice exists in lib.sh and exits 0 (97 = function absent — the RED state) (0)
+    [32m[PASS][0m notice names the detected tmux server socket path (0)
+    [32m[PASS][0m notice prints the exact re-source command (0)
+    [32m[PASS][0m notice prints a per-server broadcast command (send-keys) for the operator (0)
+    [32m[PASS][0m notice counts ONLY shell panes (bash+zsh, nvim excluded) (0)
+
+  • dispatcher-aware wording: covered shells are told they need nothing
+    [32m[PASS][0m sandbox alias file carries the dispatcher (precondition) (0)
+    [32m[PASS][0m notice states dispatcher-covered shells need NO re-source (0)
+
+  • the notice never sends keys autonomously
+    [32m[PASS][0m stub send-keys log is empty (print-only; broadcast is operator-confirmed elsewhere) (0)
+
+  • claude-add-account is wired to the notice (non-interactive: no sends)
+    [32m[PASS][0m claude-add-account.sh calls cma_tmux_stale_shell_notice (0)
+    [32m[PASS][0m add-account --yes succeeds with the notice wired in (0)
+    [32m[PASS][0m add-account output surfaces the tmux notice (0)
+    [32m[PASS][0m non-interactive add-account performed NO send-keys (offer is prompt-gated, default No) (0)
+
+[32m✓ 12 passed, 0 failed[0m

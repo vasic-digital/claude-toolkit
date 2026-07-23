@@ -1,0 +1,12 @@
+=== ATM-852 LIVE proof 2026-07-23T15:10:22Z — isolated patched ccr pid=1438377 gw=3999 (running ccr 3456 untouched) ===
+model=/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf  upstream=http://127.0.0.1:18434 (live llama.cpp)
+--- POST /helixagent/v1/messages (the NEW provider-scoped path) ---
+{"id":"chatcmpl-bHUCEQC9vZKLPN53iqt565QmF23Qab1V","type":"message","role":"assistant","content":[{"type":"text","text":"SCOPED-PATH-OK"}],"model":"/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf","stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":19,"output_tokens":8}}
+HTTP=200
+
+--- POST /v1/messages (bare path control, must keep working) ---
+{"id":"chatcmpl-5KnU18E6p9MDkFIZDodCb16GERYpHTfV","type":"message","role":"assistant","content":[{"type":"text","text":"SCOPED-PATH-OK"}],"model":"/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf","stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":19,"output_tokens":8}}
+HTTP=200
+
+--- POST /not-a-provider/v1/messages (unknown segment control) ---
+HTTP=404

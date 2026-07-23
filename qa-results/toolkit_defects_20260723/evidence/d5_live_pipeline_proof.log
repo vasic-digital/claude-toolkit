@@ -1,0 +1,6 @@
+=== ATM-860 live pipeline proof (post-fix) 2026-07-23T15:20:57Z — real completion probes against live llama.cpp ===
+enumerated: /models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
+{"verified_count":1,"models":[{"model_id":"/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf","score":55,"verified":true}]}
+{"alias_count":1,"names":["helixagent"],"strong":["/models/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf"]}
+IDEMPOTENT: second run byte-identical (modulo timestamp)
+helixagent.env

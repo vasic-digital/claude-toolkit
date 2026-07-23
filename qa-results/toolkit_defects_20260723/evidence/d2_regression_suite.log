@@ -1,0 +1,86 @@
+
+  • CASE A: sync with helixagent on PATH + live server
+    [32m[PASS][0m sync exits cleanly (0)
+    [32m[PASS][0m helixagent env file created (PATH-detected): /tmp/.private/milos/cma-test.Wm69MJ/.local/share/claude-multi-account/providers/helixagent.env
+
+  • CASE A: env file carries router transport + live base_url + enumerated models
+    [32m[PASS][0m transport=router (OpenAI-compat -> ccr) (0)
+    [32m[PASS][0m base_url = live endpoint (0)
+    [32m[PASS][0m strong model = helix-live-strong (proves a REAL live /v1/models fetch, not the configured pin) (0)
+    [32m[PASS][0m fast model = helix-live-fast (proves a REAL live /v1/models fetch, not the configured pin) (0)
+    [32m[PASS][0m key-var NAME recorded (secret never stored) (0)
+
+  • CASE A: live-fetched models genuinely differ from the configured fallback pins
+    [32m[PASS][0m strong model is NOT the fallback pin (would indicate the live fetch silently never happened): 'CMA_PROVIDER_MODEL='helix-debate'' absent from helixagent.env
+    [32m[PASS][0m fast model is NOT the fallback pin (would indicate the live fetch silently never happened): 'CMA_PROVIDER_FAST_MODEL='helix-llm'' absent from helixagent.env
+
+  • CASE A: NO secret value leaked into the env file
+    [32m[PASS][0m secret value absent from helixagent.env: 'dummy-helix-key-never-real' absent from helixagent.env
+
+  • CASE A: shell alias registered -> cma_run_provider helixagent
+    [32m[PASS][0m helixagent alias line present (0)
+
+  • CASE A: verification status persisted (unverified under --no-verify)
+    [32m[PASS][0m helixagent status persisted (unverified)
+
+  • CASE A: exactly ONE helixagent.env (no duplicate registration)
+    [32m[PASS][0m exactly one helixagent.env (1)
+
+  • CASE A: detector emits a well-formed resolved record with live models
+    [32m[PASS][0m record status=resolved (resolved)
+    [32m[PASS][0m provider_id=helixagent (helixagent)
+    [32m[PASS][0m transport=router (router)
+    [32m[PASS][0m strong=helix-live-strong (live fetch, not fallback pin helix-debate) (helix-live-strong)
+    [32m[PASS][0m fast=helix-live-fast (live fetch, not fallback pin helix-llm) (helix-live-fast)
+    [32m[PASS][0m context_limit=128000 (128000)
+
+  • CASE A2: key-var exported -> Authorization: Bearer <token> reaches the auth-gated server
+    [32m[PASS][0m authed request reaches the Authorization-gated mock (strong) -- proves --config - stdin auth actually authenticates (helix-auth-strong)
+    [32m[PASS][0m authed request reaches the Authorization-gated mock (fast) -- proves --config - stdin auth actually authenticates (helix-auth-fast)
+
+  • CASE A2: WITHOUT the key exported, the same auth-gated server 401s -> honest fallback to the configured pins
+    [32m[PASS][0m no key -> 401 -> honest fallback to the configured strong pin (never a bluffed live value) (helix-debate)
+    [32m[PASS][0m no key -> 401 -> honest fallback to the configured fast pin (never a bluffed live value) (helix-llm)
+
+  • CASE A2: static check — the authed branch pipes the header via curl --config - (stdin), never -H on argv
+    [32m[PASS][0m curl --config - (stdin) present -- the mechanism that keeps the secret off argv (0)
+    [32m[PASS][0m no direct curl -H "Authorization: Bearer $key" on argv anywhere in the script (would leak the secret via ps/proc) (0)
+
+  • CASE B: no helixagent binary on PATH -> detector emits empty array
+    [32m[PASS][0m empty record when binary absent ([])
+
+  • CASE B: a fresh sandbox with NO helixagent gets NO helixagent alias
+    [32m[PASS][0m no helixagent.env when binary off PATH (0)
+
+  • CASE C: helixagent present but server down -> alias STILL created off pins
+    [32m[PASS][0m helixagent.env created even with server down: /tmp/.private/milos/cma-test.Wm69MJ/.local/share/claude-multi-account/providers/helixagent.env
+    [32m[PASS][0m strong model falls back to configured pin (helix-debate) (0)
+    [32m[PASS][0m fast model falls back to configured pin (helix-llm) (0)
+    [32m[PASS][0m honest unverified when unreachable (unverified)
+
+  • CASE D1: resolver EXITS NONZERO -> resolve_records dies loudly, drops nothing
+    [32m[PASS][0m resolve_records exits nonzero when the resolver crashes (loud-fail, not silent drop) (0)
+    [32m[PASS][0m cma_die fired with the resolver-crash message: 'providers_resolve.py failed (exit' in case_d.err
+    [32m[PASS][0m NO provider set emitted on stdout (no partial / HelixAgent-only silent drop) (0)
+
+  • CASE D2: resolver EXITS 0 but prints a NON-ARRAY -> resolve_records dies loudly
+    [32m[PASS][0m resolve_records exits nonzero when the resolver prints non-array JSON (loud-fail) (0)
+    [32m[PASS][0m cma_die fired with the invalid-JSON message: 'produced no/invalid JSON output' in case_d.err
+    [32m[PASS][0m NO provider set emitted on stdout (no silent drop of all real providers) (0)
+
+  • CASE E: pins-file present + binary ABSENT -> detector fires off the pins (no stub binary)
+    [32m[PASS][0m detector emits ONE record off the pins-file with NO binary on PATH (gate relax) (1)
+    [32m[PASS][0m transport from pins = router (router)
+    [32m[PASS][0m strong from pins = HelixAgent/HelixLLM (dead endpoint -> honest fallback to the pin) (HelixAgent/HelixLLM)
+    [32m[PASS][0m fast from pins = HelixAgent/HelixLLM (HelixAgent/HelixLLM)
+    [32m[PASS][0m base_url from pins (overrides built-in localhost:8100 default) (http://127.0.0.1:1/v1)
+    [32m[PASS][0m key_var from pins = HELIXAGENT_GATEWAY_KEY (HELIXAGENT_GATEWAY_KEY)
+    [32m[PASS][0m context_limit from pins = 24576 (overrides built-in 128000) (24576)
+
+  • CASE E: process-env WINS over the pins-file (precedence env > pins > default)
+    [32m[PASS][0m env CMA_HELIXAGENT_STRONG overrides the pins-file strong_model (env-wins-strong)
+
+  • CASE E: NO pins-file AND NO binary -> detector emits empty (gate still honest)
+    [32m[PASS][0m no pins-file + no binary -> empty record (opt-in preserved) ([])
+
+[32m✓ 46 passed, 0 failed[0m

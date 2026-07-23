@@ -1,0 +1,9 @@
+=== live out-of-box proof claude5 2026-07-23T15:05:06Z ===
+--- 1. fresh interactive shell resolves claude5 ---
+alias
+rc=0
+--- 2. dispatcher path: alias REMOVED, name still launches with the right config dir ---
+claude5 --version rc=0 out=2.1.218 (Claude Code)
+--- 3. account roster (orchestrator-visible) ---
+claude5       /home/milos/.claude-claude5                    no      5/5    
+roster rc=0
