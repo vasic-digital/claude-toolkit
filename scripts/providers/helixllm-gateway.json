@@ -1,0 +1,11 @@
+{
+  "bin": "helixllm",
+  "id": "helixllm-gateway",
+  "base_url": "http://127.0.0.1:18435/v1",
+  "transport": "router",
+  "strong_model": "helixllm-multi",
+  "fast_model": "helixllm-multi",
+  "key_var": "HELIXLLM_GATEWAY_KEY",
+  "context_limit": 229376,
+  "max_output": 8192
+}

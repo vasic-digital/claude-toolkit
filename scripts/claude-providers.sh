@@ -353,7 +353,121 @@ detect_helixagent_record() {
     '[{key_var:$key_var, classification:"llm", provider_id:$pid, alias:$alias,
        base_url:$base, transport:$transport, strong_model:$strong,
        fast_model:$fast, context_limit:$ctx, max_output:$out,
-       status:"resolved", reason:$reason}]'
+        status:"resolved", reason:$reason}]'
+}
+
+# --- local HelixLLM PATH-detection (router + native transports) --------------
+# HelixLLM Go binary serves an OpenAI-compatible /v1 (port 18435) for the
+# cloud-fallback chain AND an Anthropic-compatible /v1/messages endpoint on the
+# same host:port for the native transport. Both are registered as separate
+# provider aliases so the operator can choose the CCR-routed chain OR the direct
+# Anthropic-native path per session.
+#
+# helixllm-gateway: transport=router, base_url=http://127.0.0.1:18435/v1
+# helixagent-native: transport=native, base_url=http://127.0.0.1:18435
+# (Anthropic-compatible /v1/messages, bypasses CCR entirely)
+#
+# Pins are loaded from providers/helixllm-gateway.json and
+# providers/helixagent-native.json respectively. Process-env vars prefixed
+# CMA_HELIXLLM_GW_* / CMA_HELIXLLM_NATIVE_* override the pins, then fall
+# back to built-in defaults. Both share the same upstream binary; two records
+# are emitted so the sync pipeline creates two distinct aliases.
+detect_helixllm_records() {
+  local _ljson="${CMA_HELIXLLM_PINS_FILE:-$LIB_DIR/providers/helixllm-gateway.json}"
+  local _njson="${CMA_HELIXLLM_NATIVE_PINS_FILE:-$LIB_DIR/providers/helixagent-native.json}"
+
+  # --- helixllm-gateway pins ------------------------------------------------
+  local _lgw_bin="" _lgw_id="" _lgw_base="" _lgw_transport="" _lgw_strong="" _lgw_fast="" _lgw_keyvar="" _lgw_ctx="" _lgw_out=""
+  if [[ -f "$_ljson" ]] && command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        bin)           _lgw_bin="$_v" ;;
+        id)            _lgw_id="$_v" ;;
+        base_url)      _lgw_base="$_v" ;;
+        transport)     _lgw_transport="$_v" ;;
+        strong_model)  _lgw_strong="$_v" ;;
+        fast_model)    _lgw_fast="$_v" ;;
+        key_var)       _lgw_keyvar="$_v" ;;
+        context_limit) _lgw_ctx="$_v" ;;
+        max_output)    _lgw_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_ljson" 2>/dev/null)
+  fi
+  # Defaults (only used when the pins file is absent or a field is missing)
+  : "${_lgw_bin:=helixllm}"
+  : "${_lgw_id:=helixllm-gateway}"
+  : "${_lgw_base:=http://127.0.0.1:18435/v1}"
+  : "${_lgw_transport:=router}"
+  : "${_lgw_strong:=helixllm-multi}"
+  : "${_lgw_fast:=helixllm-multi}"
+  : "${_lgw_keyvar:=HELIXLLM_GATEWAY_KEY}"
+  : "${_lgw_ctx:=229376}"
+  : "${_lgw_out:=8192}"
+
+  # --- helixagent-native pins -----------------------------------------------
+  local _lnat_bin="" _lnat_id="" _lnat_base="" _lnat_transport="" _lnat_strong="" _lnat_fast="" _lnat_keyvar="" _lnat_ctx="" _lnat_out=""
+  if [[ -f "$_njson" ]] && command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        bin)           _lnat_bin="$_v" ;;
+        id)            _lnat_id="$_v" ;;
+        base_url)      _lnat_base="$_v" ;;
+        transport)     _lnat_transport="$_v" ;;
+        strong_model)  _lnat_strong="$_v" ;;
+        fast_model)    _lnat_fast="$_v" ;;
+        key_var)       _lnat_keyvar="$_v" ;;
+        context_limit) _lnat_ctx="$_v" ;;
+        max_output)    _lnat_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_njson" 2>/dev/null)
+  fi
+  : "${_lnat_bin:=helixllm}"
+  : "${_lnat_id:=helixagent-native}"
+  : "${_lnat_base:=http://127.0.0.1:18435}"
+  : "${_lnat_transport:=native}"
+  : "${_lnat_strong:=helixllm-multi}"
+  : "${_lnat_fast:=helixllm-multi}"
+  : "${_lnat_keyvar:=HELIXLLM_GATEWAY_KEY}"
+  : "${_lnat_ctx:=229376}"
+  : "${_lnat_out:=8192}"
+
+  # Gate: register BOTH providers when EITHER the helixllm binary is on PATH
+  # OR the pins files exist (opt-in via tracked config, Variant B).
+  if ! command -v "$_lgw_bin" >/dev/null 2>&1 && [[ ! -f "$_ljson" ]] && [[ ! -f "$_njson" ]]; then
+    printf '[]\n'; return 0
+  fi
+
+  local _l_reason="helixllm-gateway detected via pins-file"
+  if command -v "$_lgw_bin" >/dev/null 2>&1; then
+    _l_reason="helixllm-gateway detected on PATH"
+  fi
+  local _n_reason="helixagent-native detected via pins-file"
+  if command -v "$_lnat_bin" >/dev/null 2>&1; then
+    _n_reason="helixagent-native detected on PATH"
+  fi
+
+  # Emit TWO records — one for the CCR-routed gateway, one for the native path.
+  jq -n \
+    --arg gw_keyvar "$_lgw_keyvar" --arg gw_pid "$_lgw_id" --arg gw_alias "$_lgw_id" \
+    --arg gw_base "$_lgw_base" --arg gw_transport "$_lgw_transport" \
+    --arg gw_strong "$_lgw_strong" --arg gw_fast "$_lgw_fast" \
+    --arg gw_reason "$_l_reason" \
+    --argjson gw_ctx "${_lgw_ctx:-null}" --argjson gw_out "${_lgw_out:-null}" \
+    --arg nat_keyvar "$_lnat_keyvar" --arg nat_pid "$_lnat_id" --arg nat_alias "$_lnat_id" \
+    --arg nat_base "$_lnat_base" --arg nat_transport "$_lnat_transport" \
+    --arg nat_strong "$_lnat_strong" --arg nat_fast "$_lnat_fast" \
+    --arg nat_reason "$_n_reason" \
+    --argjson nat_ctx "${_lnat_ctx:-null}" --argjson nat_out "${_lnat_out:-null}" \
+    '[{key_var:$gw_keyvar, classification:"llm", provider_id:$gw_pid, alias:$gw_alias,
+       base_url:$gw_base, transport:$gw_transport, strong_model:$gw_strong,
+       fast_model:$gw_fast, context_limit:$gw_ctx, max_output:$gw_out,
+       status:"resolved", reason:$gw_reason},
+      {key_var:$nat_keyvar, classification:"llm", provider_id:$nat_pid, alias:$nat_alias,
+       base_url:$nat_base, transport:$nat_transport, strong_model:$nat_strong,
+       fast_model:$nat_fast, context_limit:$nat_ctx, max_output:$nat_out,
+       status:"resolved", reason:$nat_reason}]'
 }
 
 # --- local Kimi Code OAuth PATH-detection -----------------------------------
@@ -474,13 +588,17 @@ resolve_records() {
   if ! printf '%s' "$extra_kc" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_kimicode_record produced no/invalid JSON output"
   fi
-  # Merge all three sources, deduped by provider_id. The Kimi Code OAuth
+  extra_hl="$(detect_helixllm_records)" || true
+  if ! printf '%s' "$extra_hl" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_helixllm_records produced no/invalid JSON output"
+  fi
+  # Merge all four sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
-  # records still win over HelixAgent PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" '
-    ($e2 + $base + $e1) | unique_by(.provider_id)
+  # records still win over local PATH-detection. First occurrence wins.
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" '
+    ($e2 + $base + $e3 + $e1) | unique_by(.provider_id)
   '
 }
 

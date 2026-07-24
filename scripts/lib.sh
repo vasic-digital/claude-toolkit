@@ -1739,6 +1739,30 @@ cma_run_provider() {
       { exec 9>&-; } 2>/dev/null || true
       return 0
     }
+    # Mutual exclusion for every read-modify-write touching THIS alias's
+    # config.json below — the stale-fossil reap, the main route upsert, and
+    # _cma_ccr_unfossilise. Two CONCURRENT cma_run_provider launches of the
+    # SAME provider id both touch the same per-alias $cfg; without a lock the
+    # classic lost update is live: launch A rewrites config.json with provider
+    # route A, launch B — already holding a snapshot read BEFORE A's write —
+    # rewrites it with provider route B, silently dropping A's entire config.
+    # This is the race fixed by this lock.
+    _cma_cfg_lock() {
+      local _lock="$1.lock"
+      command -v flock >/dev/null 2>&1 || return 0
+      { exec 10>>"$_lock"; } 2>/dev/null || return 0
+      flock -w 5 10 2>/dev/null || {
+        command -v cma_log >/dev/null 2>&1 \
+          && cma_log "cfg-lock: 5s timeout on ${_lock} — proceeding unlocked (best-effort)"
+        true
+      }
+      return 0
+    }
+    _cma_cfg_unlock() {
+      flock -u 10 2>/dev/null || true
+      { exec 10>&-; } 2>/dev/null || true
+      return 0
+    }
     if command -v jq >/dev/null 2>&1; then
       _prior_default="$(jq -r '.Router.default // ""' "$cfg" 2>/dev/null || printf '')"
       _prior_background="$(jq -r '.Router.background // ""' "$cfg" 2>/dev/null || printf '')"
@@ -1775,6 +1799,7 @@ cma_run_provider() {
         done < <(jq -r 'keys[]?' "$_eph_marker" 2>/dev/null)
         if [[ "$_rv_dead" != "[]" ]]; then
           _rv_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_rv_tmp" 2>/dev/null
+          _cma_cfg_lock "$cfg"
           if [[ -n "$_rv_tmp" ]] && jq --argjson dead "$_rv_dead" --slurpfile mk "$_eph_marker" '
                 .Providers = [ .Providers[]? as $p
                   | ($mk[0][$p.name] // null) as $m
@@ -1787,6 +1812,7 @@ cma_run_provider() {
           else
             [[ -n "$_rv_tmp" ]] && rm -f "$_rv_tmp"
           fi
+          _cma_cfg_unlock
           _rv_tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX" 2>/dev/null)" && chmod 600 "$_rv_tmp" 2>/dev/null
           if [[ -n "$_rv_tmp" ]] && jq --argjson dead "$_rv_dead" 'delpaths([$dead[] | [.]])' \
                 "$_eph_marker" >| "$_rv_tmp" 2>/dev/null && [[ -s "$_rv_tmp" ]]; then
@@ -1816,6 +1842,7 @@ cma_run_provider() {
       [[ -n "$_u_eph" ]] || return 0          # no proxy ran => nothing fossilised
       [[ -f "$_u_cfg" ]] || return 0
       command -v jq >/dev/null 2>&1 || return 0
+      _cma_cfg_lock "$_u_cfg"
       local _u_addr_now _u_def_now _u_bg_now _u_mine=0 _u_tmp
       _u_addr_now="$(jq -r --arg n "$_u_n" \
         '[.Providers[]?|select(.name==$n)|.api_base_url][0] // ""' "$_u_cfg" 2>/dev/null || printf '')"
@@ -1848,6 +1875,7 @@ cma_run_provider() {
       else
         rm -f "$_u_tmp"
       fi
+      _cma_cfg_unlock
       # Drop our marker entry last: until here it is the crash-recovery record.
       # Locked (§11.4.180/marker-lost-update hardening): _u_marker is derived
       # from $_eph_marker by the caller and $_eph_lock is visible here via the
@@ -1965,6 +1993,14 @@ cma_run_provider() {
       _route_msg="jq is not on PATH, so the ccr route cannot be written"
     else
       local tmp; tmp="$(mktemp "${TMPDIR:-/tmp}/cma.XXXXXX")"; chmod 600 "$tmp" 2>/dev/null || true
+      # Lock the config.json read-modify-write against concurrent launches of
+      # the SAME provider id. Two launches that both read the config before
+      # either writes it will each produce a rewrite from the same stale
+      # snapshot — the second mv silently overwrites the first, and the first
+      # launch's provider route is lost. The per-alias config is isolated
+      # ($cfg = $_ccr_home/config.json, one per provider-id), so the lock
+      # targets only this config's own file.
+      _cma_cfg_lock "$cfg"
       # Pass the secret through the environment ($ENV.tok), never as a jq argv
       # argument — argv is visible in ps/proc to other local users.
       # `>|` (force-clobber), NOT `>`: cma_run_provider runs in the user's
@@ -1986,14 +2022,17 @@ cma_run_provider() {
         rm -f "$tmp"
         _route_err=1
         _route_msg="the jq rewrite of $cfg failed (rc=$_jq_rc)${_jq_err:+: $_jq_err}"
+        _cma_cfg_unlock
       else
         _mv_err="$(command mv -f "$tmp" "$cfg" 2>&1)"; _mv_rc=$?
         if (( _mv_rc != 0 )); then
           rm -f "$tmp"
           _route_err=1
           _route_msg="installing the rewritten $cfg failed (mv rc=$_mv_rc)${_mv_err:+: $_mv_err}"
+          _cma_cfg_unlock
         else
           chmod 600 "$cfg" 2>/dev/null || true
+          _cma_cfg_unlock
           # Remember exactly what WE wrote, so the exit repair can compare-and-swap
           # instead of clobbering a newer launch's route.
           _wrote_default="$CMA_PROVIDER_ID,$CMA_PROVIDER_MODEL"
