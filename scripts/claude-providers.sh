@@ -69,11 +69,14 @@ usage() {
 Usage: claude-providers [SUBCOMMAND] [options]
 
 Subcommands:
-  sync                 (default) discover + create/refresh all provider aliases,
-                       then verify FREE-tier models per provider and create
+  sync [<id>]          (default) discover + create/refresh all provider aliases,
+                       or just the named provider if <id> is given.
+                       Then verify FREE-tier models per provider and create
                        per-model aliases (paid models are NEVER probed by
                        default — see --include-paid; CMA_SYNC_MULTI=0 skips
-                       the per-model phase)
+                       the per-model phase).  When a provider <id> is given
+                       only the base alias is synced (the per-model phase
+                       is not run).
   sync --multi         run ONLY the per-model multi-alias phase (free-tier
                        by default; add --include-paid to probe paid models)
   list                 list only VALIDATED + VERIFIED provider aliases
@@ -616,6 +619,7 @@ cma_demote_orphans() {
 
 # --- subcommand: sync -------------------------------------------------------
 cmd_sync() {
+  local _filter="${1:-}"
   # Fail fast + clearly if the keys file is a directory (present_key_vars also warns,
   # but it runs in a subshell so its die can't abort the main sync — v1.12.1 5a).
   [[ -d "$CMA_KEYS_FILE" ]] && cma_die "keys file is a directory, not a file: $CMA_KEYS_FILE (pass a file with --keys-file)"
@@ -637,6 +641,16 @@ cmd_sync() {
   cma_log "discovered $total key vars; $resolved resolve to a provider"
   local resolved_ids
   resolved_ids="$(jq -r '[.[] | select(.status=="resolved") | .provider_id] | unique | join(" ")' <<<"$records")"
+
+  if [[ -n "$_filter" ]]; then
+    local _match_count
+    _match_count="$(jq --arg f "$_filter" '[.[] | select(.provider_id == $f or .alias == $f)] | length' <<<"$records")"
+    if (( _match_count == 0 )); then
+      cma_die "no provider matching '$_filter' found (check with: claude-providers list)"
+    fi
+    records="$(jq --arg f "$_filter" '[.[] | select(.provider_id == $f or .alias == $f)]' <<<"$records")"
+    cma_log "filtered to provider '$_filter' ($_match_count record(s))"
+  fi
 
   # Always-on plugins (additive union) — once, before per-provider work.
   if (( ! DRY_RUN )); then
@@ -1203,8 +1217,11 @@ case "$SUBCMD" in
   # (§11.4.196(F) CONFIGURED != IN USE). `sync --multi` runs ONLY the
   # per-model phase (its pre-D14 shape); CMA_SYNC_MULTI=0 restores the
   # legacy single-alias-only default.
-  sync)        if (( MULTI )); then cmd_sync_multi
-               else cmd_sync; if (( CMA_SYNC_MULTI )); then cmd_sync_multi; fi; fi ;;
+  sync)        if (( MULTI )); then cmd_sync_multi "${POSITIONAL[@]:-}"
+               else
+                 cmd_sync "${POSITIONAL[0]:-}"
+                 if (( CMA_SYNC_MULTI )) && [[ -z "${POSITIONAL[0]:-}" ]]; then cmd_sync_multi; fi
+               fi ;;
   list)        cmd_list ;;
   list-all)    cmd_list_all ;;
   list-faulty) cmd_list_faulty ;;

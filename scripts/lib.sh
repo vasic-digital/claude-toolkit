@@ -1576,7 +1576,38 @@ cma_run_provider() {
     # Upsert THIS provider into ccr config with the live key (regenerated each
     # launch, chmod 600 — never stored by the toolkit), set it as the active
     # route, then launch through ccr.
-    local cfg="$HOME/.claude-code-router/config.json" base="$CMA_PROVIDER_BASE_URL"
+    #
+    # Per-alias port isolation (Defect 3 architecture fix): every router-type
+    # provider alias gets its OWN ccr gateway instance on a unique port, so
+    # concurrent aliases never compete for one config.json and no alias
+    # silently inherits another's route.
+    #   - CMA_CCR_PORT in the provider's .env assigns a pinned port.
+    #   - When unset, we allocate a unique port deterministically from the
+    #     provider id (base_port + hash), so the same alias always gets the
+    #     same port and its own ccr instance survives across launches.
+    #   - Per-alias config lives under ~/.claude-code-router/<provider-id>/
+    #     so each alias has its own CCR_HOME with its own pidfile, config.json,
+    #     and service.log — fully isolated from every other alias.
+    local _ccr_port="${CMA_CCR_PORT:-}"
+    if [[ -z "$_ccr_port" ]]; then
+      # Deterministic port from the provider name: hash the id into a port
+      # offset from base 3460, bounded to [3460, 3559] (100 ports).
+      local _ccr_hash=0 _ccr_c _ccr_i=0
+      while (( _ccr_i < ${#CMA_PROVIDER_ID} )); do
+        _ccr_c="$(printf '%d' "'${CMA_PROVIDER_ID:_ccr_i:1}")"; _ccr_hash=$(( (_ccr_hash * 31 + _ccr_c) & 0x7FFFFFFF )); _ccr_i=$((_ccr_i + 1))
+      done
+      _ccr_port=$(( 3460 + (_ccr_hash % 100) ))
+    fi
+    local _ccr_dir="$HOME/.claude-code-router"
+    # Per-alias config isolation: each router-type alias gets its OWN
+    # CCR_HOME directory so its pidfile (service.json), config.json, and
+    # service.log live under ~/.claude-code-router/<provider-id>/ instead
+    # of sharing the global ~/.claude-code-router/. This is load-bearing
+    # for concurrent aliases: a `ccr restart` for alias A must never see
+    # alias B's pidfile and kill its gateway. CCR_HOME is the Go router's
+    # override for config.Dir() (added for this fix).
+    local _ccr_home="$_ccr_dir/${CMA_PROVIDER_ID}"
+    local cfg="$_ccr_home/config.json" base="$CMA_PROVIDER_BASE_URL"
     # Self-reference guard: when THIS provider's base_url IS the ccr gateway
     # itself, there is no upstream to route to — upserting a provider whose
     # api_base_url is ccr registers a ccr->ccr self-loop.
@@ -1617,10 +1648,10 @@ cma_run_provider() {
       printf '  Repoint %s at its real backing endpoint (its pins file / CMA_PROVIDER_BASE_URL) and re-run:\n    claude-providers sync\n' "$id" >&2
       return 78
     fi
-    # Create the dir + config with restrictive perms from the start: this file
-    # will hold the live API key, so it must never be group/world readable,
-    # even transiently or if a later jq rewrite fails.
-    ( umask 077; mkdir -p "$HOME/.claude-code-router"
+    # Create the per-alias config dir + config with restrictive perms from the
+    # start: this file will hold the live API key, so it must never be
+    # group/world readable, even transiently or if a later jq rewrite fails.
+    ( umask 077; mkdir -p "$_ccr_home"
       [[ -f "$cfg" ]] || echo '{"Providers":[],"Router":{}}' > "$cfg" )
     chmod 600 "$cfg" 2>/dev/null || true
     case "$base" in
@@ -1812,7 +1843,7 @@ cma_run_provider() {
         # ONLY when the route was still ours: restarting while ANOTHER launch
         # owns the route would drop that launch's in-flight requests.
         if [[ "$_u_mine" == "1" && -n "$_ccr" && -x "$_ccr" ]]; then
-          "$_ccr" restart >/dev/null 2>&1 || true
+          CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" >/dev/null 2>&1 || true
         fi
       else
         rm -f "$_u_tmp"
@@ -1943,8 +1974,7 @@ cma_run_provider() {
       local _jq_err _jq_rc _mv_err _mv_rc _rst_out _rst_rc
       _jq_err="$(CMA_TOK="$token" jq --arg n "$CMA_PROVIDER_ID" --arg u "$base" \
             --arg s "$CMA_PROVIDER_MODEL" --arg f "${CMA_PROVIDER_FAST_MODEL:-$CMA_PROVIDER_MODEL}" '
-          .Providers = ([ .Providers[]? | select(.name != $n) ]
-            + [{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f],
+          .Providers = ([{name:$n, api_base_url:$u, api_key:$ENV.CMA_TOK, models:[$s,$f],
                 transformer:{use:["cleancache","streamoptions"]}}])
           | .Router.default = ($n + "," + $s)
           | .Router.background = ($n + "," + $f)
@@ -1990,10 +2020,10 @@ cma_run_provider() {
             fi
             _cma_eph_unlock
           fi
-          # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
-          # Its failure means the file is right and the gateway is still wrong —
-          # the most dangerous state of all, and the one `|| true` used to hide.
-          _rst_out="$("$_ccr" restart 2>&1)"; _rst_rc=$?
+           # `ccr restart` is what makes the write LIVE (service.go:cmdRestart).
+           # Its failure means the file is right and the gateway is still wrong —
+           # the most dangerous state of all, and the one `|| true` used to hide.
+           _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" 2>&1)"; _rst_rc=$?
           if (( _rst_rc != 0 )); then
             # SELF-HEAL the commonest cause. A "Profile … not found or is
             # disabled" reply means ccr parsed 'restart' as a profile NAME — the
@@ -2013,7 +2043,7 @@ cma_run_provider() {
                     && cma_log "bundled ccr is stale (no 'restart' subcommand) — rebuilding once via claude-ccr-build …" \
                     || printf 'claude-providers: bundled ccr is stale — rebuilding it once (this may take ~30s) …\n' >&2
                   claude-ccr-build >/dev/null 2>&1 || true
-                  _rst_out="$("$_ccr" restart 2>&1)"; _rst_rc=$?
+                  _rst_out="$(CCR_HOME="$_ccr_home" "$_ccr" restart --gateway-port "$_ccr_port" 2>&1)"; _rst_rc=$?
                 fi ;;
             esac
           fi
@@ -2051,7 +2081,7 @@ cma_run_provider() {
         "$_eph_marker"
       return 78
     fi
-    "$_ccr" default-claude-code -- "$@"; rc=$?
+    CCR_HOME="$_ccr_home" "$_ccr" default-claude-code -- "$@"; rc=$?
     # Stop proxy if we started one
     if [[ -n "$_proxy_pid" ]]; then
       kill "$_proxy_pid" 2>/dev/null || true
