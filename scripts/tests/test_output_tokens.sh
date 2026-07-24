@@ -50,7 +50,7 @@ FAKEBIN="$HOME/fakebin"; mkdir -p "$FAKEBIN"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
-  --help|-h|help) echo "Usage: ccr start [--host <host>] [--port <port>]"; echo "  ccr serve [--host <host>] [--port <port>]"; exit 0 ;;
+  --help|-h|help) echo "Usage: ccr start [--host <host>] [--port <port>]"; echo "  ccr serve [--host <host>] [--port <port>]"; echo "  ccr restart [--host <host>] [--port <port>]"; exit 0 ;;
   code|default-claude-code) shift; env | grep -E '^CLAUDE_CODE_MAX_OUTPUT_TOKENS=' > "$REC_ENV_OUT" || true; exit 0 ;;
   start|ui|serve|web|stop|restart|config) exit 0 ;;
   *) printf 'fake-ccr: unexpected subcommand %s — not implemented by the bundled Go router\n' "${1:-<none>}" >&2; exit 2 ;;
@@ -185,14 +185,17 @@ out="$( ( set +eu; ACME_KEY=sk-test PATH="$FAKEBIN:/usr/bin:/bin" cma_run_provid
 assert_eq 127 "$rc" "foreign ccr refused (rc 127)"
 case "$out" in *"claude-ccr-build"*) ok=0 ;; *) ok=1 ;; esac
 assert_eq 0 "$ok" "refusal points at claude-ccr-build (the bundled Go router), not npm"
-# Full replacement: the guard must no longer advertise the JS/Node router.
-case "$out" in *"npm install"*|*"@musistudio"*) ok_js=1 ;; *) ok_js=0 ;; esac
+# Full replacement: the guard must no longer point operators at the JS/Node npm
+# router as the fix (the old "install @musistudio/claude-code-router" message).
+# A removal instruction ("npm rm -g @musistudio/...") is acceptable — it tells the
+# operator how to remove the doppelganger that shadows the bundled Go router.
+case "$out" in *"npm install"*) ok_js=1 ;; *) ok_js=0 ;; esac
 assert_eq 0 "$ok_js" "refusal no longer advertises the JS npm router (Go fully replaces JS)"
 
 it "ccr identity guard: the real claude-code-router passes"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; exit 0; fi
+if [[ "${1:-}" == "--help" ]]; then echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; echo "  ccr restart [--host <host>]"; exit 0; fi
 case "${1:-}" in
   -h|help) exit 0 ;;
   code|default-claude-code) shift; env | grep -E '^CLAUDE_CODE_MAX_OUTPUT_TOKENS=' > "$REC_ENV_OUT" || true; exit 0 ;;

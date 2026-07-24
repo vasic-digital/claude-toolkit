@@ -126,20 +126,22 @@ grep -q '^default-claude-code$' "$goodlog"; assert_eq 0 $? "bundled ccr received
 it "the shadowed launch exits 0 (the alias works end-to-end)"
 assert_eq 0 "$rcS" "cma_run_provider returned success"
 
-# ── Scenario B: bundled install ABSENT → PATH fallback still works ──
+# ── Scenario B: bundled install ABSENT → PATH fallback fails at identity gate ──
 # Remove the bundled stub; the doppelgänger is now the only ccr. The wrapper
-# must fall back to PATH (last resort) and, on the no-restart shape, walk the
-# existing self-heal (rebuild is stubbed and cannot help) into the actionable
-# fail-closed refusal — the pre-existing behavior for a genuinely absent
-# bundled router must not regress.
+# falls back to PATH (last resort) and the tightened identity gate (audit I3,
+# §11.4.201(7)(a)) correctly identifies the doppelgänger as NOT ours — it lacks
+# `ccr restart` in --help. Since the resolved binary is a PATH fallback, not the
+# stable install path, the identity-level self-heal does NOT fire; the refusal is
+# fail-closed with an actionable message. The pre-existing behaviour for a
+# genuinely absent bundled router must not regress.
 rm -f "$SANDBOX_HOME/.local/bin/ccr"
 : > "$shadowlog"; : > "$cbuild_log"
 outB="$( set +eu; cma_run_provider testrtr -p hi 2>&1 )"; rcB=$?
 
-it "with no bundled install, PATH fallback is used (doppelgänger sees the restart)"
-grep -q '^restart$' "$shadowlog"; assert_eq 0 $? "fallback resolution reached the PATH ccr"
+it "with no bundled install, PATH fallback reaches the doppelgänger for identity probe"
+grep -q '^--help$' "$shadowlog"; assert_eq 0 $? "fallback resolution probed the PATH ccr's --help"
 
-it "and the no-restart shape still refuses fail-closed with the actionable hint"
+it "the doppelgänger is refused at the identity gate (no 'ccr restart' in --help)"
 [ "$rcB" -ne 0 ]; assert_eq 0 $? "refused (non-zero) rather than serving the wrong model"
 grep -q 'claude-ccr-build' <<<"$outB"; assert_eq 0 $? "operator told how to (re)build the bundled router"
 

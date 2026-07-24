@@ -1560,18 +1560,35 @@ cma_run_provider() {
       printf 'claude-providers: provider %s needs claude-code-router (the `ccr` gateway).\n  Build the bundled Go router: claude-ccr-build\n' "$id" >&2
       return 127
     fi
-    # Identity check (live issue 2026-07-18, revised 2026-07-19): a
-    # DIFFERENT tool named ccr (e.g. CCS's profile manager, `ccs`) fails
-    # cryptically downstream — "Profile 'code' was not found or is
-    # disabled" — because `ccr code` to it means "launch profile 'code'".
-    # The current ccr CLI has no `version` subcommand (positional args are
-    # profile names), so we identify via --help, which shows the
-    # distinctive "ccr start" / "ccr serve" router commands.
-    local _ccr_help; _ccr_help="$("$_ccr" --help 2>&1 | head -10)"
+    # Identity check: the bundled Go router MUST advertise `ccr restart` in its
+    # --help. `ccr start`/`ccr serve` are CARRIER matches — the npm
+    # @musistudio/claude-code-router also prints them — and the `restart`
+    # subcommand is exactly what the npm build lacks and what makes route-apply
+    # work (§11.4.201(7)(a) match STRUCTURE, not a substring a carrier also
+    # carries). A binary at the stable install path that lacks it is STALE (built
+    # before `restart` existed); trigger a rebuild. A binary found via PATH
+    # fallback that lacks it is NOT ours — refuse cleanly (audit I3, 2026-07-23).
+    local _ccr_help; _ccr_help="$("$_ccr" --help 2>&1 | head -20)"
     case "$_ccr_help" in
-      *"ccr start"*|*"ccr serve"*) ;;
-      *) printf 'claude-providers: resolved ccr (%s) is not the bundled claude-code-router (found: "%s").\n  Fix the install, remove the shadowing ccr, or (re)build the bundled Go router: claude-ccr-build\n' "$_ccr" "$_ccr_help" >&2
-         return 127 ;;
+      *"ccr restart"*) ;;
+      *)
+        if [[ "$_ccr" == "$HOME/.local/bin/ccr" ]] && command -v claude-ccr-build >/dev/null 2>&1; then
+          command -v cma_log >/dev/null 2>&1 \
+            && cma_log "bundled ccr lacks 'ccr restart' in --help — rebuilding via claude-ccr-build …" \
+            || printf 'claude-providers: bundled ccr lacks the required "restart" subcommand — rebuilding …\n' >&2
+          claude-ccr-build >/dev/null 2>&1 || true
+          _ccr_help="$("$_ccr" --help 2>&1 | head -20)"
+          case "$_ccr_help" in
+            *"ccr restart"*) ;; # OK after rebuild
+            *)
+              printf 'claude-providers: the bundled ccr at %s still lacks the "restart" subcommand after a rebuild.\n  Rebuild manually and retry: claude-ccr-build\n' "$_ccr" >&2
+              return 127 ;;
+          esac
+        else
+          printf 'claude-providers: resolved ccr (%s) is not the bundled claude-code-router.\n  Its --help does not show the "ccr restart" subcommand that the bundled Go router has.\n  Fix: claude-ccr-build   (builds and installs the bundled router at %s)\n  If an EARLIER PATH ccr shadows the bundled one, remove it:\n    npm rm -g @musistudio/claude-code-router\n' "$_ccr" "$HOME/.local/bin/ccr" >&2
+          return 127
+        fi
+        ;;
     esac
     # Upsert THIS provider into ccr config with the live key (regenerated each
     # launch, chmod 600 — never stored by the toolkit), set it as the active

@@ -59,7 +59,7 @@ FAKEBIN="$HOME/fakebin"; mkdir -p "$FAKEBIN"
 cat > "$FAKEBIN/ccr" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
-  --help|-h|help) echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; exit 0 ;;
+  --help|-h|help) echo "Usage: ccr start [--host <host>]"; echo "  ccr serve [--host <host>]"; echo "  ccr restart [--host <host>]"; exit 0 ;;
   code|default-claude-code) shift; printf '%s\n' "$*" > "$REC_ARGS_OUT"; exit 0 ;;
   start|ui|serve|web|stop|restart|config) exit 0 ;;
   *) printf 'fake-ccr: unexpected subcommand %s — not implemented by the bundled Go router\n' "${1:-<none>}" >&2; exit 2 ;;

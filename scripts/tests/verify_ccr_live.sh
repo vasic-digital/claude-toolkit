@@ -138,8 +138,8 @@ assert_symlink_to "$CCR" "$SUBMODULE_BIN" "temp ccr -> submodule bin/ccr"
 HELP="$("$CCR" --help 2>&1 | head -20)"
 { echo "--- ccr --help (head) ---"; printf '%s\n' "$HELP"; } >> "$PROOF"
 case "$HELP" in
-  *"ccr serve"*|*"ccr start"*) _pass "--help shows the router commands (ccr start/serve)" ;;
-  *) _fail "--help missing router grammar" "no 'ccr start'/'ccr serve' in --help" ;;
+  *"ccr restart"*) _pass "--help shows the bundled router discriminator (ccr restart)" ;;
+  *) _fail "--help missing router grammar" "no 'ccr restart' in --help" ;;
 esac
 
 # ---------------------------------------------------------------------------

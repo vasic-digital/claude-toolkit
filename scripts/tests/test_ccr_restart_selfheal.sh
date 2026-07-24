@@ -47,10 +47,17 @@ sandbox_stub "$SANDBOX_HOME/.local/bin/ccr" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$1" >> "$ccrlog"
 case "\$1" in
-  # A STALE bundled router: its --help HAS 'ccr start' (passes the identity gate)
-  # but the OLD build lacks the 'restart' subcommand, so it treats 'restart' as a
-  # profile name — exactly the field failure. A rebuild (marker) adds 'restart'.
-  --help) printf 'Usage:\n  ccr start [...]\n  ccr serve [...]\n  ccr stop\n'; exit 0 ;;
+  # A STALE bundled router: its --help LACKS 'ccr restart' (the audit I3
+  # discriminator) and the OLD build treats 'restart' as a profile name —
+  # exactly the field failure. A rebuild (marker) ADDS 'ccr restart' to the help
+  # AND adds the 'restart' subcommand so both the identity gate and the route
+  # apply pass.
+  --help)
+    if [ -f "$marker" ]; then
+      printf 'Usage:\n  ccr start [...]\n  ccr serve [...]\n  ccr restart [...]\n  ccr stop\n'; exit 0
+    else
+      printf 'Usage:\n  ccr start [...]\n  ccr serve [...]\n  ccr stop\n'; exit 0
+    fi ;;
   restart)
     if [ -f "$marker" ]; then echo "ccr started (pid 1)"; exit 0
     else echo 'Profile "restart" was not found or is disabled.'; exit 1; fi ;;
@@ -85,11 +92,11 @@ export CLAUDE_BIN=/usr/bin/true
 : > "$ccrlog"; : > "$cbuild_log"; rm -f "$marker"
 outA="$( set +eu; cma_run_provider testrtr -p hi 2>&1 )"; rcA=$?
 
-it "a stale ccr triggers an automatic claude-ccr-build (self-heal)"
-grep -q rebuild "$cbuild_log"; assert_eq 0 $? "claude-ccr-build invoked on the 'Profile … not found' shape"
+it "a stale ccr triggers an automatic claude-ccr-build at the identity gate (self-heal)"
+grep -q rebuild "$cbuild_log"; assert_eq 0 $? "claude-ccr-build invoked — the identity gate detected a stale binary lacking 'ccr restart'"
 
-it "ccr restart is retried after the rebuild (two restart calls, fail then succeed)"
-n="$(grep -c '^restart$' "$ccrlog")"; assert_eq 2 "$n" "restart called exactly twice"
+it "ccr restart succeeds after the identity-level self-heal (one restart call)"
+n="$(grep -c '^restart$' "$ccrlog")"; assert_eq 1 "$n" "restart called once — the identity-level self-heal rebuilt first, then restart succeeded"
 
 it "after a successful self-heal the launch is NOT refused"
 # here-string, not printf|grep -q: under pipefail grep -q closes the pipe on
@@ -122,7 +129,7 @@ it "the refusal is fail-closed (returns non-zero; does NOT serve the wrong model
 sandbox_stub "$SANDBOX_HOME/.local/bin/ccr" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
-  --help)  printf 'Usage:\n  ccr start\n  ccr serve\n'; exit 0 ;;
+  --help)  printf 'Usage:\n  ccr start\n  ccr serve\n  ccr restart\n'; exit 0 ;;
   restart) echo 'refusing to restart: CCR_API_KEYS is unset here'; exit 1 ;;
   *) exit 0 ;;
 esac
