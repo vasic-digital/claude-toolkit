@@ -2,7 +2,7 @@
 
 All notable changes to the Claude multi-account toolkit.
 
-## v1.26.0 — DRAFT (awaiting operator sign-off; no tag/release/push yet) — free-tier-first per-model aliases by default + dynamic account dispatch + provider-scoped gateway paths
+## v1.26.0 — 2026-07-24 — free-tier-first per-model aliases by default + dynamic account dispatch + provider-scoped gateway paths
 
 Minor release on top of v1.25.5 covering the ATM-850/851/852/853/860 defect batch (2026-07-23/24). Every fix carries RED-on-the-broken-artifact -> GREEN -> a paired §1.1 mutation observed to FAIL, plus live captured evidence where a live path exists (`qa-results/toolkit_defects_20260723/`).
 
