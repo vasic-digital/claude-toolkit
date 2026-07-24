@@ -1,0 +1,8 @@
+{
+  "id": "chutes",
+  "base_url": "https://llm.chutes.ai/v1",
+  "transport": "router",
+  "key_var": "CHUTES_API_KEY",
+  "context_limit": 262144,
+  "max_output": 65536
+}

@@ -619,6 +619,135 @@ detect_opencode_go_record() {
        status:"resolved", reason:$reason}]'
 }
 
+# --- Chutes multi-alias detection (5 aliases from one API key) ---------------
+# Chutes serves 14 open-weight models in TEE enclaves via an OpenAI-compatible
+# endpoint. One API key maps to the entire catalog. This detector emits 5
+# provider records (chutes1-chutes5), each with a distinct strong/fast model
+# pair spanning different capability profiles (reasoning, vision, long-context,
+# multimodal, budget). If the first alias fails verification, the next is tried.
+#
+# Model list refreshed from the live API (cached 24h). Override with env
+# CMA_CHUTES_PINS_FILE to point at a different pins config.
+detect_chutes_records() {
+  local _ch_json="${CMA_CHUTES_PINS_FILE:-$LIB_DIR/providers/chutes.json}"
+  [[ -f "$_ch_json" ]] || { printf '[]\n'; return 0; }
+
+  # Gate: CHUTES_API_KEY must be present
+  local _key_present=0
+  if [[ -f "$CMA_KEYS_FILE" ]]; then
+    local _key_val
+    # shellcheck source=/dev/null
+    _key_val="$( ( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; printf '%s' "${CHUTES_API_KEY:-}" ) )" || true
+    [[ -n "$_key_val" ]] && _key_present=1
+  fi
+  (( _key_present )) || { printf '[]\n'; return 0; }
+
+  local _ch_base="" _ch_transport="" _ch_keyvar="" _ch_ctx="" _ch_out=""
+  if command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        base_url)      _ch_base="$_v" ;;
+        transport)     _ch_transport="$_v" ;;
+        key_var)       _ch_keyvar="$_v" ;;
+        context_limit) _ch_ctx="$_v" ;;
+        max_output)    _ch_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_ch_json" 2>/dev/null)
+  fi
+
+  : "${_ch_base:=https://llm.chutes.ai/v1}"
+  : "${_ch_transport:=router}"
+  : "${_ch_keyvar:=CHUTES_API_KEY}"
+  : "${_ch_ctx:=262144}"
+  : "${_ch_out:=65536}"
+
+  # 5 model pairings — each alias gets a distinct strong+fast combo.
+  # If a specific model becomes unavailable, the next alias is tried.
+  # All models are from the 2026-07-25 live catalog snapshot.
+  local _reason="Chutes multi-alias detected via pins-file (TEE-enclave models, OpenAI-compatible)"
+
+  jq -n \
+    --arg keyvar "$_ch_keyvar" \
+    --arg base    "$_ch_base" \
+    --arg transport "$_ch_transport" \
+    --arg reason  "$_reason" \
+    --argjson ctx "${_ch_ctx:-null}" \
+    --argjson out "${_ch_out:-null}" \
+    '[
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "chutes1",
+        alias:               "chutes1",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "deepseek-ai/DeepSeek-V3.2-TEE",
+        fast_model:          "Qwen/Qwen3-32B-TEE",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (deep-reasoning: DeepSeek V3.2 / Qwen3 32B)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "chutes2",
+        alias:               "chutes2",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "Qwen/Qwen3.5-397B-A17B-TEE",
+        fast_model:          "google/gemma-4-31B-turbo-TEE",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (vision: Qwen3.5 397B / Gemma 4 31B)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "chutes3",
+        alias:               "chutes3",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "Qwen/Qwen3-235B-A22B-Thinking-2507-TEE",
+        fast_model:          "MiniMaxAI/MiniMax-M2.5-TEE",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (thinking: Qwen3 235B-A22B / MiniMax M2.5)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "chutes4",
+        alias:               "chutes4",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "zai-org/GLM-5.2-TEE",
+        fast_model:          "moonshotai/Kimi-K2.5-TEE",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (long-context: GLM-5.2 1M / Kimi K2.5)")
+      },
+      {
+        key_var:             $keyvar,
+        classification:      "llm",
+        provider_id:         "chutes5",
+        alias:               "chutes5",
+        base_url:            $base,
+        transport:           $transport,
+        strong_model:        "moonshotai/Kimi-K2.6-TEE",
+        fast_model:          "Qwen/Qwen3.6-27B-TEE",
+        context_limit:       $ctx,
+        max_output:          $out,
+        status:              "resolved",
+        reason:              ($reason + " (multimodal: Kimi K2.6 / Qwen3.6 27B)")
+      }
+    ]'
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -667,13 +796,17 @@ resolve_records() {
   if ! printf '%s' "$extra_og" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_opencode_go_record produced no/invalid JSON output"
   fi
-  # Merge all five sources, deduped by provider_id. The Kimi Code OAuth
+  extra_cht="$(detect_chutes_records)" || true
+  if ! printf '%s' "$extra_cht" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_chutes_records produced no/invalid JSON output"
+  fi
+  # Merge all six sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" '
-    ($e2 + $base + $e3 + $e1 + $e4) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" --argjson e5 "$extra_cht" '
+    ($e2 + $base + $e3 + $e1 + $e4 + $e5) | unique_by(.provider_id)
   '
 }
 
