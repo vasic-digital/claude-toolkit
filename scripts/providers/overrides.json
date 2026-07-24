@@ -16,8 +16,17 @@
     "fast_model": "mimo-v2.5"
   },
   "opencode": {
+    "transport": "router",
+    "base_url": "https://opencode.ai/zen/v1",
+    "alias": "opencode-zen",
     "strong_model": "big-pickle",
     "fast_model": "deepseek-v4-flash-free"
+  },
+  "opencode-go": {
+    "transport": "router",
+    "base_url": "https://opencode.ai/zen/go/v1",
+    "strong_model": "deepseek-v4-pro",
+    "fast_model": "deepseek-v4-flash"
   },
   "chutes": {
     "strong_model": "zai-org/GLM-5.2-TEE",

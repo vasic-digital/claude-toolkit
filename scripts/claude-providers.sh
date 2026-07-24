@@ -548,6 +548,77 @@ detect_kimicode_record() {
   ' | jq -s '.'
 }
 
+# --- OpenCode Go cloud-API detection -----------------------------------------
+# OpenCode Go is a subscription tier on top of the same Zen API key. It uses a
+# different base URL (https://opencode.ai/zen/go/v1) and serves a curated subset
+# of models distinct from the full Zen catalog. Detection gates on the tracked
+# pins file (providers/opencode-go.json) AND the Zen API key being present.
+# The key var is the SAME as Zen (ApiKey_Opencode_Zen) — both tiers share one
+# account key. Provider id is opencode-go to keep it distinct from opencode-zen
+# whose base record comes through the providers_resolve.py pipeline via the
+# opencode entry in overrides.json.
+#
+# transport = router: the /zen/go/v1/chat/completions endpoint is OpenAI-compatible.
+detect_opencode_go_record() {
+  local _og_json="${CMA_OPENCODE_GO_PINS_FILE:-$LIB_DIR/providers/opencode-go.json}"
+  [[ -f "$_og_json" ]] || { printf '[]\n'; return 0; }
+
+  # Lazy-validate: the key must be present. It is read BY NAME only (no indirect
+  # expansion needed here — the sync loop does that later). We source the keys
+  # file in a subshell and check for a non-empty value.
+  local _key_present=0
+  if [[ -f "$CMA_KEYS_FILE" ]]; then
+    local _key_val
+    # shellcheck source=/dev/null
+    _key_val="$( ( set +e; set -a +u; . "$CMA_KEYS_FILE" 2>/dev/null; set +a; printf '%s' "${ApiKey_Opencode_Zen:-}" ) )" || true
+    [[ -n "$_key_val" ]] && _key_present=1
+  fi
+  (( _key_present )) || { printf '[]\n'; return 0; }
+
+  local _og_bin="" _og_id="" _og_base="" _og_transport="" _og_strong="" _og_fast="" _og_keyvar="" _og_ctx="" _og_out=""
+  if command -v jq >/dev/null 2>&1; then
+    local _k _v
+    while IFS=$'\t' read -r _k _v; do
+      case "$_k" in
+        bin)           _og_bin="$_v" ;;
+        id)            _og_id="$_v" ;;
+        base_url)      _og_base="$_v" ;;
+        transport)     _og_transport="$_v" ;;
+        strong_model)  _og_strong="$_v" ;;
+        fast_model)    _og_fast="$_v" ;;
+        key_var)       _og_keyvar="$_v" ;;
+        context_limit) _og_ctx="$_v" ;;
+        max_output)    _og_out="$_v" ;;
+      esac
+    done < <(jq -r 'to_entries[] | [.key, (.value|tostring)] | @tsv' "$_og_json" 2>/dev/null)
+  fi
+
+  : "${_og_id:=opencode-go}"
+  : "${_og_base:=https://opencode.ai/zen/go/v1}"
+  : "${_og_transport:=router}"
+  : "${_og_strong:=deepseek-v4-pro}"
+  : "${_og_fast:=deepseek-v4-flash}"
+  : "${_og_keyvar:=ApiKey_Opencode_Zen}"
+  : "${_og_ctx:=262144}"
+  : "${_og_out:=32768}"
+
+  jq -n \
+    --arg keyvar "$_og_keyvar" \
+    --arg pid     "$_og_id" \
+    --arg alias   "$_og_id" \
+    --arg base    "$_og_base" \
+    --arg transport "$_og_transport" \
+    --arg strong  "$_og_strong" \
+    --arg fast    "$_og_fast" \
+    --arg reason  "opencode-go detected via pins-file (same key as opencode-zen, Go subscription tier)" \
+    --argjson ctx "${_og_ctx:-null}" \
+    --argjson out "${_og_out:-null}" \
+    '[{key_var:$keyvar, classification:"llm", provider_id:$pid, alias:$alias,
+       base_url:$base, transport:$transport, strong_model:$strong,
+       fast_model:$fast, context_limit:$ctx, max_output:$out,
+       status:"resolved", reason:$reason}]'
+}
+
 resolve_records() {
   local keys; keys="$(present_key_vars | paste -sd, -)"
   local args=(--models-dev "$CACHE" --keys "$keys")
@@ -592,13 +663,17 @@ resolve_records() {
   if ! printf '%s' "$extra_hl" | jq -e 'type=="array"' >/dev/null 2>&1; then
     cma_die "detect_helixllm_records produced no/invalid JSON output"
   fi
-  # Merge all four sources, deduped by provider_id. The Kimi Code OAuth
+  extra_og="$(detect_opencode_go_record)" || true
+  if ! printf '%s' "$extra_og" | jq -e 'type=="array"' >/dev/null 2>&1; then
+    cma_die "detect_opencode_go_record produced no/invalid JSON output"
+  fi
+  # Merge all five sources, deduped by provider_id. The Kimi Code OAuth
   # detector records take PRECEDENCE over key-var records (an OAuth
   # subscription is the user's priority for kimi-for-coding; the API key
   # remains the fallback on hosts without the OAuth session). Resolver
   # records still win over local PATH-detection. First occurrence wins.
-  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" '
-    ($e2 + $base + $e3 + $e1) | unique_by(.provider_id)
+  jq -n --argjson base "$base_records" --argjson e1 "$extra" --argjson e2 "$extra_kc" --argjson e3 "$extra_hl" --argjson e4 "$extra_og" '
+    ($e2 + $base + $e3 + $e1 + $e4) | unique_by(.provider_id)
   '
 }
 
